@@ -72,7 +72,7 @@ my.example.genes <- c()
 # App info and settings
 ####################
 
-app.version <- "v0.3.0"
+app.version <- "v0.3.1"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -628,11 +628,11 @@ server <- function(input, output, session) {
 
       box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE, 
 	  column(width = 4, div(renderDT(datatable(df.parse, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE), selection = "none"), style = "font-size:105%")), 
+						   rownames = FALSE, selection = "none")), style = "font-size:105%")), 
 	  column(width = 5, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE), selection = "none"), style = "font-size:105%")), 
+						   rownames = FALSE, selection = "none")), style = "font-size:105%")), 
 	  column(width = 3, div(renderDT(datatable(df.wells, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE), selection = "none"), style = "font-size:105%"))
+						   rownames = FALSE, selection = "none")), style = "font-size:105%"))
       )
     }
   })
