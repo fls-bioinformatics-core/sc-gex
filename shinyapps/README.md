@@ -16,6 +16,7 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 | HDF5Array | Bioconductor |
 | htmlwidgets | CRAN |
 | pals | CRAN |
+| pheatmap | CRAN |
 | plotly | CRAN |
 | scater | Bioconductor |
 | shiny | CRAN |
