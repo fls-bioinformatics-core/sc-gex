@@ -1057,7 +1057,7 @@ server <- function(input, output, session) {
   # Print unexpressed genes to verbatimTextOutput()
   output$multi.not_expr <- renderPrint({
     res <- multi.compare.expr()
-    if(sum(res) > 0) {
+    if(sum(res == FALSE) > 0) {
       # Print names with quotes
       cat("Genes not expressed:", shQuote(names(res[res == FALSE])), "(not included in scaled plot)")
     } else {
