@@ -25,6 +25,12 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 | shinyWidgets | CRAN |
 | tidyr | CRAN |
 
+Set up a Shiny environment using `conda`:
+
+```
+conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap
+```
+
 ## Demo Site
 
 Accessible only within University of Manchester's network (or with UoM VPN)

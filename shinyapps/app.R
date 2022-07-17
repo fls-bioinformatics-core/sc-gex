@@ -72,7 +72,7 @@ my.example.genes <- c()
 # App info and settings
 ####################
 
-app.version <- "v0.3.1"
+app.version <- "v0.3.3"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -291,15 +291,17 @@ server <- function(input, output, session) {
     if(!"Barcode" %in% colnames(colData(sce))) sce$Barcode <- colnames(sce)
 
     # Encode vector as factor
-    colLabels(sce) <- if (is.factor(colLabels(sce))) droplevels(colLabels(sce)) else as.factor(colLabels(sce))
-    sce$Sample <- if (is.factor(sce$Sample)) droplevels(sce$Sample) else as.factor(sce$Sample)
-    sce$CellType <- if (is.factor(sce$CellType)) droplevels(sce$CellType) else as.factor(sce$CellType)
+    colLabels(sce) <- if(is.factor(colLabels(sce))) droplevels(colLabels(sce)) else as.factor(colLabels(sce))
+    sce$Sample <- if(is.factor(sce$Sample)) droplevels(sce$Sample) else as.factor(sce$Sample)
+    sce$CellType <- if("CellType" %in% colnames(colData(sce))) {
+      if(is.factor(sce$CellType)) droplevels(sce$CellType) else as.factor(sce$CellType)
+    } else colLabels(sce)
     sce$ClusterCellType <- if("ClusterCellType" %in% colnames(colData(sce))) { 
-      if (is.factor(sce$ClusterCellType)) droplevels(sce$ClusterCellType) else as.factor(sce$ClusterCellType)
+      if(is.factor(sce$ClusterCellType)) droplevels(sce$ClusterCellType) else as.factor(sce$ClusterCellType)
     } else "N/A"
 
     # Add log1p converted scores
-    if ("DoubletDensity" %in% colnames(colData(sce))) sce$DoubletDensity_log1p <- log1p(sce$DoubletDensity)
+    if("DoubletDensity" %in% colnames(colData(sce))) sce$DoubletDensity_log1p <- log1p(sce$DoubletDensity)
     sce
   })
 
@@ -401,7 +403,7 @@ server <- function(input, output, session) {
                  uiOutput("multi.menu.ui")
                ),
                column(width = 5,
-                 verbatimTextOutput("multi.n_matched"), verbatimTextOutput("multi.not_found")
+                 verbatimTextOutput("multi.n_matched"), verbatimTextOutput("multi.not_found"), verbatimTextOutput("multi.not_expr")
                )
             )
           )
@@ -508,12 +510,12 @@ server <- function(input, output, session) {
     sce.dimreds <- reducedDimNames(sce)
 
     # Default reducedDim to show
-    default.dimred <- if (default.dimred %in% sce.dimreds) default.dimred else if ("TSNE" %in% sce.dimreds) "TSNE" else tail(sce.dimreds, 1)
+    default.dimred <- if(default.dimred %in% sce.dimreds) default.dimred else if("TSNE" %in% sce.dimreds) "TSNE" else tail(sce.dimreds, 1)
 
     # Remove "color_by" elements not found in colData()
     sce.color_by <- default.color_by[default.color_by %in% colnames(colData(sce))]
 
-    if (any(grepl("merged", colnames(colData(sce))))) { # if integrated sce, show only "merged" clustering results
+    if(any(grepl("merged", colnames(colData(sce))))) { # if integrated sce, show only "merged" clustering results
       default.cluster.methods <- paste0("merged.", default.cluster.methods)
     }
     names(default.cluster.methods) <- default.cluster.methods.desc
@@ -526,8 +528,8 @@ server <- function(input, output, session) {
 
     # Determine the clustering method stored in colLabels
     default.cluster.method <- NULL
-    for (m in cluster.methods) {
-      if (identical(colData(sce)[, m], colLabels(sce))) default.cluster.method <- setNames(m, names(which(cluster.methods == m)))
+    for(m in cluster.methods) {
+      if(identical(colData(sce)[, m], colLabels(sce))) default.cluster.method <- setNames(m, names(which(cluster.methods == m)))
     }
 
     # Combine cell features and clustering methods for cell colouring
@@ -588,7 +590,7 @@ server <- function(input, output, session) {
         box(title = h3("No. of samples", style = "display:inline-block;font-size:20px;margin:0;font-weight:bold;"), 
 	    width = 12, status = "info", solidHeader = TRUE, style = "font-size: 30px; font-weight:bold;", length(sce.samples))),
       column(width = 4, align = "center", 
-        box(title = h3(paste0("No. of Clusters (based on ", names(default.cluster.method), ")"), 
+        box(title = h3(if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"), 
 		       style = "display:inline-block;font-size:20px;margin:0;font-weight:bold;"), 
 	    width = 12, status = "info", solidHeader = TRUE, style = "font-size: 30px; font-weight:bold;", length(sce.labels)))
     )
@@ -720,7 +722,8 @@ server <- function(input, output, session) {
       sliderInput("cell.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
       pickerInput("cell.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
         options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
-      pickerInput("cell.select_cluster", paste0("Select clusters (based on ", names(default.cluster.method), "):"),
+      pickerInput("cell.select_cluster", 
+		  if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
         choices = sce.labels, selected = sce.labels,
         options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
       pickerInput("cell.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
@@ -750,7 +753,8 @@ server <- function(input, output, session) {
       sliderInput("gene.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
       pickerInput("gene.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
         options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
-      pickerInput("gene.select_cluster", paste0("Select clusters (based on ", names(default.cluster.method), "):"),
+      pickerInput("gene.select_cluster", 
+		  if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
         choices = sce.labels, selected = sce.labels,
         options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
       pickerInput("gene.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
@@ -867,7 +871,7 @@ server <- function(input, output, session) {
 				 "<b>Cell type:</b> ", CellType, "<br />", 
 				 "<b>Cluster:</b> ", label, " (", ClusterCellType, ")"))
 
-      if (color_type == "continuous") { # continuous data
+      if(color_type == "continuous") { # continuous data
         fig <- fig %>% colorbar(title = NULL) 
       } else { # discrete data
         fig <- fig %>% layout(legend = pl.legend)
@@ -947,7 +951,7 @@ server <- function(input, output, session) {
 		geom_boxplot(color = "grey", alpha = 0.3) + 
 		scale_fill_manual(values = discrete_func(palette, nrow(group_cells))) +
 		scale_x_discrete(drop = FALSE) + coord_flip() + theme(legend.position = "none") +
-                labs(title = paste(color_by, "expression"), x = group_by.desc, y ="logcounts", fill = group_by.desc)
+                labs(title = paste(color_by, "expression"), x = group_by.desc, y = "logcounts", fill = group_by.desc)
 
         ggplotly(fig, tooltip = "text")
       })
@@ -972,7 +976,7 @@ server <- function(input, output, session) {
     gene.group_by <- isolate(input$gene.group_by)
     n.gene.group_by <- length(gene.group_by)
     if(!is.null(input$gene.submit) & !is.null(input$gene.color_by)) {
-      if(input$gene.submit && nchar(isolate(input$gene.color_by)) > 0 && n.gene.group_by > 0) {
+      if(input$gene.submit & nchar(input$gene.color_by) > 0 & n.gene.group_by > 0) {
         heights <- gene.plot_height()
         plot_output_list <- lapply(1:n.gene.group_by, function(i) {
           box(status = "primary", width = 12,
@@ -1014,24 +1018,34 @@ server <- function(input, output, session) {
   })
 
   # Compare user input genes with sce
-  multi.compare <- eventReactive(input$multi.submit, {
+  multi.compare.name <- eventReactive(input$multi.submit, {
     sce <- sce()
     sce.genenames <- setNames(sort(rownames(sce)), sort(rownames(sce)))
-    multi.matched <- unlist(strsplit(x = input$multi.ganenames, split = "[\r\n]" ))
-    multi.matched <- unique(multi.matched) # remove duplicated names
-    res <- multi.matched %in% sce.genenames
-    res <- setNames(res, multi.matched)
+    multi.input <- unlist(strsplit(x = input$multi.ganenames, split = "[\r\n]"))
+    multi.input <- trimws(multi.input) # remove leading and trailing whitespace
+    multi.input <- unique(multi.input) # remove duplicated names
+    multi.input <- multi.input[multi.input != ""] # remove empty element
+    res <- multi.input %in% sce.genenames # TRUE/FALSE
+    setNames(res, multi.input)
+  })
+
+  # Check if user input genes are expressed
+  multi.compare.expr <- eventReactive(input$multi.submit, {
+    sce <- sce()
+    res <- multi.compare.name()
+    multi.input <- names(res[res == TRUE])
+    setNames(rowSums(logcounts(sce)[multi.input,]) > 0, multi.input) # TRUE/FALSE
   })
 
   # Print stats to verbatimTextOutput()
   output$multi.n_matched <- renderPrint({ 
-    res <- multi.compare() 
+    res <- multi.compare.name()
     cat(sprintf("Of the %d entries provided, %d genes found in dataset.", length(res), sum(res)))
   })
 
   # Print unmatched genes to verbatimTextOutput()
   output$multi.not_found <- renderPrint({
-    res <- multi.compare()
+    res <- multi.compare.name()
     if(sum(res == FALSE) > 0) {
       # Print names with quotes
       cat("Genes not found:", shQuote(names(res[res == FALSE])))
@@ -1040,9 +1054,20 @@ server <- function(input, output, session) {
     }
   })
 
+  # Print unexpressed genes to verbatimTextOutput()
+  output$multi.not_expr <- renderPrint({
+    res <- multi.compare.expr()
+    if(sum(res == FALSE) > 0) {
+      # Print names with quotes
+      cat("Genes not expressed:", shQuote(names(res[res == FALSE])), "(not included in scaled plot)")
+    } else {
+      cat("Genes not expressed: none")
+    }
+  })
+
   # Validate and subset genes
   multi.features <- eventReactive(input$multi.submit, {
-    res <- multi.compare()
+    res <- multi.compare.name()
     if(sum(res) > 0) {
       features <- names(res[res])
       features <- head(features, max.gene)
@@ -1081,6 +1106,8 @@ server <- function(input, output, session) {
   multi.prepare_plot <- eventReactive(input$multi.submit, {
     sce <- sce()
     features <- multi.features()
+    keep <- multi.compare.expr()
+
     if(!is.null(features)) {
       sce.vars <- sce.vars()
       sce.group_by <- sce.vars[["sce.group_by"]]
@@ -1089,19 +1116,19 @@ server <- function(input, output, session) {
       group_by <- sce.group_by[xlab]
 
       if(input$multi.plot_type == "Dot") {
-        fig <- if(input$multi.plot_scale == "None") plotDots(sce, features = features, group = group_by) 
-		else plotDots(sce, features = features, group = group_by, center = TRUE, scale = TRUE)
-        fig <- fig + scale_y_discrete(limits = features) + 
-		guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
+        fig <- if(input$multi.plot_scale == "None")
+		plotDots(sce, features = features, group = group_by) + scale_y_discrete(limits = features)
+	else plotDots(sce, features = features[keep], group = group_by, center = TRUE, scale = TRUE) + scale_y_discrete(limits = features[keep])
+        fig <- fig + guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
 		theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
 	if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
       } else if(input$multi.plot_type == "Heatmap") {
         angle_col <- if(input$multi.rotate_x == "Yes") 90 else 0
-        fig <- if(input$multi.plot_scale == "None") 
-		plotGroupedHeatmap(sce, features = features, group = group_by, clustering_method = "ward.D2", border_color = "black", 
-				   fontsize = input$multi.base_size, angle_col = angle_col) 
-		else plotGroupedHeatmap(sce, features = features, group = group_by, clustering_method = "ward.D2", border_color = "black", 
-					fontsize = input$multi.base_size, angle_col = angle_col, center = TRUE, scale = TRUE)
+        fig <- if(input$multi.plot_scale == "None")
+		plotGroupedHeatmap(sce, features = features, group = group_by, clustering_method = "ward.D2", 
+				   border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col) 
+		else plotGroupedHeatmap(sce, features = features[keep], group = group_by, clustering_method = "ward.D2", 
+					border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col, center = TRUE, scale = TRUE)
       } else {
         expr <- as.data.frame(t(logcounts(sce[features,])))
         colnames(expr) <- features
