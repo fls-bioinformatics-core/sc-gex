@@ -72,7 +72,7 @@ my.example.genes <- c()
 # App info and settings
 ####################
 
-app.version <- "v0.3.3"
+app.version <- "v0.3.10"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -138,7 +138,11 @@ default.color_by.desc <- c(
 names(default.color_by) <- default.color_by.desc
 
 # Append custom cell features for colouring
-if(length(my.color_by > 0)) default.color_by <- c(default.color_by, setNames(my.color_by, my.color_by.desc))
+if(length(my.color_by > 0)) {
+  names(my.color_by) <- my.color_by.desc
+  default.color_by <- c(default.color_by[!default.color_by %in% my.color_by], my.color_by)
+}
+default.color_by <- default.color_by[order(names(default.color_by))]
 
 # Build a vector of "cluster.methods" elements
 default.cluster.methods <- c("hclust", "walktrap", "louvain", "leiden")
@@ -149,13 +153,17 @@ default.group_by <- c("Sample","label","CellType","ClusterCellType")
 default.group_by <- default.color_by[default.color_by %in% default.group_by]
 
 # Append custom cell features for grouping
-if(length(my.group_by > 0)) default.group_by <- c(default.group_by, setNames(my.group_by, my.group_by.desc))
+if(length(my.group_by > 0)) {
+  names(my.group_by) <- my.group_by.desc
+  default.group_by <- c(default.group_by[!default.group_by %in% my.group_by], my.group_by)
+}
+default.group_by <- default.group_by[order(names(default.group_by))]
 
 # plotly legend for Cell features projection
 pl.legend <- list(font = list(size = 12, color = "#000"), bordercolor = "#000", borderwidth = 1, itemsizing = "constant")
 
 ####################
-# Load initial sce
+# Load sce files
 ####################
 # Check dir
 dirExists <- dir.exists(filepaths)
@@ -164,8 +172,12 @@ if(length(filepaths[!dirExists]) > 0) print(sprintf("Path(s) not exists: %s", fi
 filepaths <- filepaths[dirExists]
 if(length(filepaths) == 0) stop("None of the path(s) in 'filepaths' is valid.")
 
-init.path <- filepaths[1]
-init.sce <- HDF5Array::loadHDF5SummarizedExperiment(dir = init.path)
+sce.list <- list()
+for(file in names(filepaths)) {
+  print(sprintf("Loading '%s' from '%s'.", file, filepaths[file]))
+  sce.list[[file]] <- HDF5Array::loadHDF5SummarizedExperiment(dir = filepaths[file])
+}
+init.sce <- sce.list[[1]]
 
 ####################
 # Build user interface (ui) object
@@ -246,6 +258,19 @@ ui <- dashboardPage(
 table.dataTable thead th {
   white-space: nowrap
 }
+
+/* allow multi-line verbatimTextOutput() */
+.not_found pre {
+  white-space: pre-wrap;
+  overflow-y:scroll;
+  max-height: 250px;
+}
+
+.not_expr pre {
+  white-space: pre-wrap;
+  overflow-y:scroll;
+  max-height: 150px;
+}
 "))),
     uiOutput("dynamicItems")
   ),
@@ -270,21 +295,47 @@ server <- function(input, output, session) {
   }
 
   ####################
+  # Reset submit counter when switch sce files
+  ####################
+  reset.cell.submit <- reactiveVal(1)
+  reset.gene.submit <- reactiveVal(1)
+  reset.multi.submit <- reactiveVal(1)
+
+  observeEvent(input$sce.file, {
+    reset.cell.submit(1)
+    reset.gene.submit(1)
+    reset.multi.submit(1)
+    updateTextAreaInput(session, "multi.ganenames", value = "")
+  })
+
+  observeEvent(input$cell.submit, {
+    reset.cell.submit(0)
+  })
+
+  observeEvent(input$gene.submit, {
+    reset.gene.submit(0)
+  })
+
+  observeEvent(input$multi.submit, {
+    reset.multi.submit(0)
+  })
+
+  ####################
   # Choose sce file
   ####################
-  # initialize reactive value as TRUE
-  default_sce <- reactiveVal(init.path)
+  # initialize reactive value as first sce
+  choose_sce <- reactiveVal(names(filepaths)[1])
 
   # Stop using the default
   observeEvent(input$sce.file, ignoreInit = F, {
-    default_sce(input$sce.file)
+    choose_sce(input$sce.file)
   })
 
   ####################
   # Load data
   ####################
   sce <- reactive({
-    sce <- HDF5Array::loadHDF5SummarizedExperiment(dir = default_sce())
+    sce <- sce.list[[choose_sce()]]
 
     # 10X vs. Parse Biosciences names
     if("sample" %in% colnames(colData(sce)) & !"Sample" %in% colnames(colData(sce))) sce$Sample <- sce$sample
@@ -298,7 +349,7 @@ server <- function(input, output, session) {
     } else colLabels(sce)
     sce$ClusterCellType <- if("ClusterCellType" %in% colnames(colData(sce))) { 
       if(is.factor(sce$ClusterCellType)) droplevels(sce$ClusterCellType) else as.factor(sce$ClusterCellType)
-    } else "N/A"
+    } else colLabels(sce)
 
     # Add log1p converted scores
     if("DoubletDensity" %in% colnames(colData(sce))) sce$DoubletDensity_log1p <- log1p(sce$DoubletDensity)
@@ -332,10 +383,10 @@ server <- function(input, output, session) {
         })
       )
     } else edger.menu <- NULL
- 
+
     menu <- c(
       list(id = "menuItems"),
-      list(menuItem("Overview", tabName = "overview", icon = icon("fa-regular fa-house", verify_fa = FALSE))),
+      list(menuItem(paste0("Overview: [", choose_sce(), "]"), tabName = "overview", icon = icon("fa-regular fa-house", verify_fa = FALSE))),
       list(menuItem("Cell feature", tabName = "cellFeatures", icon = icon("dna"))),
       list(menuItem("Gene expression", tabName = "geneExpression", icon = icon("signal"), startExpanded = TRUE,
                     menuSubItem("Single gene", tabName = "onegeneExpression"),
@@ -357,7 +408,7 @@ server <- function(input, output, session) {
       ####################
       list(tabItem(tabName = "overview",
         fluidRow(
-          column(width = 12, radioGroupButtons(inputId = "sce.file", label = "Showing:", direction = "horizontal", choices = filepaths, selected = isolate(input$sce.file)))
+          column(width = 12, radioGroupButtons(inputId = "sce.file", label = "Showing:", direction = "horizontal", choices = names(filepaths), selected = isolate(input$sce.file)))
         ),
         fluidRow(
           uiOutput("overview.ui"),
@@ -402,9 +453,7 @@ server <- function(input, output, session) {
                                    choices = c("Dot", "Heatmap", "Boxplot", "Projection"), selected = "Dot"),
                  uiOutput("multi.menu.ui")
                ),
-               column(width = 5,
-                 verbatimTextOutput("multi.n_matched"), verbatimTextOutput("multi.not_found"), verbatimTextOutput("multi.not_expr")
-               )
+               uiOutput("multi.stats")
             )
           )
         ),
@@ -521,7 +570,10 @@ server <- function(input, output, session) {
     names(default.cluster.methods) <- default.cluster.methods.desc
 
     # Append custom clustering methods
-    if(length(my.cluster.methods > 0)) default.cluster.methods <- c(default.cluster.methods, setNames(my.cluster.methods, my.cluster.methods.desc))
+    if(length(my.cluster.methods > 0)) {
+      names(my.cluster.methods) <- my.cluster.methods.desc
+      default.cluster.methods <- c(default.cluster.methods[!default.cluster.methods %in% my.cluster.methods], my.cluster.methods)
+    }
 
     # Remove "cluster.methods" elements not found in colData()
     cluster.methods <- default.cluster.methods[default.cluster.methods %in% colnames(colData(sce))]
@@ -696,7 +748,10 @@ server <- function(input, output, session) {
     if(input$menuItems == "onegeneExpression") {
       sce <- sce()
       sce.genenames <- setNames(sort(rownames(sce)), sort(rownames(sce)))
-      updateSelectizeInput(session, "gene.color_by", choices = sce.genenames, selected = character(0), server = TRUE)
+      if(reset.gene.submit() == 1) 
+        updateSelectizeInput(session, "gene.color_by", choices = sce.genenames, selected = character(0), server = TRUE)
+      else
+        updateSelectizeInput(session, "gene.color_by", choices = sce.genenames, selected = isolate(input$gene.color_by), server = TRUE)
     }
   })
 
@@ -766,15 +821,17 @@ server <- function(input, output, session) {
   })
 
   cell.prepare <- eventReactive(input$cell.submit, {
-    dimred <- input$cell.dimred
-    color_by <- input$cell.color_by
-    palette_con <- input$cell.palette_con
-    palette_dis <- input$cell.palette_dis
-    dot_size <- input$cell.dot_size
-    dot_opacity <- input$cell.dot_opacity
-    select_sample <- input$cell.select_sample
-    select_cluster <- input$cell.select_cluster
-    select_celltype <- input$cell.select_celltype
+    isolate({
+      dimred <- input$cell.dimred
+      color_by <- input$cell.color_by
+      palette_con <- input$cell.palette_con
+      palette_dis <- input$cell.palette_dis
+      dot_size <- input$cell.dot_size
+      dot_opacity <- input$cell.dot_opacity
+      select_sample <- input$cell.select_sample
+      select_cluster <- input$cell.select_cluster
+      select_celltype <- input$cell.select_celltype
+    })
 
     list(dimred = dimred, color_by = color_by, palette_con = palette_con, palette_dis = palette_dis, 
 	 dot_size = dot_size, dot_opacity = dot_opacity, select_sample = select_sample, 
@@ -782,16 +839,18 @@ server <- function(input, output, session) {
   })
 
   gene.prepare <- eventReactive(input$gene.submit, {
-    dimred <- input$gene.dimred
-    color_by <- input$gene.color_by
-    palette_con <- input$gene.palette_con
-    palette_dis <- input$gene.palette_dis
-    dot_size <- input$gene.dot_size
-    dot_opacity <- input$gene.dot_opacity
-    select_sample <- input$gene.select_sample
-    select_cluster <- input$gene.select_cluster
-    select_celltype <- input$gene.select_celltype
-    group_by <- input$gene.group_by
+    isolate({
+      dimred <- input$gene.dimred
+      color_by <- input$gene.color_by
+      palette_con <- input$gene.palette_con
+      palette_dis <- input$gene.palette_dis
+      dot_size <- input$gene.dot_size
+      dot_opacity <- input$gene.dot_opacity
+      select_sample <- input$gene.select_sample
+      select_cluster <- input$gene.select_cluster
+      select_celltype <- input$gene.select_celltype
+      group_by <- input$gene.group_by
+    })
 
     list(dimred = dimred, color_by = color_by, palette_con = palette_con, palette_dis = palette_dis, 
 	 dot_size = dot_size, dot_opacity = dot_opacity, select_sample = select_sample, 
@@ -799,15 +858,13 @@ server <- function(input, output, session) {
   })
 
   output$plotReducedDim1 <- output$plotReducedDim2 <- renderPlotly({
-    sce <- sce()
-    sce.vars <- sce.vars()
-    sce.color_by <- sce.vars[["sce.color_by"]]
-
     whichMenu <- isolate(input$menuItems)
     if(whichMenu == "onegeneExpression") {
+      if(reset.gene.submit() > 0) return()
       inputList <- gene.prepare()
       palette <- inputList[["palette_con"]]
     } else {
+      if(reset.cell.submit() > 0) return()
       inputList <- cell.prepare()
       palette_dis <- inputList[["palette_dis"]]
       palette_con <- inputList[["palette_con"]]
@@ -820,6 +877,10 @@ server <- function(input, output, session) {
     select_sample <- inputList[["select_sample"]]
     select_cluster <- inputList[["select_cluster"]]
     select_celltype <- inputList[["select_celltype"]]
+
+    sce <- sce()
+    sce.vars <- sce.vars()
+    sce.color_by <- sce.vars[["sce.color_by"]]
 
     # Prepare DataFrame
     df <- as.data.frame(reducedDim(sce, dimred)[,1:2])
@@ -887,19 +948,18 @@ server <- function(input, output, session) {
   })
 
   output$cell.plot.ui <- renderUI({
-    if(!is.null(input$cell.submit)) {
-      if(input$cell.submit) {
-        box(status = "primary", width = 12, 
-          plotlyOutput("plotReducedDim1", width = "100%", height = 850) %>% withSpinner(type = getOption("spinner.type", default = 8))
-        )
-      }
+    if(reset.cell.submit() == 0) {
+      box(status = "primary", width = 12, 
+        plotlyOutput("plotReducedDim1", width = "100%", height = 850) %>% withSpinner(type = getOption("spinner.type", default = 8))
+      )
     }
   })
 
   output$gene.plot.ui <- renderUI({
-    if(!is.null(input$gene.submit) & !is.null(input$gene.color_by)) {
-      if(input$gene.submit & nchar(input$gene.color_by) > 0) {
-        box(status = "primary", width = 12,         
+    if(reset.gene.submit() == 0) {
+      gene.color_by <- input$gene.color_by
+      if(!is.null(gene.color_by) & nchar(gene.color_by) > 0) {
+        box(status = "primary", width = 12,
             plotlyOutput("plotReducedDim2", width = "100%", height = 850) %>% withSpinner(type = getOption("spinner.type", default = 8))
         )
       }
@@ -927,6 +987,7 @@ server <- function(input, output, session) {
     local({
       j <- i
       output[[plotname]] <- renderPlotly({
+        if(reset.gene.submit() > 0) return()
         sce <- sce()
 	sce.vars <- sce.vars()
 	sce.color_by <- sce.vars[["sce.color_by"]]
@@ -973,10 +1034,10 @@ server <- function(input, output, session) {
   })
 
   output$gene.morePlots.ui <- renderUI({
-    gene.group_by <- isolate(input$gene.group_by)
-    n.gene.group_by <- length(gene.group_by)
-    if(!is.null(input$gene.submit) & !is.null(input$gene.color_by)) {
-      if(input$gene.submit & nchar(input$gene.color_by) > 0 & n.gene.group_by > 0) {
+    if(reset.gene.submit() == 0) {
+      gene.color_by <- input$gene.color_by
+      n.gene.group_by <- length(isolate(input$gene.group_by))
+      if(!is.null(gene.color_by) & nchar(gene.color_by) > 0 & n.gene.group_by > 0) {
         heights <- gene.plot_height()
         plot_output_list <- lapply(1:n.gene.group_by, function(i) {
           box(status = "primary", width = 12,
@@ -1021,7 +1082,7 @@ server <- function(input, output, session) {
   multi.compare.name <- eventReactive(input$multi.submit, {
     sce <- sce()
     sce.genenames <- setNames(sort(rownames(sce)), sort(rownames(sce)))
-    multi.input <- unlist(strsplit(x = input$multi.ganenames, split = "[\r\n]"))
+    multi.input <- unlist(strsplit(x = isolate(input$multi.ganenames), split = "[\r\n]"))
     multi.input <- trimws(multi.input) # remove leading and trailing whitespace
     multi.input <- unique(multi.input) # remove duplicated names
     multi.input <- multi.input[multi.input != ""] # remove empty element
@@ -1040,29 +1101,29 @@ server <- function(input, output, session) {
   # Print stats to verbatimTextOutput()
   output$multi.n_matched <- renderPrint({ 
     res <- multi.compare.name()
-    cat(sprintf("Of the %d entries provided, %d genes found in dataset.", length(res), sum(res)))
+    if(reset.multi.submit() == 0) cat(sprintf("Of the %d entries provided, %d genes found in dataset.", length(res), sum(res))) else cat("Calculating...")
   })
 
   # Print unmatched genes to verbatimTextOutput()
   output$multi.not_found <- renderPrint({
     res <- multi.compare.name()
-    if(sum(res == FALSE) > 0) {
-      # Print names with quotes
-      cat("Genes not found:", shQuote(names(res[res == FALSE])))
-    } else {
-      cat("Genes not found: none")
-    }
+    if(reset.multi.submit() == 0) {
+      if(sum(res == FALSE) > 0) cat("Genes not found:", shQuote(names(res[res == FALSE]))) else cat("Genes not found: none")
+    } else cat("Calculating...")
   })
 
   # Print unexpressed genes to verbatimTextOutput()
   output$multi.not_expr <- renderPrint({
     res <- multi.compare.expr()
-    if(sum(res == FALSE) > 0) {
-      # Print names with quotes
-      cat("Genes not expressed:", shQuote(names(res[res == FALSE])), "(not included in scaled plot)")
-    } else {
-      cat("Genes not expressed: none")
-    }
+    if(reset.multi.submit() == 0) {
+      if(sum(res == FALSE) > 0) cat("Genes not expressed:", shQuote(names(res[res == FALSE])), "(not included in scaled plot)") else cat("Genes not expressed: none")
+    } else cat("Calculating...")
+  })
+
+  output$multi.stats <- renderUI({
+    if(reset.multi.submit() == 0)
+      column(width = 5, verbatimTextOutput("multi.n_matched"), div(class = "not_found", verbatimTextOutput("multi.not_found")),
+             div(class = "not_expr", verbatimTextOutput("multi.not_expr")))
   })
 
   # Validate and subset genes
@@ -1104,13 +1165,13 @@ server <- function(input, output, session) {
 
   # Create plot
   multi.prepare_plot <- eventReactive(input$multi.submit, {
-    sce <- sce()
     features <- multi.features()
-    keep <- multi.compare.expr()
 
     if(!is.null(features)) {
+      sce <- sce()
       sce.vars <- sce.vars()
       sce.group_by <- sce.vars[["sce.group_by"]]
+      keep <- multi.compare.expr()
 
       xlab <- input$multi.plot_group
       group_by <- sce.group_by[xlab]
@@ -1179,7 +1240,7 @@ server <- function(input, output, session) {
   })
 
   output$multi.plot <- renderPlot({
-    multi.prepare_plot()
+    if(reset.multi.submit() == 0) multi.prepare_plot() else return()
   })
 
   # Show additional menu
@@ -1221,7 +1282,7 @@ server <- function(input, output, session) {
   # Determine plot type and show plot with dynamic height
   output$multi.plot.ui <- renderUI({
     plot_type <- isolate(input$multi.plot_type)
-    if(multi.plot_height() > 0) {
+    if(multi.plot_height() > 0 & reset.multi.submit() == 0) {
       box(title = plot_type, status = "primary", width = 12,
 	  plotOutput("multi.plot", height = multi.plot_height()) %>% withSpinner(type = getOption("spinner.type", default = 8))
       )
