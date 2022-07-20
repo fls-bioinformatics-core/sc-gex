@@ -72,7 +72,7 @@ my.example.genes <- c()
 # App info and settings
 ####################
 
-app.version <- "v0.3.10"
+app.version <- "v0.4.0"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1068,7 +1068,8 @@ server <- function(input, output, session) {
     updateRadioGroupButtons(session, "multi.plot_type", selected = "Dot")
     updateRadioGroupButtons(session, "multi.plot_scale", selected = "Centered & scaled")
     updateRadioGroupButtons(session, "multi.plot_group", selected = names(which(sce.color_by == "label")))
-    updateRadioGroupButtons(session, "multi.rotate_x", selected = "No")
+    updateRadioGroupButtons(session, "multi.color_by", selected = "Detected")
+    updateRadioGroupButtons(session, "multi.rotate_x", selected = "Yes")
     updateSelectInput(session, "multi.dimred", selected = default.dimred)
     updateSelectInput(session, "multi.palette", selected = "yellowRed")
     updateSliderInput(session, "multi.dot_size", value = 0.8)
@@ -1095,7 +1096,9 @@ server <- function(input, output, session) {
     sce <- sce()
     res <- multi.compare.name()
     multi.input <- names(res[res == TRUE])
-    setNames(rowSums(logcounts(sce)[multi.input,]) > 0, multi.input) # TRUE/FALSE
+
+    # TRUE/FALSE
+    if(length(multi.input) == 1) setNames(sum(logcounts(sce)[multi.input,]) > 0, multi.input) else setNames(rowSums(logcounts(sce)[multi.input,]) > 0, multi.input)
   })
 
   # Print stats to verbatimTextOutput()
@@ -1202,12 +1205,28 @@ server <- function(input, output, session) {
 	  df <- tidyr::gather(df, key = "Symbol", value = "Expression", -Group) %>%
 		  mutate_at(vars(Symbol), factor) %>% mutate(Symbol = factor(Symbol, levels = features))
 
-	  # Create plot
-	  fig <- ggplot(df, aes(x = Group, y = Expression, color = Group)) + geom_boxplot(outlier.size = 0.5) + 
-		  facet_wrap(~ Symbol, scales = "free_y", ncol = input$multi.facet_ncol) +
-		  cowplot::theme_cowplot() + xlab(group_by) + ylab("logcounts") + 
-		  theme(axis.text.x = element_text(size = input$multi.fontsize.x))
+          # Compute summary statistics for groups of cells
+          summarized <- scuttle::summarizeAssayByGroup(assay(sce, "logcounts")[as.character(features), , drop = FALSE],
+                                                       ids = colData(sce)[, group_by], statistics = c("prop.detected"), threshold = 0)
+          num <- data.frame(Symbol = rownames(summarized), assay(summarized, "prop.detected"), check.names = FALSE) %>%
+                  tidyr::gather(key = "Group", value = "prop.detected", -Symbol)
 
+          # Combind expr and prop.detected
+          df <- merge(df, num, by = c("Group","Symbol"))
+
+          # Add number of cells to group labels
+          levels(df$Group) <- paste0(levels(df$Group), " (", dplyr::count(df, Group)$n / length(features), ")")
+
+	  # Create plot
+          my.aes <- if(input$multi.color_by == "Detected") aes_string(x = "Group", y = "Expression", color = "prop.detected") 
+                  else aes_string(x = "Group", y = "Expression", color = "Group")
+          fig <- ggplot(df, my.aes) + geom_boxplot(outlier.size = 0.5) + 
+                  facet_wrap(~ Symbol, scales = "free_y", ncol = input$multi.facet_ncol) +
+                  cowplot::theme_cowplot() + xlab(group_by) + ylab("logcounts") + 
+                  theme(axis.text.x = element_text(size = input$multi.fontsize.x))
+
+          if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) + 
+                  guides(col = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
 	  if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
         } else if(input$multi.plot_type == "Projection") {
           # Prepare DataFrame
@@ -1261,19 +1280,21 @@ server <- function(input, output, session) {
       tags$div(
         radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal",
                           choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
-        radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                          choices = c("No", "Yes"), selected = "No"),
-        sliderInput("multi.facet_ncol", "Genes per row:", 2, 10, 3, 1),
+        column(width = 6, radioGroupButtons(inputId = "multi.color_by", label = "Colour cells by:", direction = "horizontal",
+                                            choices = c("Detected", "Group"), selected = "Detected")),
+        column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
+                                            choices = c("No", "Yes"), selected = "Yes")),
+        sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
         sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
       )
-    } else {
+    } else { # Dot & Heatmap
       tags$div(
         radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal", 
 			  choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
         radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal", 
 			  choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
         radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                          choices = c("No", "Yes"), selected = "No"),
+                          choices = c("No", "Yes"), selected = "Yes"),
         sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
       )
     }
