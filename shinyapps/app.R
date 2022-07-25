@@ -77,7 +77,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.5.0"
+app.version <- "v0.5.1"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1266,7 +1266,7 @@ server <- function(input, output, session) {
 
         if(input$multi.plot_type == "Boxplot") {
           # Prepare DataFrame
-          df_col <- if(n_group_by == 1) colData(sce)[, group_by]
+          df_col <- if(n_group_by == 1) if(is.factor(colData(sce)[, group_by])) droplevels(colData(sce)[, group_by]) else as.factor(colData(sce)[, group_by])
                   else colData(sce)[, group_by] %>% as.data.frame() %>% tidyr::unite(Group, sep = " - ") %>% pull(Group) %>% as.factor()
           df <- cbind(expr, data.frame(Group = df_col))
 
