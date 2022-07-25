@@ -57,14 +57,19 @@ my.cluster.methods <- c("merged.custom")
 my.cluster.methods.desc <- c("Custom method")
 
 # Set the maximum allowable genes in multi-gene plots
-# The more genes used, more time the app takes to create the plots
+# The more genes used, more time the App takes to create the plots
 max.gene <- 100
 
 # Define a vector containing gene symbols to be used as example in multi-gene plots, for example highly variable genes (HVGs)
-# The symbols has to be identifiable in `rownames(sce)`, only the first `max.gene` number of genes are used in the app
-# If none is given, the app will first use the HVGs stored in `metadata(sce)[["runInfo"]][["HVG"]][["Genes"]]`
-# If this data structure cannot be found in `metadata(sce)`, the app will randomly select `max.gene` number of genes from `rownames(sce)`
+# The symbols has to be identifiable in `rownames(sce)`, only the first `max.gene` number of genes are used in the App
+# If none is given, the App will first use the HVGs stored in `metadata(sce)[["runInfo"]][["HVG"]][["Genes"]]`
+# If this data structure cannot be found in `metadata(sce)`, the App will randomly select `max.gene` number of genes from `rownames(sce)`
 my.example.genes <- c()
+
+# Set the maximum number of cell features to allow App users to choose and combine them into a new feature to group cells in multi-gene plots
+# Beware, by allowing App users to select more cell features, the more unique groups there will be in the final plots
+# For example, when `multi_max_options` is 2 and App user chooses "Sample" (N=2) and "label" (N=10), there will be 20 groups
+multi_max_options <- 2
 
 #--------- Adjustment required; END -------- #
 
@@ -72,7 +77,7 @@ my.example.genes <- c()
 # App info and settings
 ####################
 
-app.version <- "v0.4.0"
+app.version <- "v0.5.0"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1052,6 +1057,62 @@ server <- function(input, output, session) {
   ####################
   # Multi-gene expression panel
   ####################
+  output$multi.menu.ui <- renderUI({
+    sce.vars <- sce.vars()
+    sce.dimreds <- sce.vars[["sce.dimreds"]]
+    default.dimred <- sce.vars[["default.dimred"]]
+    sce.group_by <- sce.vars[["sce.group_by"]]
+
+    plot_group_text <- sprintf("Group cells by (max. %d; selection order recorded):", multi_max_options)
+    none_selected_text <- sprintf("Select between 1 to %d features.", multi_max_options)
+
+    if(input$multi.plot_type == "Projection") {
+      tags$div(
+        pickerInput("multi.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE),
+        pickerInput("multi.palette", "Select a colour palette:", choices = names(continuous), selected = "yellowRed", multiple = FALSE),
+        sliderTextInput("multi.dot_size","Dot size:", choices = seq(0.2, 3, by = 0.2), selected = 0.8, grid = T),
+        sliderInput("multi.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1)
+      )
+    } else if(input$multi.plot_type == "Boxplot") {
+      tags$div(
+        pickerInput("multi.plot_group", plot_group_text, choices = names(sce.group_by), selected = names(which(sce.group_by == "label")),
+                    multiple = TRUE, options =  list("max-options" = multi_max_options, "none-selected-text" = none_selected_text)),
+        fluidRow(
+          column(width = 6, radioGroupButtons(inputId = "multi.color_by", label = "Colour cells by:", direction = "horizontal",
+                                              choices = c("Detected", "Group"), selected = "Detected")),
+          column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
+                                              choices = c("No", "Yes"), selected = "Yes"))
+        ),
+        sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
+        sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
+      )
+    } else { # Dot & Heatmap
+      tags$div(
+        radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
+                          choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
+        radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal",
+                          choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
+        radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
+                          choices = c("No", "Yes"), selected = "Yes"),
+        sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
+      )
+    }
+  })
+
+  # Create a reactiveValues to store the selection order of 'multi.plot_group'
+  multi.plot_group_order <- reactiveValues(values = NULL)
+
+  # Use reactive to get and sort the selected terms in the order of selection
+  ordered_plot_group <- reactive({
+    multi.plot_group_order$values <- if (length(multi.plot_group_order$values) > length(input$multi.plot_group))
+            multi.plot_group_order$values[multi.plot_group_order$values %in% input$multi.plot_group]
+    else c(multi.plot_group_order$values, input$multi.plot_group[!input$multi.plot_group %in% multi.plot_group_order$values])
+    multi.plot_group_order$values
+  })
+
+  # Use observe to update the reactive function above
+  observe({ ordered_plot_group() })
+
   # Show example genes
   observeEvent(input$multi.example, {
     example <- sce.examples()
@@ -1101,7 +1162,12 @@ server <- function(input, output, session) {
     if(length(multi.input) == 1) setNames(sum(logcounts(sce)[multi.input,]) > 0, multi.input) else setNames(rowSums(logcounts(sce)[multi.input,]) > 0, multi.input)
   })
 
-  # Print stats to verbatimTextOutput()
+  # Print 'multi.plot_group' selection order
+  output$multi.ordered_plot_group <- renderPrint({
+    cat(sprintf("Group cells by: %s", paste(ordered_plot_group(), collapse = ", ")))
+  })
+
+  # Print input gene stats to verbatimTextOutput()
   output$multi.n_matched <- renderPrint({ 
     res <- multi.compare.name()
     if(reset.multi.submit() == 0) cat(sprintf("Of the %d entries provided, %d genes found in dataset.", length(res), sum(res))) else cat("Calculating...")
@@ -1125,7 +1191,7 @@ server <- function(input, output, session) {
 
   output$multi.stats <- renderUI({
     if(reset.multi.submit() == 0)
-      column(width = 5, verbatimTextOutput("multi.n_matched"), div(class = "not_found", verbatimTextOutput("multi.not_found")),
+      column(width = 5, verbatimTextOutput("multi.ordered_plot_group"), verbatimTextOutput("multi.n_matched"), div(class = "not_found", verbatimTextOutput("multi.not_found")),
              div(class = "not_expr", verbatimTextOutput("multi.not_expr")))
   })
 
@@ -1161,7 +1227,7 @@ server <- function(input, output, session) {
 	  height <- height + (15 * (input$multi.base_size - base_size))
 	}
       }
-      if(input$multi.rotate_x == "Yes")  height <- height + 100
+      if(input$multi.rotate_x == "Yes")  height <- height + 200
     }
     height
   })
@@ -1169,15 +1235,16 @@ server <- function(input, output, session) {
   # Create plot
   multi.prepare_plot <- eventReactive(input$multi.submit, {
     features <- multi.features()
+    n_group_by <- length(ordered_plot_group())
 
-    if(!is.null(features)) {
+    if(!is.null(features) & n_group_by > 0) {
       sce <- sce()
       sce.vars <- sce.vars()
       sce.group_by <- sce.vars[["sce.group_by"]]
       keep <- multi.compare.expr()
 
-      xlab <- input$multi.plot_group
-      group_by <- sce.group_by[xlab]
+      group_by <- sce.group_by[ordered_plot_group()]
+      xlab <- paste(names(group_by), collapse = " + ")
 
       if(input$multi.plot_type == "Dot") {
         fig <- if(input$multi.plot_scale == "None")
@@ -1199,17 +1266,19 @@ server <- function(input, output, session) {
 
         if(input$multi.plot_type == "Boxplot") {
           # Prepare DataFrame
-          df <- cbind(expr, data.frame(Group = colData(sce)[, group_by]))
-
-	  # Change wide to long format
-	  df <- tidyr::gather(df, key = "Symbol", value = "Expression", -Group) %>%
-		  mutate_at(vars(Symbol), factor) %>% mutate(Symbol = factor(Symbol, levels = features))
+          df_col <- if(n_group_by == 1) colData(sce)[, group_by]
+                  else colData(sce)[, group_by] %>% as.data.frame() %>% tidyr::unite(Group, sep = " - ") %>% pull(Group) %>% as.factor()
+          df <- cbind(expr, data.frame(Group = df_col))
 
           # Compute summary statistics for groups of cells
           summarized <- scuttle::summarizeAssayByGroup(assay(sce, "logcounts")[as.character(features), , drop = FALSE],
-                                                       ids = colData(sce)[, group_by], statistics = c("prop.detected"), threshold = 0)
+                                                       ids = df$Group, statistics = c("prop.detected"), threshold = 0)
           num <- data.frame(Symbol = rownames(summarized), assay(summarized, "prop.detected"), check.names = FALSE) %>%
                   tidyr::gather(key = "Group", value = "prop.detected", -Symbol)
+
+          # Change wide to long format
+          df <- tidyr::gather(df, key = "Symbol", value = "Expression", -Group) %>%
+                  mutate_at(vars(Symbol), factor) %>% mutate(Symbol = factor(Symbol, levels = features))
 
           # Combind expr and prop.detected
           df <- merge(df, num, by = c("Group","Symbol"))
@@ -1218,15 +1287,15 @@ server <- function(input, output, session) {
           levels(df$Group) <- paste0(levels(df$Group), " (", dplyr::count(df, Group)$n / length(features), ")")
 
 	  # Create plot
-          my.aes <- if(input$multi.color_by == "Detected") aes_string(x = "Group", y = "Expression", color = "prop.detected") 
-                  else aes_string(x = "Group", y = "Expression", color = "Group")
-          fig <- ggplot(df, my.aes) + geom_boxplot(outlier.size = 0.5) + 
+          my.aes <- if(input$multi.color_by == "Detected") aes_string(x = "Group", y = "Expression", color = "prop.detected", fill = "prop.detected") 
+                  else aes_string(x = "Group", y = "Expression", color = "Group", fill = "Group")
+          fig <- ggplot(df, my.aes) + geom_boxplot(outlier.size = 0.5, alpha = 0.3) + 
                   facet_wrap(~ Symbol, scales = "free_y", ncol = input$multi.facet_ncol) +
-                  cowplot::theme_cowplot() + xlab(group_by) + ylab("logcounts") + 
+                  cowplot::theme_cowplot() + xlab(xlab) + ylab("logcounts") + 
                   theme(axis.text.x = element_text(size = input$multi.fontsize.x))
 
-          if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) + 
-                  guides(col = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
+          if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) + scale_fill_gradientn(colours = continuous[["turbo"]])
+                  guides(col = guide_colourbar(title = "Proportion\nDetected", barheight = 15), fill = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
 	  if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
         } else if(input$multi.plot_type == "Projection") {
           # Prepare DataFrame
@@ -1260,44 +1329,6 @@ server <- function(input, output, session) {
 
   output$multi.plot <- renderPlot({
     if(reset.multi.submit() == 0) multi.prepare_plot() else return()
-  })
-
-  # Show additional menu
-  output$multi.menu.ui <- renderUI({
-    sce.vars <- sce.vars()
-    sce.dimreds <- sce.vars[["sce.dimreds"]]
-    default.dimred <- sce.vars[["default.dimred"]]
-    sce.group_by <- sce.vars[["sce.group_by"]]
-
-    if(input$multi.plot_type == "Projection") {
-      tags$div(
-        selectInput("multi.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE, selectize = TRUE),
-        selectInput("multi.palette", "Select a colour palette:", choices = names(continuous), selected = "yellowRed", multiple = FALSE, selectize = TRUE),
-	sliderTextInput("multi.dot_size","Dot size:", choices = seq(0.2, 3, by = 0.2), selected = 0.8, grid = T),
-	sliderInput("multi.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1)
-      )
-    } else if(input$multi.plot_type == "Boxplot") { 
-      tags$div(
-        radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal",
-                          choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
-        column(width = 6, radioGroupButtons(inputId = "multi.color_by", label = "Colour cells by:", direction = "horizontal",
-                                            choices = c("Detected", "Group"), selected = "Detected")),
-        column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                                            choices = c("No", "Yes"), selected = "Yes")),
-        sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
-        sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
-      )
-    } else { # Dot & Heatmap
-      tags$div(
-        radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal", 
-			  choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
-        radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal", 
-			  choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
-        radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                          choices = c("No", "Yes"), selected = "Yes"),
-        sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
-      )
-    }
   })
 
   # Determine plot type and show plot with dynamic height
