@@ -77,7 +77,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.5.1"
+app.version <- "v0.5.2"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1088,10 +1088,10 @@ server <- function(input, output, session) {
       )
     } else { # Dot & Heatmap
       tags$div(
+        pickerInput("multi.plot_group", plot_group_text, choices = names(sce.group_by), selected = names(which(sce.group_by == "label")),
+                    multiple = TRUE, options =  list("max-options" = multi_max_options, "none-selected-text" = none_selected_text)),
         radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
                           choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
-        radioGroupButtons(inputId = "multi.plot_group", label = "Group cells by:", direction = "horizontal",
-                          choices = names(sce.group_by), selected = names(which(sce.group_by == "label"))),
         radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
                           choices = c("No", "Yes"), selected = "Yes"),
         sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
@@ -1246,19 +1246,24 @@ server <- function(input, output, session) {
       group_by <- sce.group_by[ordered_plot_group()]
       xlab <- paste(names(group_by), collapse = " + ")
 
+      # Create a column with unique name to store group_by results
+      randStr <- paste0("BCF", as.numeric(Sys.time()))
+      colData(sce)[, randStr] <- if(n_group_by == 1) if(is.factor(colData(sce)[, group_by])) droplevels(colData(sce)[, group_by]) else as.factor(colData(sce)[, group_by])
+              else colData(sce)[, group_by] %>% as.data.frame() %>% tidyr::unite(Group, sep = " - ") %>% pull(Group) %>% as.factor()
+
       if(input$multi.plot_type == "Dot") {
         fig <- if(input$multi.plot_scale == "None")
-		plotDots(sce, features = features, group = group_by) + scale_y_discrete(limits = features)
-	else plotDots(sce, features = features[keep], group = group_by, center = TRUE, scale = TRUE) + scale_y_discrete(limits = features[keep])
+		plotDots(sce, features = features, group = randStr) + scale_y_discrete(limits = features)
+	else plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE) + scale_y_discrete(limits = features[keep])
         fig <- fig + guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
 		theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
 	if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
       } else if(input$multi.plot_type == "Heatmap") {
         angle_col <- if(input$multi.rotate_x == "Yes") 90 else 0
         fig <- if(input$multi.plot_scale == "None")
-		plotGroupedHeatmap(sce, features = features, group = group_by, clustering_method = "ward.D2", 
+		plotGroupedHeatmap(sce, features = features, group = randStr, clustering_method = "ward.D2", 
 				   border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col) 
-		else plotGroupedHeatmap(sce, features = features[keep], group = group_by, clustering_method = "ward.D2", 
+		else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2", 
 					border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col, center = TRUE, scale = TRUE)
       } else {
         expr <- as.data.frame(t(logcounts(sce[features,])))
@@ -1266,9 +1271,7 @@ server <- function(input, output, session) {
 
         if(input$multi.plot_type == "Boxplot") {
           # Prepare DataFrame
-          df_col <- if(n_group_by == 1) if(is.factor(colData(sce)[, group_by])) droplevels(colData(sce)[, group_by]) else as.factor(colData(sce)[, group_by])
-                  else colData(sce)[, group_by] %>% as.data.frame() %>% tidyr::unite(Group, sep = " - ") %>% pull(Group) %>% as.factor()
-          df <- cbind(expr, data.frame(Group = df_col))
+          df <- cbind(expr, data.frame(Group = colData(sce)[, randStr]))
 
           # Compute summary statistics for groups of cells
           summarized <- scuttle::summarizeAssayByGroup(assay(sce, "logcounts")[as.character(features), , drop = FALSE],
