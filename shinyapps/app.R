@@ -1210,6 +1210,7 @@ server <- function(input, output, session) {
   # Determine plot height
   multi.plot_height <- eventReactive(input$multi.submit, {
     features <- multi.features()
+    n_group_by <- length(ordered_plot_group())
     height <- 0
     if(!is.null(features)) {
       if(input$multi.plot_type == "Projection") {
@@ -1227,7 +1228,10 @@ server <- function(input, output, session) {
 	  height <- height + (15 * (input$multi.base_size - base_size))
 	}
       }
-      if(input$multi.rotate_x == "Yes")  height <- height + 200
+      # Adjust for rotated cell groups
+      if(input$multi.rotate_x == "Yes") height <- height + 200
+      # Adjust for appended cell groups
+      if(n_group_by > 1) height <- height + (n_group_by * 50)
     }
     height
   })
