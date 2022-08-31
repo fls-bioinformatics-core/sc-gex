@@ -77,15 +77,16 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.5.2"
+app.version <- "v0.6.0"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
 app.license <- " GPL-3.0"
-app.description <- paste0("The <em>", app.title, "</em> is a user friendly interface allowing users to explore processed single-cell RNA-seq datasets. It is designed to work with <code>SingleCellExperiment</code> objects that have been processed with the BCF in-house scRNA-seq workflow.")
+app.description <- paste0("The <em>", app.title, "</em> is a user friendly interface allowing users to explore processed single-cell RNA-seq datasets. It is designed to work with <code>SingleCellExperiment</code> objects that have been processed with the BCF in-house single cell gene expression workflow.")
 
 sidebar_width <- 210
 base_size <- 14
+print_log <- TRUE
 
 ####################
 # Additional manipulations (run once when app is launched)
@@ -283,7 +284,7 @@ table.dataTable thead th {
 #    left = footer.left,
 #    right = footer.right
 #  ),
-  title = app.title
+  title = paste0(app.header, " (",  basename(getwd()), ")")
 )
 
 ####################
@@ -302,27 +303,32 @@ server <- function(input, output, session) {
   ####################
   # Reset submit counter when switch sce files
   ####################
-  reset.cell.submit <- reactiveVal(1)
-  reset.gene.submit <- reactiveVal(1)
-  reset.multi.submit <- reactiveVal(1)
+  reset.cell.submit <- reset.gene.submit <- reset.multi.submit <- reactiveVal(1)
+  reset.ORAfm.submit <- reset.ORAer.submit <- reactiveVal(1)
+
+  observeEvent(input$cell.submit, { reset.cell.submit(0) })
+  observeEvent(input$gene.submit, { reset.gene.submit(0) })
+  observeEvent(input$multi.submit, { reset.multi.submit(0) })
+  observeEvent(input$ORAfm.submit, { reset.ORAfm.submit(0) })
+  observeEvent(input$ORAer.submit, { reset.ORAer.submit(0) })
 
   observeEvent(input$sce.file, {
     reset.cell.submit(1)
     reset.gene.submit(1)
     reset.multi.submit(1)
+    reset.ORAfm.submit(1)
+    reset.ORAer.submit(1)
     updateTextAreaInput(session, "multi.ganenames", value = "")
   })
 
-  observeEvent(input$cell.submit, {
-    reset.cell.submit(0)
-  })
-
-  observeEvent(input$gene.submit, {
-    reset.gene.submit(0)
-  })
-
-  observeEvent(input$multi.submit, {
-    reset.multi.submit(0)
+  ####################
+  # Reset submit counter when viewing ORAfm & ORAer sub-menu
+  ####################
+  observeEvent(input$menuItems, {
+    if(input$menuItems %in% c("ORAfm","ORAer")) {
+      reset.ORAfm.submit(1)
+      reset.ORAer.submit(1)
+    }
   })
 
   ####################
@@ -334,6 +340,14 @@ server <- function(input, output, session) {
   # Stop using the default
   observeEvent(input$sce.file, ignoreInit = F, {
     choose_sce(input$sce.file)
+  })
+
+  # Print access logs
+  observeEvent(input$menuItems, {
+    if(print_log) {
+      clint_ip <- ifelse(!is.null(session$request$HTTP_X_FORWARDED_FOR), session$request$HTTP_X_FORWARDED_FOR, session$request$REMOTE_ADDR)
+      print(sprintf("'%s' is viewing '%s' in '%s' on %s", clint_ip, input$menuItems, input$sce.file, format(Sys.time(), usetz = TRUE)))
+    }
   })
 
   ####################
@@ -389,6 +403,15 @@ server <- function(input, output, session) {
       )
     } else edger.menu <- NULL
 
+    # enrichR (findMarkers/edgeR)
+    enrichr.listnames <- names(metadata(sce))[grep("^enrichR", names(metadata(sce)))]
+    if(length(enrichr.listnames) > 0) {
+      enrichr.menu <- menuItem("Enrichment analysis", tabName = "enrichR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
+                               if(sum(grepl("findMarkers", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("Gene markers", tabName = "ORAfm"))),
+                               if(sum(grepl("edgeR", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (edgeR)", tabName = "ORAer")))
+      )
+    } else enrichr.menu <- NULL
+
     menu <- c(
       list(id = "menuItems"),
       list(menuItem(paste0("Overview: [", choose_sce(), "]"), tabName = "overview", icon = icon("fa-regular fa-house", verify_fa = FALSE))),
@@ -398,6 +421,7 @@ server <- function(input, output, session) {
                     menuSubItem("Multiple genes", tabName = "multigeneExpression"))),
       list(fm.menu),
       list(edger.menu),
+      list(enrichr.menu),
       list(menuItem("About", tabName = "about", icon = icon("fa-regular fa-circle-info", verify_fa = FALSE)))
     )
     do.call(sidebarMenu, menu)
@@ -474,6 +498,24 @@ server <- function(input, output, session) {
       ####################
       edger_items$items,
       ####################
+      # enrichR: findMarkers panel
+      ####################
+      list(tabItem(tabName = "ORAfm",
+        fluidRow(
+          column(width = 12, uiOutput("ORAfm.menu.ui")),
+          column(width = 12, uiOutput("ORAfm.output.ui"))
+        )
+      )),
+      ####################
+      # enrichR: edgeR panel
+      ####################
+      list(tabItem(tabName = "ORAer",
+        fluidRow(
+          column(width = 12, uiOutput("ORAer.menu.ui")),
+          column(width = 12, uiOutput("ORAer.output.ui"))
+        )
+      )),
+      ####################
       # About panel
       #################### 
       list(tabItem(tabName = "about",
@@ -493,7 +535,7 @@ server <- function(input, output, session) {
   ####################
   # Build findMarkers tabItems
   ####################
-  fm_items = reactiveValues(items = NULL)
+  fm_items <- reactiveValues(items = NULL)
 
   observeEvent(input$sce.file, {
     sce <- if(is.null(input$sce.file)) init.sce else sce()
@@ -524,7 +566,7 @@ server <- function(input, output, session) {
   ####################
   # Build edgeR tabItems
   ####################
-  edger_items = reactiveValues(items = NULL)
+  edger_items <- reactiveValues(items = NULL)
 
   observeEvent(input$sce.file, {
     sce <- if(is.null(input$sce.file)) init.sce else sce()
@@ -547,8 +589,8 @@ server <- function(input, output, session) {
 				    formatRound(columns = c("logFC","logCPM","F"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
         }))))
       }
-    updateTabItems(session, "menuItems", "about")
-    updateTabItems(session, "menuItems", "overview")
+#    updateTabItems(session, "menuItems", "about")
+#    updateTabItems(session, "menuItems", "overview")
     }
   })
 
@@ -1081,7 +1123,7 @@ server <- function(input, output, session) {
           column(width = 6, radioGroupButtons(inputId = "multi.color_by", label = "Colour cells by:", direction = "horizontal",
                                               choices = c("Detected", "Group"), selected = "Detected")),
           column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                                              choices = c("No", "Yes"), selected = "Yes"))
+                                              choices = c("No", "45°", "90°"), selected = "90°"))
         ),
         sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
         sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
@@ -1093,7 +1135,7 @@ server <- function(input, output, session) {
         radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
                           choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
         radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                          choices = c("No", "Yes"), selected = "Yes"),
+                          choices = c("No", "45°", "90°"), selected = "90°"),
         sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
       )
     }
@@ -1130,7 +1172,7 @@ server <- function(input, output, session) {
     updateRadioGroupButtons(session, "multi.plot_scale", selected = "Centered & scaled")
     updateRadioGroupButtons(session, "multi.plot_group", selected = names(which(sce.color_by == "label")))
     updateRadioGroupButtons(session, "multi.color_by", selected = "Detected")
-    updateRadioGroupButtons(session, "multi.rotate_x", selected = "Yes")
+    updateRadioGroupButtons(session, "multi.rotate_x", selected = "90°")
     updateSelectInput(session, "multi.dimred", selected = default.dimred)
     updateSelectInput(session, "multi.palette", selected = "yellowRed")
     updateSliderInput(session, "multi.dot_size", value = 0.8)
@@ -1229,7 +1271,7 @@ server <- function(input, output, session) {
 	}
       }
       # Adjust for rotated cell groups
-      if(input$multi.rotate_x == "Yes") height <- height + 200
+      if(input$multi.rotate_x != "No") height <- height + 200
       # Adjust for appended cell groups
       if(n_group_by > 1) height <- height + (n_group_by * 50)
     }
@@ -1249,6 +1291,8 @@ server <- function(input, output, session) {
 
       group_by <- sce.group_by[ordered_plot_group()]
       xlab <- paste(names(group_by), collapse = " + ")
+      rotate_x_angle <- 0
+      rotate_x_angle <- if(input$multi.rotate_x == "90°") 90 else 45
 
       # Create a column with unique name to store group_by results
       randStr <- paste0("BCF", as.numeric(Sys.time()))
@@ -1261,14 +1305,12 @@ server <- function(input, output, session) {
 	else plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE) + scale_y_discrete(limits = features[keep])
         fig <- fig + guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
 		theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
-	if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
       } else if(input$multi.plot_type == "Heatmap") {
-        angle_col <- if(input$multi.rotate_x == "Yes") 90 else 0
         fig <- if(input$multi.plot_scale == "None")
 		plotGroupedHeatmap(sce, features = features, group = randStr, clustering_method = "ward.D2", 
-				   border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col) 
+				   border_color = "black", fontsize = input$multi.base_size, angle_col = rotate_x_angle) 
 		else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2", 
-					border_color = "black", fontsize = input$multi.base_size, angle_col = angle_col, center = TRUE, scale = TRUE)
+					border_color = "black", fontsize = input$multi.base_size, angle_col = rotate_x_angle, center = TRUE, scale = TRUE)
       } else {
         expr <- as.data.frame(t(logcounts(sce[features,])))
         colnames(expr) <- features
@@ -1303,7 +1345,6 @@ server <- function(input, output, session) {
 
           if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) + scale_fill_gradientn(colours = continuous[["turbo"]])
                   guides(col = guide_colourbar(title = "Proportion\nDetected", barheight = 15), fill = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
-	  if(input$multi.rotate_x == "Yes") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
         } else if(input$multi.plot_type == "Projection") {
           # Prepare DataFrame
           df <- as.data.frame(reducedDim(sce, input$multi.dimred)[,1:2])
@@ -1325,26 +1366,251 @@ server <- function(input, output, session) {
             pl <- list(fig, empty)
             if(length(features) == 1) fig <- cowplot::plot_grid(plotlist = pl, nrow = 1, rel_widths = c(0.27, 0.73)) 
 	    else if(length(features) == 2) fig <- cowplot::plot_grid(plotlist = pl, nrow = 1, rel_widths = c(0.45, 0.55)) 
-	    else if(length(features) == 3) fig <-cowplot:: plot_grid(plotlist = pl, nrow = 1, rel_widths = c(0.63, 0.37)) 
+	    else if(length(features) == 3) fig <- cowplot:: plot_grid(plotlist = pl, nrow = 1, rel_widths = c(0.63, 0.37)) 
 	    else fig <- cowplot::plot_grid(plotlist = pl, nrow = 1, rel_widths = c(0.83, 0.17))
 	  }
 	}
       }
+
+      if(input$multi.plot_type %in% c("Dot", "Boxplot")) {
+        if(rotate_x_angle == "90") fig <- fig + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+        else if(rotate_x_angle == "45") fig <- fig + theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+      }
       fig
     }
-  })
-
-  output$multi.plot <- renderPlot({
-    if(reset.multi.submit() == 0) multi.prepare_plot() else return()
   })
 
   # Determine plot type and show plot with dynamic height
   output$multi.plot.ui <- renderUI({
     plot_type <- isolate(input$multi.plot_type)
     if(multi.plot_height() > 0 & reset.multi.submit() == 0) {
+      output$multi.plot <- renderPlot({
+        multi.prepare_plot()
+      })
+
       box(title = plot_type, status = "primary", width = 12,
-	  plotOutput("multi.plot", height = multi.plot_height()) %>% withSpinner(type = getOption("spinner.type", default = 8))
+	  plotOutput("multi.plot", width = "99%", height = multi.plot_height()) %>% withSpinner(type = getOption("spinner.type", default = 8))
       )
+    }
+  })
+
+  ####################
+  # enrichR: findMarkers/edgeR panel
+  ####################
+  prep.ora.listnames <- function(sce, menuItems) {
+    if(menuItems == "ORAfm") {
+      listnames <- names(metadata(sce))[grep("^enrichR_findMarkers", names(metadata(sce)))]
+      names(listnames) <- gsub("enrichR_findMarkers_", "", listnames)
+      type <- "markers"
+    }
+
+    if(menuItems == "ORAer") {
+      listnames <- names(metadata(sce))[grep("^enrichR_edgeR", names(metadata(sce)))]
+      names(listnames) <- gsub("enrichR_edgeR_", "", listnames)
+      type <- "DEGs"
+    }
+
+    names(listnames) <- gsub("_up$", paste0(" (up-regulated ", type, ")"), names(listnames))
+    names(listnames) <- gsub("_dn$|_down$", paste0(" (down-regulated ", type, ")"), names(listnames))
+    listnames
+  }
+
+  observeEvent(input$ORAfm.listname, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAfm")
+    listname <- listnames[input$ORAfm.listname]
+    groups <- names(metadata(sce)[[listname]])
+    updateSelectInput(session, "ORAfm.group", choices = groups, selected = groups[1])
+  })
+
+  observeEvent(input$ORAfm.group, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAfm")
+    listname <- listnames[input$ORAfm.listname]
+    dbs <- names(metadata(sce)[[listname]][[input$ORAfm.group]])
+    updateSelectInput(session, "ORAfm.db", choices = dbs, selected = dbs[1])
+  })
+
+  observeEvent(input$ORAer.listname, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAer")
+    listname <- listnames[input$ORAer.listname]
+    groups <- names(metadata(sce)[[listname]])
+    updateSelectInput(session, "ORAer.group", choices = groups, selected = groups[1])
+  })
+
+  observeEvent(input$ORAer.group, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAer")
+    listname <- listnames[input$ORAer.listname]
+    dbs <- names(metadata(sce)[[listname]][[input$ORAer.group]])
+    updateSelectInput(session, "ORAer.db", choices = dbs, selected = dbs[1])
+  })
+
+  output$ORAfm.menu.ui <- renderUI({
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAfm")
+    # Default, first element
+    groups <- names(metadata(sce)[[listnames[1]]])
+    dbs <- names(metadata(sce)[[listnames[1]]][[groups[1]]])
+
+    box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
+      fluidRow(
+        column(width = 3, selectInput("ORAfm.listname", "Select comparison:", choices = names(listnames), selected = names(listnames)[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAfm.group", "Select cluster/condition:", choices = groups, selected = groups[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAfm.db", "Select gene-set library:", choices = dbs, selected = dbs[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, sliderInput("ORAfm.nterms", "Number of terms:", 10, 30, 20, 5), style = "height: 70px;")
+      ),
+      fluidRow(
+        column(width = 3, radioGroupButtons("ORAfm.xaxis", label = "Bar length by:", direction = "horizontal", choices = c("Gene count", "Gene ratio"),
+                                            selected = "Gene count")),
+        column(width = 3, radioGroupButtons("ORAfm.order_by", label = "Order bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "FDR")),
+        column(width = 3, radioGroupButtons("ORAfm.color_by", label = "Colour bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "P-value")),
+        column(width = 3, actionButton("ORAfm.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff; margin-top: 25px;"))
+      )
+    )
+  })
+
+  output$ORAer.menu.ui <- renderUI({
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAer")
+    # Default, first element
+    groups <- names(metadata(sce)[[listnames[1]]])
+    dbs <- names(metadata(sce)[[listnames[1]]][[groups[1]]])
+
+    box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
+      fluidRow(
+        column(width = 3, selectInput("ORAer.listname", "Select DE condition:", choices = names(listnames), selected = names(listnames)[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAer.group", "Select DE result:", choices = groups, selected = groups[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAer.db", "Select gene-set library:", choices = dbs, selected = dbs[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, sliderInput("ORAer.nterms", "Number of terms:", 10, 30, 20, 5), style = "height: 70px;")
+      ),
+      fluidRow(
+        column(width = 3, radioGroupButtons("ORAer.xaxis", label = "Bar length by:", direction = "horizontal", choices = c("Gene count", "Gene ratio"),
+                                            selected = "Gene count")),
+        column(width = 3, radioGroupButtons("ORAer.order_by", label = "Order bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "FDR")),
+        column(width = 3, radioGroupButtons("ORAer.color_by", label = "Colour bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "P-value")),
+        column(width = 3, actionButton("ORAer.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff; margin-top: 25px;"))
+      )
+    )
+  })
+
+  ora.fm <- eventReactive(input$ORAfm.submit, {
+    isolate({
+      listname <- input$ORAfm.listname
+      group <- input$ORAfm.group
+      db <- input$ORAfm.db
+      nterms <- input$ORAfm.nterms
+      xaxis <- input$ORAfm.xaxis
+      order_by <- input$ORAfm.order_by
+      color_by <- input$ORAfm.color_by
+    })
+    list(listname = listname, group = group, db = db, nterms = nterms, xaxis = xaxis, order_by = order_by, color_by = color_by)
+  })
+
+  ora.er <- eventReactive(input$ORAer.submit, {
+    isolate({
+      listname <- input$ORAer.listname
+      group <- input$ORAer.group
+      db <- input$ORAer.db
+      nterms <- input$ORAer.nterms
+      xaxis <- input$ORAer.xaxis
+      order_by <- input$ORAer.order_by
+      color_by <- input$ORAer.color_by
+    })
+    list(listname = listname, group = group, db = db, nterms = nterms, xaxis = xaxis, order_by = order_by, color_by = color_by)
+  })
+
+  prep.ora.df <- function(sce, menuItems) {
+    ora.listnames <- prep.ora.listnames(sce, menuItems)
+    if(menuItems == "ORAfm") {
+      ora.vars <- ora.fm()
+    } else {
+      ora.vars <- ora.er()
+    }
+    listname <- ora.vars[["listname"]]
+    group <- ora.vars[["group"]]
+    db <- ora.vars[["db"]]
+    order_by <- ora.vars[["order_by"]]
+
+    ora.listnames <- prep.ora.listnames(sce, menuItems)
+    listname <- ora.listnames[listname]
+    df <- metadata(sce)[[listname]][[group]][[db]]
+    df$nGenes <- as.numeric(gsub("([0-9]+)/[0-9]+", "\\1", df$Overlap))
+    df$rGenes <- df$nGenes/as.numeric(gsub("[0-9]+/([0-9]+)", "\\1", df$Overlap))
+    df$Overlap <- paste0(sprintf("%.4f", df$rGenes), " (", df$Overlap, ")")
+    if(order_by == "P-value") {
+      df <- df %>% arrange(P.value)
+    } else if(order_by == "FDR") {
+      df <- df %>% arrange(Adjusted.P.value)
+    } else {
+      df <- df %>% arrange(desc(Combined.Score))
+    }
+    df
+  }
+
+  prep.ora.plot <- function(df, menuItems) {
+    if(menuItems == "ORAfm") {
+      ora.vars <- ora.fm()
+    } else {
+      ora.vars <- ora.er()
+    }
+    nterms <- ora.vars[["nterms"]]
+    xaxis <- ora.vars[["xaxis"]]
+    color_by <- ora.vars[["color_by"]]
+
+    df <- head(df, nterms)
+    df$Term <- factor(df$Term, levels = rev(df$Term))
+    bar.x <- ifelse(xaxis == "Gene count", "nGenes", "rGenes")
+    bar.fill <- ifelse(color_by == "P-value", "P.value", ifelse(color_by == "FDR", "Adjusted.P.value", "Combined.Score"))
+    fig <- ggplot(df, aes_string(bar.x, "Term", fill = bar.fill)) + geom_col() + cowplot::theme_cowplot() + xlab(xaxis)
+    if(color_by == "Combined score") {
+      fig + scale_fill_continuous(low = "blue", high = "red") + guides(fill = guide_colorbar(title = color_by, reverse = FALSE))
+    } else {
+      fig + scale_fill_continuous(low = "red", high = "blue") + guides(fill = guide_colorbar(title = color_by, reverse = TRUE))
+    }
+  }
+
+  prep.ora.table <- function(df) {
+    df <- df[, colnames(df) %in% c("Term","Overlap","P.value","Adjusted.P.value","Odds.Ratio","Combined.Score","Genes")]
+    df$Genes <- gsub(";", ", ", df$Genes)
+    datatable(df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+              rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+    formatRound(columns = c("Odds.Ratio","Combined.Score"), digits = 4) %>%
+    formatSignif(columns = c("P.value","Adjusted.P.value"), digits = 4)
+  }
+
+  output$ORAfm.output.ui <- renderUI({
+    if(reset.ORAfm.submit() == 0) {
+      sce <- sce()
+      df <- prep.ora.df(sce, "ORAfm")
+
+      output$ORAfm.plot <- renderPlot({
+        prep.ora.plot(df, "ORAfm")
+      })
+
+      box(title = "Result", status = "primary", width = 12, solidHeader = TRUE, collapsible = FALSE,
+          plotOutput("ORAfm.plot", width = "99%", height = "400px") %>% withSpinner(type = getOption("spinner.type", default = 8)),
+          renderDT(prep.ora.table(df)))
+    }
+  })
+
+  output$ORAer.output.ui <- renderUI({
+    if(reset.ORAer.submit() == 0) {
+      sce <- sce()
+      df <- prep.ora.df(sce, "ORAer")
+
+      output$ORAer.plot <- renderPlot({
+        prep.ora.plot(df, "ORAer")
+      })
+
+      box(title = "Result", status = "primary", width = 12, solidHeader = TRUE, collapsible = FALSE,
+          plotOutput("ORAer.plot", width = "99%", height = "400px") %>% withSpinner(type = getOption("spinner.type", default = 8)),
+          renderDT(prep.ora.table(df)))
     }
   })
 }
