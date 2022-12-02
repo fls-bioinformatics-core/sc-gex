@@ -13,6 +13,7 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 | dplyr | CRAN |
 | DT | CRAN |
 | edgeR | Bioconductor |
+| gtools | CRAN |
 | HDF5Array | Bioconductor |
 | htmlwidgets | CRAN |
 | pals | CRAN |
@@ -28,12 +29,19 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 Set up a Shiny environment using `conda`:
 
 ```
-conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap
+conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools
 ```
 
-## Demo Site
+## Demo site showing six 10x Genomics snRNA-seq datasets
 
-Accessible only within University of Manchester's network (or with UoM VPN)
+*Accessible only within University of Manchester's network (or with UoM VPN)*
+
+- 1k Mouse Kidney
+- 5k Adult Mouse Brain
+- 5k Adult Mouse Heart
+- 5k Adult Mouse Liver
+- 5k Adult Mouse Lung
+- 5k Human Jejunum
 
 http://doublecell-1.ls.manchester.ac.uk:7169/
 

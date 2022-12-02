@@ -77,7 +77,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.6.0"
+app.version <- "v0.6.3"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1128,14 +1128,30 @@ server <- function(input, output, session) {
         sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
         sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
       )
-    } else { # Dot & Heatmap
+    } else if(input$multi.plot_type == "Dot") {
       tags$div(
         pickerInput("multi.plot_group", plot_group_text, choices = names(sce.group_by), selected = names(which(sce.group_by == "label")),
                     multiple = TRUE, options =  list("max-options" = multi_max_options, "none-selected-text" = none_selected_text)),
-        radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
-                          choices = c("None", "Centered & scaled"), selected = "Centered & scaled"),
-        radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
-                          choices = c("No", "45°", "90°"), selected = "90°"),
+        fluidRow(
+          column(width = 6, radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
+                                              choices = c("None", "Centered & scaled"), selected = "Centered & scaled")),
+          column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
+                                              choices = c("No", "45°", "90°"), selected = "90°"))
+        ),
+        radioGroupButtons(inputId = "multi.plot_cluster", label = "Hierarchical clustering:", direction = "horizontal",
+                          choices = c("None", "Group (X-axis)", "Gene (Y-axis)", "Both"), selected = "None"),
+        sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
+      )
+    } else if(input$multi.plot_type == "Heatmap") {
+      tags$div(
+        pickerInput("multi.plot_group", plot_group_text, choices = names(sce.group_by), selected = names(which(sce.group_by == "label")),
+                    multiple = TRUE, options =  list("max-options" = multi_max_options, "none-selected-text" = none_selected_text)),
+        fluidRow(
+          column(width = 6, radioGroupButtons(inputId = "multi.plot_scale", label = "Expression scaling:", direction = "horizontal",
+                                              choices = c("None", "Centered & scaled"), selected = "Centered & scaled")),
+          column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
+                                              choices = c("No", "45°", "90°"), selected = "90°"))
+        ),
         sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
       )
     }
@@ -1173,6 +1189,7 @@ server <- function(input, output, session) {
     updateRadioGroupButtons(session, "multi.plot_group", selected = names(which(sce.color_by == "label")))
     updateRadioGroupButtons(session, "multi.color_by", selected = "Detected")
     updateRadioGroupButtons(session, "multi.rotate_x", selected = "90°")
+    updateRadioGroupButtons(session, "multi.plot_cluster", selected = "None")
     updateSelectInput(session, "multi.dimred", selected = default.dimred)
     updateSelectInput(session, "multi.palette", selected = "yellowRed")
     updateSliderInput(session, "multi.dot_size", value = 0.8)
@@ -1291,26 +1308,49 @@ server <- function(input, output, session) {
 
       group_by <- sce.group_by[ordered_plot_group()]
       xlab <- paste(names(group_by), collapse = " + ")
-      rotate_x_angle <- 0
-      rotate_x_angle <- if(input$multi.rotate_x == "90°") 90 else 45
+      rotate_x_angle <- ifelse(input$multi.rotate_x == "90°", 90, ifelse(input$multi.rotate_x == "45°", 45, 0))
 
       # Create a column with unique name to store group_by results
       randStr <- paste0("BCF", as.numeric(Sys.time()))
       colData(sce)[, randStr] <- if(n_group_by == 1) if(is.factor(colData(sce)[, group_by])) droplevels(colData(sce)[, group_by]) else as.factor(colData(sce)[, group_by])
               else colData(sce)[, group_by] %>% as.data.frame() %>% tidyr::unite(Group, sep = " - ") %>% pull(Group) %>% as.factor()
+      colData(sce)[, randStr] <- factor(colData(sce)[, randStr], levels = gtools::mixedsort(levels(colData(sce)[, randStr])))
 
       if(input$multi.plot_type == "Dot") {
-        fig <- if(input$multi.plot_scale == "None")
-		plotDots(sce, features = features, group = randStr) + scale_y_discrete(limits = features)
-	else plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE) + scale_y_discrete(limits = features[keep])
+        if(input$multi.plot_cluster != "None") {
+          # Do clustering (through plotGroupedHeatmap())
+          # clustering_distance_rows = "euclidean", clustering_distance_cols = "euclidean", clustering_method = "ward.D2"
+          heat <- if(input$multi.plot_scale == "None") 
+                  plotGroupedHeatmap(sce, features = features, group = randStr, clustering_method = "ward.D2", silent = T)
+                  else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2",
+                                          center = TRUE, scale = TRUE, silent = T)
+        }
+
+        fig <- if(input$multi.plot_scale == "None") plotDots(sce, features = features, group = randStr)
+                else plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE)
+
+        if(input$multi.plot_cluster %in% c("None","Group (X-axis)")) {
+          fig <- if(input$multi.plot_scale == "None") fig + scale_y_discrete(limits = features) 
+                  else fig + scale_y_discrete(limits = features[keep])
+        }
+
+        if(input$multi.plot_cluster == "Group (X-axis)") {
+          fig <- fig + scale_x_discrete(limits = heat$tree_col$labels[heat$tree_col$order])
+        } else if(input$multi.plot_cluster == "Gene (Y-axis)") {
+          fig <- fig + scale_y_discrete(limits = heat$tree_row$labels[heat$tree_row$order])
+        } else if(input$multi.plot_cluster == "Both") {
+          fig <- fig + scale_x_discrete(limits = heat$tree_col$labels[heat$tree_col$order]) + 
+                  scale_y_discrete(limits = heat$tree_row$labels[heat$tree_row$order])
+        }
+
         fig <- fig + guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
-		theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
+                theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
       } else if(input$multi.plot_type == "Heatmap") {
         fig <- if(input$multi.plot_scale == "None")
-		plotGroupedHeatmap(sce, features = features, group = randStr, clustering_method = "ward.D2", 
-				   border_color = "black", fontsize = input$multi.base_size, angle_col = rotate_x_angle) 
-		else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2", 
-					border_color = "black", fontsize = input$multi.base_size, angle_col = rotate_x_angle, center = TRUE, scale = TRUE)
+                plotGroupedHeatmap(sce, features = features, group = randStr, clustering_method = "ward.D2", border_color = "black",
+                                   fontsize = input$multi.base_size, angle_col = rotate_x_angle)
+                else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2", border_color = "black",
+                                        fontsize = input$multi.base_size, angle_col = rotate_x_angle, center = TRUE, scale = TRUE)
       } else {
         expr <- as.data.frame(t(logcounts(sce[features,])))
         colnames(expr) <- features
