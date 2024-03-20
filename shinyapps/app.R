@@ -77,7 +77,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.6.3"
+app.version <- "v0.7.1"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -171,17 +171,28 @@ pl.legend <- list(font = list(size = 12, color = "#000"), bordercolor = "#000", 
 ####################
 # Load sce files
 ####################
-# Check dir
-dirExists <- dir.exists(filepaths)
-if(length(filepaths[!dirExists]) > 0) print(sprintf("Path(s) not exists: %s", filepaths[!dirExists]))
+# Check files/paths
+fileExists <- file.exists(filepaths)
+if(length(filepaths[!fileExists]) > 0) warning(sprintf("File/path(s) not exists: %s", filepaths[!fileExists]))
 
-filepaths <- filepaths[dirExists]
-if(length(filepaths) == 0) stop("None of the path(s) in 'filepaths' is valid.")
+# Subset to available files/paths
+filepaths <- filepaths[fileExists]
+if(length(filepaths) == 0) stop("None of the file/path(s) in 'filepaths' is valid.")
 
 sce.list <- list()
 for(file in names(filepaths)) {
-  print(sprintf("Loading '%s' from '%s'.", file, filepaths[file]))
-  sce.list[[file]] <- HDF5Array::loadHDF5SummarizedExperiment(dir = filepaths[file])
+  filepath <- filepaths[file]
+  if(file.info(filepath)$isdir) {
+    if(file.exists(file.path(filepath, "se.rds")) & file.exists(file.path(filepath, "assays.h5"))) {
+      print(sprintf("Loading '%s' from '%s'.", file, filepath))
+      sce.list[[file]] <- HDF5Array::loadHDF5SummarizedExperiment(dir = filepath)
+    } else warning(sprintf("HDF5 file '%s' skipped, 'se.rds' and 'assays.h5' is missing.", filepath))
+  } else {
+    if(grepl("\\.rds|\\.RDS", filepath)) {
+      print(sprintf("Loading '%s' from '%s'.", file, filepath))
+      sce.list[[file]] <- readRDS(filepath)
+    } else warning(sprintf("RDS file '%s' skipped, requires RDS file with a '.rds' or '.RDS' extension.", filepath))
+  }
 }
 init.sce <- sce.list[[1]]
 
@@ -304,13 +315,14 @@ server <- function(input, output, session) {
   # Reset submit counter when switch sce files
   ####################
   reset.cell.submit <- reset.gene.submit <- reset.multi.submit <- reactiveVal(1)
-  reset.ORAfm.submit <- reset.ORAer.submit <- reactiveVal(1)
+  reset.ORAfm.submit <- reset.ORAer.submit <- reset.ORAde.submit <- reactiveVal(1)
 
   observeEvent(input$cell.submit, { reset.cell.submit(0) })
   observeEvent(input$gene.submit, { reset.gene.submit(0) })
   observeEvent(input$multi.submit, { reset.multi.submit(0) })
   observeEvent(input$ORAfm.submit, { reset.ORAfm.submit(0) })
   observeEvent(input$ORAer.submit, { reset.ORAer.submit(0) })
+  observeEvent(input$ORAde.submit, { reset.ORAde.submit(0) })
 
   observeEvent(input$sce.file, {
     reset.cell.submit(1)
@@ -318,16 +330,18 @@ server <- function(input, output, session) {
     reset.multi.submit(1)
     reset.ORAfm.submit(1)
     reset.ORAer.submit(1)
+    reset.ORAde.submit(1)
     updateTextAreaInput(session, "multi.ganenames", value = "")
   })
 
   ####################
-  # Reset submit counter when viewing ORAfm & ORAer sub-menu
+  # Reset submit counter when viewing ORAfm, ORAer, ORAde sub-menu
   ####################
   observeEvent(input$menuItems, {
-    if(input$menuItems %in% c("ORAfm","ORAer")) {
+    if(input$menuItems %in% c("ORAfm","ORAer","ORAde")) {
       reset.ORAfm.submit(1)
       reset.ORAer.submit(1)
+      reset.ORAde.submit(1)
     }
   })
 
@@ -397,18 +411,30 @@ server <- function(input, output, session) {
     if(length(edger.listnames) > 0) {
       edger.menu <- menuItem("DEA (edgeR)", tabName = "edgeR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
         lapply(edger.listnames, function(listname) {
-          tab.name <- gsub("_", ": ", gsub("edgeR_", "", listname))
+          tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", listname))
           menuSubItem(tab.name, tabName = listname)
         })
       )
     } else edger.menu <- NULL
 
-    # enrichR (findMarkers/edgeR)
+    # DESeq2
+    deseq.listnames <- names(metadata(sce))[grep("^DESeq2", names(metadata(sce)))]
+    if(length(deseq.listnames) > 0) {
+      deseq.menu <- menuItem("DEA (DESeq2)", tabName = "DESeq2", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
+        lapply(deseq.listnames, function(listname) {
+          tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", listname))
+          menuSubItem(tab.name, tabName = listname)
+        })
+      )
+    } else deseq.menu <- NULL
+
+    # enrichR (findMarkers/edgeR/DESeq2)
     enrichr.listnames <- names(metadata(sce))[grep("^enrichR", names(metadata(sce)))]
     if(length(enrichr.listnames) > 0) {
       enrichr.menu <- menuItem("Enrichment analysis", tabName = "enrichR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
                                if(sum(grepl("findMarkers", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("Gene markers", tabName = "ORAfm"))),
-                               if(sum(grepl("edgeR", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (edgeR)", tabName = "ORAer")))
+                               if(sum(grepl("edgeR", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (edgeR)", tabName = "ORAer"))),
+                               if(sum(grepl("DESeq2", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (DESeq2)", tabName = "ORAde")))
       )
     } else enrichr.menu <- NULL
 
@@ -421,6 +447,7 @@ server <- function(input, output, session) {
                     menuSubItem("Multiple genes", tabName = "multigeneExpression"))),
       list(fm.menu),
       list(edger.menu),
+      list(deseq.menu),
       list(enrichr.menu),
       list(menuItem("About", tabName = "about", icon = icon("fa-regular fa-circle-info", verify_fa = FALSE)))
     )
@@ -471,7 +498,7 @@ server <- function(input, output, session) {
           box(title = "Input", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
             fluidRow(
                column(width = 3,
-                 textAreaInput("multi.ganenames", "Add gene symbols:", height = "300px", resize = "none",
+                 textAreaInput("multi.ganenames", "Add gene symbols:", height = "325px", resize = "none",
                                placeholder = sprintf("Paste a set of valid Entrez gene symbols, one gene in a row. Maximum %d genes used in plots.", max.gene)),
                  actionButton("multi.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff;"),
                  actionButton("multi.example", "Use example", width = "100px", class = "btn-info", style = "color: #fff;"),
@@ -498,6 +525,10 @@ server <- function(input, output, session) {
       ####################
       edger_items$items,
       ####################
+      # DEseq2 panel
+      ####################
+      deseq_items$items,
+      ####################
       # enrichR: findMarkers panel
       ####################
       list(tabItem(tabName = "ORAfm",
@@ -513,6 +544,15 @@ server <- function(input, output, session) {
         fluidRow(
           column(width = 12, uiOutput("ORAer.menu.ui")),
           column(width = 12, uiOutput("ORAer.output.ui"))
+        )
+      )),
+      ####################
+      # enrichR: DESeq2 panel
+      ####################
+      list(tabItem(tabName = "ORAde",
+        fluidRow(
+          column(width = 12, uiOutput("ORAde.menu.ui")),
+          column(width = 12, uiOutput("ORAde.output.ui"))
         )
       )),
       ####################
@@ -574,7 +614,7 @@ server <- function(input, output, session) {
     if(length(edger.listnames) > 0) {
       edger_items$items <- NULL # reset and re-build
       for(listname in edger.listnames) {
-        tab.name <- gsub("_", ": ", gsub("edgeR_", "", listname))
+        tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", listname))
         edger.sublistnames <- names(metadata(sce)[[listname]])
 
         edger_items$items[[length(edger_items$items)+1]] <- tabItem(tabName = listname,
@@ -591,6 +631,35 @@ server <- function(input, output, session) {
       }
 #    updateTabItems(session, "menuItems", "about")
 #    updateTabItems(session, "menuItems", "overview")
+    }
+  })
+
+  ####################
+  # Build DESeq2 tabItems
+  ####################
+  deseq_items <- reactiveValues(items = NULL)
+
+  observeEvent(input$sce.file, {
+    sce <- if(is.null(input$sce.file)) init.sce else sce()
+    deseq.listnames <- names(metadata(sce))[grep("^DESeq2", names(metadata(sce)))]
+    if(length(deseq.listnames) > 0) {
+      deseq_items$items <- NULL # reset and re-build
+      for(listname in deseq.listnames) {
+        tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", listname))
+        deseq.sublistnames <- names(metadata(sce)[[listname]])
+
+        deseq_items$items[[length(deseq_items$items)+1]] <- tabItem(tabName = listname,
+          fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
+            lapply(deseq.sublistnames, function(sublistname) {
+              res <- metadata(sce)[[listname]][[sublistname]]
+              deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
+              fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), sublistname, icon("fa-thin fa-caret-left", verify_fa = FALSE)),
+                           width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                           renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                              rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                    formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+        }))))
+      }
     }
   })
 
@@ -748,27 +817,27 @@ server <- function(input, output, session) {
     df1 <- as.data.frame(table(sce$Sample))
     df2 <- as.data.frame(table(sce$label))
 
-    widths <- round(length(sce.samples)/(length(sce.samples)+length(sce.labels)/2), 2)
-    if(widths > 0.7) widths <- 0.7
+    widths <- round(length(sce.samples)/(length(sce.samples)+length(sce.labels)), 2)
+    if(widths > 0.7) widths <- 0.7 else if(widths < 0.3) widths <- 0.3
     widths <- c(widths, 1-widths)
 
     # Create plot
     fig1 <- plot_ly(df1, x = ~Var1, y = ~Freq) %>%
       add_bars(text = ~Freq, textposition = "outside", cliponaxis = FALSE, hoverinfo = "none") %>%
-      layout(xaxis = list(title = "Samples"), yaxis = list(title = "No. of cells"))
+      layout(xaxis = list(title = "Samples"), yaxis = list(title = "No. of cells", range = c(0, max(df1$Freq)*1.15)))
 
     fig2 <- plot_ly(df2, x = ~Var1, y = ~Freq) %>%
       add_bars(text = ~Freq, textposition = "outside", cliponaxis = FALSE, hoverinfo = "none") %>%
-      layout(xaxis = list(title = "Cluster"), yaxis = list(title = "No. of cells"))
+      layout(xaxis = list(title = "Cluster"), yaxis = list(title = "No. of cells" , range = c(0, max(df2$Freq)*1.15)))
 
     subplot(fig1, fig2, titleX = TRUE, titleY = TRUE, widths = widths) %>%
       layout(showlegend = FALSE, annotations = list(
         list(
-          text = "<b>Cells in each sample</b>", x = -0.02, y = 1.01, xanchor = "left", yanchor = "bottom",
+          text = "<b>Cells in each sample</b>", x = -0.02, y = 1.02, xanchor = "left", yanchor = "bottom",
           showarrow = FALSE, xref = "paper", yref = "paper", font = list(size = 16)
         ),
         list(
-          text = "<b>Cells in each cluster</b>", x = widths[1], y = 1.01, xanchor = "left", yanchor = "bottom",
+          text = "<b>Cells in each cluster</b>", x = widths[1], y = 1.02, xanchor = "left", yanchor = "bottom",
           showarrow = FALSE, xref = "paper", yref = "paper", font = list(size = 16)
         )
       ))
@@ -813,24 +882,28 @@ server <- function(input, output, session) {
     sce.labels <- sce.vars[["sce.labels"]]
     sce.celltypes <- sce.vars[["sce.celltypes"]]
 
-    box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
-      selectInput("cell.color_by", "Colour cells by:", choices = names(sce.color_by), multiple = FALSE, selectize = TRUE), 
-      selectInput("cell.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE, selectize = TRUE),
-      actionButton("cell.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff;"),
-      br(), br(),
-      selectInput("cell.palette_dis", "Select a palette for discrete data:", choices = discrete, selected = "Set1", multiple = FALSE, selectize = TRUE),
-      selectInput("cell.palette_con", "Select a palette for continuous data:", choices = names(continuous), selected = "viridis", multiple = FALSE, selectize = TRUE),
-      sliderTextInput("cell.dot_size","Dot size:", choices = seq(1, 15, by = 0.5), selected = dot_size(sce.ncells), grid = T),
-      sliderInput("cell.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
-      pickerInput("cell.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
-      pickerInput("cell.select_cluster", 
-		  if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
-        choices = sce.labels, selected = sce.labels,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
-      pickerInput("cell.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.celltypes))), multiple = TRUE)
-    )
+    if(length(sce.dimreds) > 0) {
+      box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
+        selectInput("cell.color_by", "Colour cells by:", choices = names(sce.color_by), multiple = FALSE, selectize = TRUE),
+        selectInput("cell.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE, selectize = TRUE),
+        actionButton("cell.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff;"),
+        br(), br(),
+        selectInput("cell.palette_dis", "Select a palette for discrete data:", choices = discrete, selected = "Set1", multiple = FALSE, selectize = TRUE),
+        selectInput("cell.palette_con", "Select a palette for continuous data:", choices = names(continuous), selected = "viridis", multiple = FALSE, selectize = TRUE),
+        sliderTextInput("cell.dot_size","Dot size:", choices = seq(1, 15, by = 0.5), selected = dot_size(sce.ncells), grid = T),
+        sliderInput("cell.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
+        pickerInput("cell.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
+        pickerInput("cell.select_cluster",
+          if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
+          choices = sce.labels, selected = sce.labels,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
+        pickerInput("cell.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.celltypes))), multiple = TRUE)
+      )
+    } else {
+      box(title = "Cell feature", width = 12, status = "primary", solidHeader = TRUE, column(width = 12, p("There is no dimensional reduction available on this data.")))
+    }
   })
 
   output$gene.menu.ui <- renderUI({
@@ -844,27 +917,31 @@ server <- function(input, output, session) {
     sce.celltypes <- sce.vars[["sce.celltypes"]]
     sce.group_by <- sce.vars[["sce.group_by"]]
 
-    box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
-      selectizeInput("gene.color_by", "Colour cells by:", choices = NULL, selected = NULL, multiple = FALSE,
-                     options = list(placeholder = "Enter a gene symbol.", plugins = list('restore_on_backspace'))),
-      actionButton("gene.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff;"),
-      tags$p(tags$div(style = "background-color: #6b2c91;", tags$b("Projection settings"), style = "text-align: center; color: #ffd500;")),
-      selectInput("gene.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE, selectize = TRUE),
-      selectInput("gene.palette_con", "Select a colour palette:", choices = names(continuous), selected = "yellowRed", multiple = FALSE, selectize = TRUE),
-      sliderTextInput("gene.dot_size","Dot size:", choices = seq(1, 15, by = 0.5), selected = dot_size(sce.ncells), grid = T),
-      sliderInput("gene.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
-      pickerInput("gene.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
-      pickerInput("gene.select_cluster", 
-		  if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
-        choices = sce.labels, selected = sce.labels,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
-      pickerInput("gene.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
-        options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.celltypes))), multiple = TRUE),
-      tags$p(tags$div(style = "background-color: #6b2c91;", tags$b("Bar/boxplot settings"), style = "text-align: center; color: #ffd500;")),
-      checkboxGroupInput("gene.group_by", "Group cells by:", sce.group_by, selected = "label"),
-      selectInput("gene.palette_dis", "Select a colour palette:", choices = discrete, selected = "Set1", multiple = FALSE, selectize = TRUE)
-    )
+    if(length(sce.dimreds) > 0) {
+      box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
+        selectizeInput("gene.color_by", "Colour cells by:", choices = NULL, selected = NULL, multiple = FALSE,
+                       options = list(placeholder = "Enter a gene symbol.", plugins = list('restore_on_backspace'))),
+        actionButton("gene.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff;"),
+        tags$p(tags$div(style = "background-color: #6b2c91;", tags$b("Projection settings"), style = "text-align: center; color: #ffd500;")),
+        selectInput("gene.dimred", "Select a projection:", choices = sce.dimreds, selected = default.dimred, multiple = FALSE, selectize = TRUE),
+        selectInput("gene.palette_con", "Select a colour palette:", choices = names(continuous), selected = "yellowRed", multiple = FALSE, selectize = TRUE),
+        sliderTextInput("gene.dot_size","Dot size:", choices = seq(1, 15, by = 0.5), selected = dot_size(sce.ncells), grid = T),
+        sliderInput("gene.dot_opacity", "Dot opacity:", 0, 1, 0.8, 0.1),
+        pickerInput("gene.select_sample", "Select samples:", choices = sce.samples, selected = sce.samples,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.samples))), multiple = TRUE),
+        pickerInput("gene.select_cluster",
+          if(!is.null(default.cluster.method)) paste0("No. of Clusters (based on ", names(default.cluster.method), ")") else paste0("No. of Clusters"),
+          choices = sce.labels, selected = sce.labels,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.labels))), multiple = TRUE),
+        pickerInput("gene.select_celltype", "Select cell types:", choices = sce.celltypes, selected = sce.celltypes,
+          options = list(`actions-box` = TRUE, `selected-text-format` = paste0("count == ", length(sce.celltypes))), multiple = TRUE),
+        tags$p(tags$div(style = "background-color: #6b2c91;", tags$b("Bar/boxplot settings"), style = "text-align: center; color: #ffd500;")),
+        checkboxGroupInput("gene.group_by", "Group cells by:", sce.group_by, selected = "label"),
+        selectInput("gene.palette_dis", "Select a colour palette:", choices = discrete, selected = "Set1", multiple = FALSE, selectize = TRUE)
+      )
+    } else {
+      box(title = "Gene expression", width = 12, status = "primary", solidHeader = TRUE, column(width = 12, p("There is no dimensional reduction available on this data.")))
+    }
   })
 
   cell.prepare <- eventReactive(input$cell.submit, {
@@ -1125,7 +1202,7 @@ server <- function(input, output, session) {
           column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
                                               choices = c("No", "45°", "90°"), selected = "90°"))
         ),
-        sliderInput("multi.facet_ncol", "Genes per row:", 2, 12, 3, 1),
+        sliderInput("multi.facet_ncol", "Genes per row:", 1, 15, 3, 1),
         sliderInput("multi.fontsize.x", "X-axis label size:", 6, 14, 10, 1)
       )
     } else if(input$multi.plot_type == "Dot") {
@@ -1140,7 +1217,10 @@ server <- function(input, output, session) {
         ),
         radioGroupButtons(inputId = "multi.plot_cluster", label = "Hierarchical clustering:", direction = "horizontal",
                           choices = c("None", "Group (X-axis)", "Gene (Y-axis)", "Both"), selected = "None"),
-        sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
+        fluidRow(
+          column(width = 6, sliderInput("multi.dots_size", "Maximun dot size:", 3, 10, 6, 1)),
+          column(width = 6, sliderInput("multi.base_size", "Axis label size:", 8, 22, base_size, 1))
+        )
       )
     } else if(input$multi.plot_type == "Heatmap") {
       tags$div(
@@ -1152,7 +1232,7 @@ server <- function(input, output, session) {
           column(width = 6, radioGroupButtons(inputId = "multi.rotate_x", label = "Rotate X-axis labels:", direction = "horizontal",
                                               choices = c("No", "45°", "90°"), selected = "90°"))
         ),
-        sliderInput("multi.base_size", "Axis label size:", 12, 22, base_size, 2)
+        sliderInput("multi.base_size", "Axis label size:", 8, 22, base_size, 1)
       )
     }
   })
@@ -1196,6 +1276,7 @@ server <- function(input, output, session) {
     updateSliderInput(session, "multi.dot_opacity", value = 0.8)
     updateSliderInput(session, "multi.facet_ncol", value = 3)
     updateSliderInput(session, "multi.fontsize.x", value = 10)
+    updateSliderInput(session, "multi.dots_size", value = 6)
     updateSliderInput(session, "multi.base_size", value = base_size)
   })
 
@@ -1278,6 +1359,11 @@ server <- function(input, output, session) {
       } else if(input$multi.plot_type == "Boxplot") {
         height <- length(features) * (2000/50) # 2000px for 50 genes
         height <- if(height < 350) 350 else height # min 350 px
+
+        # Adjust when facet_ncol is 1
+        if(input$multi.facet_ncol == 1 & length(features) > 6) {
+          height <- if(length(features) < 25) height * 1.5 else if(length(features) < 75) height * 1.75 else height * 2
+        }
       } else {
         height <- length(features) * (900/50) # 800px for 50 genes
         height <- if(height < 300) 300 else height # min 300 px
@@ -1343,7 +1429,8 @@ server <- function(input, output, session) {
                   scale_y_discrete(limits = heat$tree_row$labels[heat$tree_row$order])
         }
 
-        fig <- fig + guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) + 
+        fig <- fig + scale_size(range = c(1, input$multi.dots_size), limits = c(0, 1)) +
+                guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) +
                 theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
       } else if(input$multi.plot_type == "Heatmap") {
         fig <- if(input$multi.plot_scale == "None")
@@ -1352,7 +1439,8 @@ server <- function(input, output, session) {
                 else plotGroupedHeatmap(sce, features = features[keep], group = randStr, clustering_method = "ward.D2", border_color = "black",
                                         fontsize = input$multi.base_size, angle_col = rotate_x_angle, center = TRUE, scale = TRUE)
       } else {
-        expr <- as.data.frame(t(logcounts(sce[features,])))
+        expr <- t(logcounts(sce[features,]))
+        expr <- if(class(expr) == "dgCMatrix") as.data.frame(as.matrix(expr)) else as.data.frame(expr)
         colnames(expr) <- features
 
         if(input$multi.plot_type == "Boxplot") {
@@ -1383,8 +1471,10 @@ server <- function(input, output, session) {
                   cowplot::theme_cowplot() + xlab(xlab) + ylab("logcounts") + 
                   theme(axis.text.x = element_text(size = input$multi.fontsize.x))
 
-          if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) + scale_fill_gradientn(colours = continuous[["turbo"]])
-                  guides(col = guide_colourbar(title = "Proportion\nDetected", barheight = 15), fill = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
+          if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) +
+                  scale_fill_gradientn(colours = continuous[["turbo"]]) +
+                  guides(color = guide_colourbar(title = "Proportion\nDetected", barheight = 15),
+                         fill = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
         } else if(input$multi.plot_type == "Projection") {
           # Prepare DataFrame
           df <- as.data.frame(reducedDim(sce, input$multi.dimred)[,1:2])
@@ -1422,20 +1512,28 @@ server <- function(input, output, session) {
 
   # Determine plot type and show plot with dynamic height
   output$multi.plot.ui <- renderUI({
+    sce.vars <- sce.vars()
+    sce.dimreds <- sce.vars[["sce.dimreds"]]
     plot_type <- isolate(input$multi.plot_type)
-    if(multi.plot_height() > 0 & reset.multi.submit() == 0) {
-      output$multi.plot <- renderPlot({
-        multi.prepare_plot()
-      })
 
-      box(title = plot_type, status = "primary", width = 12,
-	  plotOutput("multi.plot", width = "99%", height = multi.plot_height()) %>% withSpinner(type = getOption("spinner.type", default = 8))
-      )
+    if(multi.plot_height() > 0 & reset.multi.submit() == 0) {
+      if((plot_type != "Projection") | (plot_type == "Projection" & length(sce.dimreds) > 0)) {
+        output$multi.plot <- renderPlot({
+          multi.prepare_plot()
+        })
+
+        box(title = plot_type, status = "primary", width = 12,
+            plotOutput("multi.plot", width = "99%", height = multi.plot_height()) %>% withSpinner(type = getOption("spinner.type", default = 8))
+        )
+      } else {
+        box(title = "Gene expression: Projection", width = 12, status = "primary", solidHeader = TRUE,
+            column(width = 12, p("There is no dimensional reduction available on this data.")))
+      }
     }
   })
 
   ####################
-  # enrichR: findMarkers/edgeR panel
+  # enrichR: findMarkers/edgeR/DESeq2 panel
   ####################
   prep.ora.listnames <- function(sce, menuItems) {
     if(menuItems == "ORAfm") {
@@ -1447,6 +1545,12 @@ server <- function(input, output, session) {
     if(menuItems == "ORAer") {
       listnames <- names(metadata(sce))[grep("^enrichR_edgeR", names(metadata(sce)))]
       names(listnames) <- gsub("enrichR_edgeR_", "", listnames)
+      type <- "DEGs"
+    }
+
+    if(menuItems == "ORAde") {
+      listnames <- names(metadata(sce))[grep("^enrichR_DESeq2", names(metadata(sce)))]
+      names(listnames) <- gsub("enrichR_DESeq2_", "", listnames)
       type <- "DEGs"
     }
 
@@ -1485,6 +1589,22 @@ server <- function(input, output, session) {
     listname <- listnames[input$ORAer.listname]
     dbs <- names(metadata(sce)[[listname]][[input$ORAer.group]])
     updateSelectInput(session, "ORAer.db", choices = dbs, selected = dbs[1])
+  })
+
+  observeEvent(input$ORAde.listname, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAde")
+    listname <- listnames[input$ORAde.listname]
+    groups <- names(metadata(sce)[[listname]])
+    updateSelectInput(session, "ORAde.group", choices = groups, selected = groups[1])
+  })
+
+  observeEvent(input$ORAde.group, {
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAde")
+    listname <- listnames[input$ORAde.listname]
+    dbs <- names(metadata(sce)[[listname]][[input$ORAde.group]])
+    updateSelectInput(session, "ORAde.db", choices = dbs, selected = dbs[1])
   })
 
   output$ORAfm.menu.ui <- renderUI({
@@ -1539,6 +1659,32 @@ server <- function(input, output, session) {
     )
   })
 
+  output$ORAde.menu.ui <- renderUI({
+    sce <- sce()
+    listnames <- prep.ora.listnames(sce, "ORAde")
+    # Default, first element
+    groups <- names(metadata(sce)[[listnames[1]]])
+    dbs <- names(metadata(sce)[[listnames[1]]][[groups[1]]])
+
+    box(title = "Input", width = 12, status = "primary", solidHeader = TRUE,
+      fluidRow(
+        column(width = 3, selectInput("ORAde.listname", "Select DE condition:", choices = names(listnames), selected = names(listnames)[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAde.group", "Select DE result:", choices = groups, selected = groups[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, selectInput("ORAde.db", "Select gene-set library:", choices = dbs, selected = dbs[1], multiple = FALSE, selectize = FALSE)),
+        column(width = 3, sliderInput("ORAde.nterms", "Number of terms:", 10, 30, 20, 5), style = "height: 70px;")
+      ),
+      fluidRow(
+        column(width = 3, radioGroupButtons("ORAde.xaxis", label = "Bar length by:", direction = "horizontal", choices = c("Gene count", "Gene ratio"),
+                                            selected = "Gene count")),
+        column(width = 3, radioGroupButtons("ORAde.order_by", label = "Order bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "FDR")),
+        column(width = 3, radioGroupButtons("ORAde.color_by", label = "Colour bars by:", direction = "horizontal", choices = c("P-value", "FDR", "Combined score"),
+                                            selected = "P-value")),
+        column(width = 3, actionButton("ORAde.submit", "Submit", width = "75px", class = "btn-primary", style = "color: #fff; margin-top: 25px;"))
+      )
+    )
+  })
+
   ora.fm <- eventReactive(input$ORAfm.submit, {
     isolate({
       listname <- input$ORAfm.listname
@@ -1565,12 +1711,27 @@ server <- function(input, output, session) {
     list(listname = listname, group = group, db = db, nterms = nterms, xaxis = xaxis, order_by = order_by, color_by = color_by)
   })
 
+  ora.de <- eventReactive(input$ORAde.submit, {
+    isolate({
+      listname <- input$ORAde.listname
+      group <- input$ORAde.group
+      db <- input$ORAde.db
+      nterms <- input$ORAde.nterms
+      xaxis <- input$ORAde.xaxis
+      order_by <- input$ORAde.order_by
+      color_by <- input$ORAde.color_by
+    })
+    list(listname = listname, group = group, db = db, nterms = nterms, xaxis = xaxis, order_by = order_by, color_by = color_by)
+  })
+
   prep.ora.df <- function(sce, menuItems) {
     ora.listnames <- prep.ora.listnames(sce, menuItems)
     if(menuItems == "ORAfm") {
       ora.vars <- ora.fm()
-    } else {
+    } else if(menuItems == "ORAer") {
       ora.vars <- ora.er()
+    } else {
+      ora.vars <- ora.de()
     }
     listname <- ora.vars[["listname"]]
     group <- ora.vars[["group"]]
@@ -1596,8 +1757,10 @@ server <- function(input, output, session) {
   prep.ora.plot <- function(df, menuItems) {
     if(menuItems == "ORAfm") {
       ora.vars <- ora.fm()
-    } else {
+    } else if(menuItems == "ORAer") {
       ora.vars <- ora.er()
+    } else {
+      ora.vars <- ora.de()
     }
     nterms <- ora.vars[["nterms"]]
     xaxis <- ora.vars[["xaxis"]]
@@ -1650,6 +1813,21 @@ server <- function(input, output, session) {
 
       box(title = "Result", status = "primary", width = 12, solidHeader = TRUE, collapsible = FALSE,
           plotOutput("ORAer.plot", width = "99%", height = "400px") %>% withSpinner(type = getOption("spinner.type", default = 8)),
+          renderDT(prep.ora.table(df)))
+    }
+  })
+
+  output$ORAde.output.ui <- renderUI({
+    if(reset.ORAde.submit() == 0) {
+      sce <- sce()
+      df <- prep.ora.df(sce, "ORAde")
+
+      output$ORAde.plot <- renderPlot({
+        prep.ora.plot(df, "ORAde")
+      })
+
+      box(title = "Result", status = "primary", width = 12, solidHeader = TRUE, collapsible = FALSE,
+          plotOutput("ORAde.plot", width = "99%", height = "400px") %>% withSpinner(type = getOption("spinner.type", default = 8)),
           renderDT(prep.ora.table(df)))
     }
   })

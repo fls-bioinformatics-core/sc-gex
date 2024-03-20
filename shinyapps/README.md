@@ -68,3 +68,10 @@ R -e "shiny::runApp('.')"
 R -e "shiny::runApp('.', host = '127.0.0.1', port = 7010)"
 ```
 
+## Opening ports
+
+To open port allowing access to Shiny App on BCF's doublecell VMs:
+
+```
+sudo ufw allow proto tcp to any port PORT_NUM
+``
