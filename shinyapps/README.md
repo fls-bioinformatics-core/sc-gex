@@ -29,7 +29,9 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 Set up a Shiny environment using `conda`:
 
 ```
-conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools
+conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders \
+r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot \
+bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools
 ```
 
 ## Demo site showing six 10x Genomics snRNA-seq datasets
@@ -68,3 +70,10 @@ R -e "shiny::runApp('.')"
 R -e "shiny::runApp('.', host = '127.0.0.1', port = 7010)"
 ```
 
+## Opening ports
+
+To open port allowing access to Shiny App on BCF's doublecell VMs:
+
+```
+sudo ufw allow proto tcp to any port PORT_NUM
+```
