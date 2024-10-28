@@ -1,29 +1,3 @@
-suppressPackageStartupMessages({
-  ####################
-  # Load shiny packages
-  ####################
-  library(shiny)
-  library(shinycssloaders) # withSpinner
-  library(shinyWidgets)
-  library(shinydashboard)
-
-  ####################
-  # Load additional packages
-  ####################
-  library(DT)
-  library(dplyr)
-  library(plotly)
-  library(scater)
-
-  # Not loaded, use :: to call required functions
-  #library(cowplot)	# theme_cowplot, plot_grid
-  #library(edgeR)	# topTags
-  #library(HDF5Array)	# loadHDF5SummarizedExperiment
-  #library(htmlwidgets)	# JS
-  #library(pals)	# continuous color palettes
-  #library(tidyr)	# gather
-})
-
 #--------- Adjustment required; START -------- #
 
 # Set the paths to the directories where the HDF5-based object were saved
@@ -166,6 +140,31 @@ default.group_by <- default.group_by[order(names(default.group_by))]
 
 # plotly legend for Cell features projection
 pl.legend <- list(font = list(size = 12, color = "#000"), bordercolor = "#000", borderwidth = 1, itemsizing = "constant")
+
+####################
+# Load R libraries
+####################
+suppressPackageStartupMessages({
+  # Load shiny packages
+  library(shiny)
+  library(shinycssloaders) # withSpinner
+  library(shinyWidgets)
+  library(shinydashboard)
+
+  # Load additional packages
+  library(DT)
+  library(dplyr)
+  library(plotly)
+  library(scater)
+
+  # Not loaded, use :: to call required functions
+  #library(cowplot)     # theme_cowplot, plot_grid
+  #library(edgeR)       # topTags
+  #library(HDF5Array)   # loadHDF5SummarizedExperiment
+  #library(htmlwidgets) # JS
+  #library(pals)        # continuous color palettes
+  #library(tidyr)       # gather
+})
 
 ####################
 # Load sce files
