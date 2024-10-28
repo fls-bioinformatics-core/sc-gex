@@ -1,52 +1,25 @@
-suppressPackageStartupMessages({
-  ####################
-  # Load shiny packages
-  ####################
-  library(shiny)
-  library(shinycssloaders) # withSpinner
-  library(shinyWidgets)
-  library(shinydashboard)
-
-  ####################
-  # Load additional packages
-  ####################
-  library(DT)
-  library(dplyr)
-  library(plotly)
-  library(scater)
-
-  # Not loaded, use :: to call required functions
-  #library(cowplot)	# theme_cowplot, plot_grid
-  #library(edgeR)	# topTags
-  #library(HDF5Array)	# loadHDF5SummarizedExperiment
-  #library(htmlwidgets)	# JS
-  #library(pals)	# continuous color palettes
-  #library(tidyr)	# gather
-})
-
 #--------- Adjustment required; START -------- #
 
 # Set the paths to the directories where the HDF5-based object were saved
 filepaths <- c(Combined = "Integrated/combined_h5_sce",
-               Week_08_1 = "Sample_2/Week_08_1_h5_sce",
-               Week_08_2 = "Sample_4/Week_08_2_h5_sce",
-               Week_13_1 = "Sample_1/Week_13_1_h5_sce",
-               Week_13_2 = "Sample_5/Week_13_2_h5_sce",
-               Week_15_1 = "Sample_3/Week_15_1_h5_sce",
-               Week_15_2 = "Sample_6/Week_15_2_h5_sce")
+	       Sample_1 = "Sample_1/Sample_1_h5_sce",
+	       Sample_2 = "Sample_2/Sample_2_h5_sce",
+	       Sample_3 = "Sample_3/Sample_3_h5_sce",
+	       Sample_4 = "Sample_4/Sample_4_h5_sce")
 
 # Set the default selected reducedDimName in the dropdown menu, accessible from `reducedDimNames(sce)`
 # If not found, TSNE is selected
 default.dimred <- "MNN-TSNE"
 
 # Add custom cell features (and their descriptions) for colouring, accessible from `colData(sce)`
-# Built-in recognised features: "Sample", "sum", "detected", "subsets_Mt_percent", "CellCycle", 
+# Built-in recognised feature names: "Sample", "sum", "detected", "subsets_Mt_percent", "CellCycle", 
 # "DoubletDensity", "DoubletDensity_log1p", "label", "CellType", "ClusterCellType"
 my.color_by <- c("condition")
 my.color_by.desc <- c("Condition")
 
-# Add custom cell features (and their descriptions) for grouped presentation (typically in the dot/bar/box/heatmap), accessible from `colData(sce)`
-# Built-in recognised features: "Sample","label","CellType","ClusterCellType"
+# Add custom cell features (and their descriptions) for grouped presentation 
+# (typically in the dotplots, boxplots and heatmap), accessible from `colData(sce)`
+# Built-in recognised features names: "Sample","label","CellType","ClusterCellType"
 my.group_by <- c("condition")
 my.group_by.desc <- c("Condition")
 
@@ -77,7 +50,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.1"
+app.version <- "v0.7.2"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -167,6 +140,31 @@ default.group_by <- default.group_by[order(names(default.group_by))]
 
 # plotly legend for Cell features projection
 pl.legend <- list(font = list(size = 12, color = "#000"), bordercolor = "#000", borderwidth = 1, itemsizing = "constant")
+
+####################
+# Load R libraries
+####################
+suppressPackageStartupMessages({
+  # Load shiny packages
+  library(shiny)
+  library(shinycssloaders) # withSpinner
+  library(shinyWidgets)
+  library(shinydashboard)
+
+  # Load additional packages
+  library(DT)
+  library(dplyr)
+  library(plotly)
+  library(scater)
+
+  # Not loaded, use :: to call required functions
+  #library(cowplot)     # theme_cowplot, plot_grid
+  #library(edgeR)       # topTags
+  #library(HDF5Array)   # loadHDF5SummarizedExperiment
+  #library(htmlwidgets) # JS
+  #library(pals)        # continuous color palettes
+  #library(tidyr)       # gather
+})
 
 ####################
 # Load sce files
@@ -432,9 +430,12 @@ server <- function(input, output, session) {
     enrichr.listnames <- names(metadata(sce))[grep("^enrichR", names(metadata(sce)))]
     if(length(enrichr.listnames) > 0) {
       enrichr.menu <- menuItem("Enrichment analysis", tabName = "enrichR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
-                               if(sum(grepl("findMarkers", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("Gene markers", tabName = "ORAfm"))),
-                               if(sum(grepl("edgeR", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (edgeR)", tabName = "ORAer"))),
-                               if(sum(grepl("DESeq2", enrichr.listnames)) > 0) do.call(tagList, list(menuSubItem("DEA (DESeq2)", tabName = "ORAde")))
+                               if(sum(unlist(lapply(metadata(sce)[enrichr.listnames[(grepl("findMarkers", enrichr.listnames))]], length))) > 0)
+                                       do.call(tagList, list(menuSubItem("Gene markers", tabName = "ORAfm"))),
+                               if(sum(unlist(lapply(metadata(sce)[enrichr.listnames[(grepl("edgeR", enrichr.listnames))]], length))) > 0)
+                                       do.call(tagList, list(menuSubItem("DEA (edgeR)", tabName = "ORAer"))),
+                               if(sum(unlist(lapply(metadata(sce)[enrichr.listnames[(grepl("DESeq2", enrichr.listnames))]], length))) > 0)
+                                       do.call(tagList, list(menuSubItem("DEA (DESeq2)", tabName = "ORAde")))
       )
     } else enrichr.menu <- NULL
 
@@ -622,11 +623,20 @@ server <- function(input, output, session) {
             lapply(edger.sublistnames, function(sublistname) {
               res <- metadata(sce)[[listname]][[sublistname]]
               edger.df <- edgeR::topTags(res, n = nrow(res), sort.by = "PValue", adjust.method = "BH")$table %>% as.data.frame %>% dplyr::arrange(FDR, Symbol)
-              fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), sublistname, icon("fa-thin fa-caret-left", verify_fa = FALSE)),
-                           width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
-                           renderDT(datatable(edger.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-					      rownames = FALSE, selection = "none", class = "white-space: nowrap") %>% 
-				    formatRound(columns = c("logFC","logCPM","F"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
+              if("F" %in% colnames(edger.df)) { # QLFTest
+                fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), paste(sublistname, "(QLFTest)"),
+                                          icon("fa-thin fa-caret-left", verify_fa = FALSE)), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                             renderDT(datatable(edger.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                      rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                      formatRound(columns = c("logFC","logCPM","F"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
+              } else { # LRT
+                logFC_cols <- colnames(edger.df)[grep("logFC", colnames(edger.df))]
+                fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), paste(sublistname, "(LRT)"),
+                                          icon("fa-thin fa-caret-left", verify_fa = FALSE)), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                             renderDT(datatable(edger.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                      rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                      formatRound(columns = c(logFC_cols,"logCPM","LR"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
+              }
         }))))
       }
 #    updateTabItems(session, "menuItems", "about")
@@ -1412,8 +1422,13 @@ server <- function(input, output, session) {
                                           center = TRUE, scale = TRUE, silent = T)
         }
 
-        fig <- if(input$multi.plot_scale == "None") plotDots(sce, features = features, group = randStr)
-                else plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE)
+        fig <- if(input$multi.plot_scale == "None") {
+                plotDots(sce, features = features, group = randStr) +
+                        guides(colour = guide_colorbar(title = "Average Expression", barwidth = 20))
+        } else {
+                plotDots(sce, features = features[keep], group = randStr, center = TRUE, scale = TRUE) +
+                        guides(colour = guide_colorbar(title = "Row (Gene) Z-Score", barwidth = 20))
+        }
 
         if(input$multi.plot_cluster %in% c("None","Group (X-axis)")) {
           fig <- if(input$multi.plot_scale == "None") fig + scale_y_discrete(limits = features) 
@@ -1430,7 +1445,7 @@ server <- function(input, output, session) {
         }
 
         fig <- fig + scale_size(range = c(1, input$multi.dots_size), limits = c(0, 1)) +
-                guides(size = guide_legend(title = "Proportion Detected"), color = guide_colorbar(barwidth = 20)) +
+                guides(size = guide_legend(title = "Proportion Detected")) +
                 theme_minimal(base_size = input$multi.base_size) + theme(legend.position = "top") + xlab(xlab) + ylab("Genes")
       } else if(input$multi.plot_type == "Heatmap") {
         fig <- if(input$multi.plot_scale == "None")
@@ -1473,8 +1488,8 @@ server <- function(input, output, session) {
 
           if(input$multi.color_by == "Detected") fig <- fig + scale_color_gradientn(colours = continuous[["turbo"]]) +
                   scale_fill_gradientn(colours = continuous[["turbo"]]) +
-                  guides(color = guide_colourbar(title = "Proportion\nDetected", barheight = 15),
-                         fill = guide_colourbar(title = "Proportion\nDetected", barheight = 15))
+                  guides(color = guide_colorbar(title = "Proportion\nDetected", barheight = 15),
+                         fill = guide_colorbar(title = "Proportion\nDetected", barheight = 15))
         } else if(input$multi.plot_type == "Projection") {
           # Prepare DataFrame
           df <- as.data.frame(reducedDim(sce, input$multi.dimred)[,1:2])
