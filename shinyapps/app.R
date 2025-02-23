@@ -12,14 +12,14 @@ filepaths <- c(Combined = "Integrated/combined_h5_sce",
 default.dimred <- "MNN-TSNE"
 
 # Add custom cell features (and their descriptions) for colouring, accessible from `colData(sce)`
-# Built-in recognised feature names: "Sample", "sum", "detected", "subsets_Mt_percent", "CellCycle", 
+# Built-in recognised feature names: "Sample", "sum", "detected", "subsets_Mt_percent", "CellCycle",
 # "DoubletDensity", "DoubletDensity_log1p", "label", "CellType", "ClusterCellType"
 my.color_by <- c("condition")
 my.color_by.desc <- c("Condition")
 
-# Add custom cell features (and their descriptions) for grouped presentation 
+# Add custom cell features (and their descriptions) for grouped presentation
 # (typically in the dotplots, boxplots and heatmap), accessible from `colData(sce)`
-# Built-in recognised features names: "Sample","label","CellType","ClusterCellType"
+# Built-in recognised feature names: "Sample","label","CellType","ClusterCellType"
 my.group_by <- c("condition")
 my.group_by.desc <- c("Condition")
 
@@ -50,7 +50,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.2"
+app.version <- "v0.7.3"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -828,26 +828,27 @@ server <- function(input, output, session) {
     df2 <- as.data.frame(table(sce$label))
 
     widths <- round(length(sce.samples)/(length(sce.samples)+length(sce.labels)), 2)
-    if(widths > 0.7) widths <- 0.7 else if(widths < 0.3) widths <- 0.3
+    if(widths > 0.7) widths <- 0.7 else if(widths < 0.2) widths <- 0.2
     widths <- c(widths, 1-widths)
 
     # Create plot
     fig1 <- plot_ly(df1, x = ~Var1, y = ~Freq) %>%
-      add_bars(text = ~Freq, textposition = "outside", cliponaxis = FALSE, hoverinfo = "none") %>%
+      add_bars(cliponaxis = FALSE, name = "", hovertemplate = "%{y:,} cells<br />in Sample %{x}") %>%
       layout(xaxis = list(title = "Samples"), yaxis = list(title = "No. of cells", range = c(0, max(df1$Freq)*1.15)))
 
     fig2 <- plot_ly(df2, x = ~Var1, y = ~Freq) %>%
-      add_bars(text = ~Freq, textposition = "outside", cliponaxis = FALSE, hoverinfo = "none") %>%
+      add_bars(cliponaxis = FALSE, name = "", hovertemplate = "%{y:,} cells<br />in Cluster %{x}") %>%
       layout(xaxis = list(title = "Cluster"), yaxis = list(title = "No. of cells" , range = c(0, max(df2$Freq)*1.15)))
 
-    subplot(fig1, fig2, titleX = TRUE, titleY = TRUE, widths = widths) %>%
+    subplot(fig1, fig2, titleX = TRUE, titleY = TRUE, margin = c(0.06, 0.00, 0.0, 0.0), # c(left, right, top, bottom)
+            nrows = 1, widths = widths) %>%
       layout(showlegend = FALSE, annotations = list(
         list(
-          text = "<b>Cells in each sample</b>", x = -0.02, y = 1.02, xanchor = "left", yanchor = "bottom",
+          text = "<b>Cells in each sample</b>", x = -0.04, y = 1.02, xanchor = "left", yanchor = "bottom",
           showarrow = FALSE, xref = "paper", yref = "paper", font = list(size = 16)
         ),
         list(
-          text = "<b>Cells in each cluster</b>", x = widths[1], y = 1.02, xanchor = "left", yanchor = "bottom",
+          text = "<b>Cells in each cluster</b>", x = widths[1]+0.01, y = 1.02, xanchor = "left", yanchor = "bottom",
           showarrow = FALSE, xref = "paper", yref = "paper", font = list(size = 16)
         )
       ))
