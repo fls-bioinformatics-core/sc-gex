@@ -13,6 +13,7 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 | dplyr | CRAN |
 | DT | CRAN |
 | edgeR | Bioconductor |
+| fontawesome | CRAN |
 | gtools | CRAN |
 | HDF5Array | Bioconductor |
 | htmlwidgets | CRAN |
@@ -31,7 +32,8 @@ Set up a Shiny environment using `conda`:
 ```
 conda create -n shiny -c conda-forge -c bioconda r-base=4.1 r-shiny r-shinycssloaders \
 r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot \
-bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools
+bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap  \
+r-gtools r-fontawesome
 ```
 
 ## Demo site showing six 10x Genomics snRNA-seq datasets

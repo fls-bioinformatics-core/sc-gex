@@ -150,6 +150,7 @@ suppressPackageStartupMessages({
   library(shinycssloaders) # withSpinner
   library(shinyWidgets)
   library(shinydashboard)
+  library(fontawesome)
 
   # Load additional packages
   library(DT)
@@ -206,8 +207,6 @@ ui <- dashboardPage(
     sidebarMenuOutput("menuItms")
   ),
   body = dashboardBody(
-    # Add support for Font Awesome 6.1.1
-    tags$style("@import url(https://use.fontawesome.com/releases/v6.1.1/css/all.css);"),
     tags$head(tags$style(HTML("
 /* logo */
 .skin-blue .main-header .logo{
@@ -396,7 +395,7 @@ server <- function(input, output, session) {
     # findMarkers
     fm.listnames <- names(metadata(sce))[grep("^findMarkers", names(metadata(sce)))]
     if(length(fm.listnames) > 0) {
-      fm.menu <- menuItem("Gene markers", tabName = "findMarkers", icon = icon("fas fa-thumbtack", verify_fa = FALSE), startExpanded = TRUE,
+      fm.menu <- menuItem("Gene markers", tabName = "findMarkers", icon = fa_i("thumbtack", fill = "ffd500"), startExpanded = TRUE,
         lapply(fm.listnames, function(listname) {
           tab.name <- gsub("_", ": ", gsub("findMarkers_", "", listname))
           menuSubItem(tab.name, tabName = listname)
@@ -407,7 +406,7 @@ server <- function(input, output, session) {
     # edgeR
     edger.listnames <- names(metadata(sce))[grep("^edgeR", names(metadata(sce)))]
     if(length(edger.listnames) > 0) {
-      edger.menu <- menuItem("DEA (edgeR)", tabName = "edgeR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
+      edger.menu <- menuItem("DEA (edgeR)", tabName = "edgeR", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(edger.listnames, function(listname) {
           tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", listname))
           menuSubItem(tab.name, tabName = listname)
@@ -418,7 +417,7 @@ server <- function(input, output, session) {
     # DESeq2
     deseq.listnames <- names(metadata(sce))[grep("^DESeq2", names(metadata(sce)))]
     if(length(deseq.listnames) > 0) {
-      deseq.menu <- menuItem("DEA (DESeq2)", tabName = "DESeq2", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
+      deseq.menu <- menuItem("DEA (DESeq2)", tabName = "DESeq2", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(deseq.listnames, function(listname) {
           tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", listname))
           menuSubItem(tab.name, tabName = listname)
@@ -429,7 +428,7 @@ server <- function(input, output, session) {
     # enrichR (findMarkers/edgeR/DESeq2)
     enrichr.listnames <- names(metadata(sce))[grep("^enrichR", names(metadata(sce)))]
     if(length(enrichr.listnames) > 0) {
-      enrichr.menu <- menuItem("Enrichment analysis", tabName = "enrichR", icon = icon("fa-regular fa-magnifying-glass-chart", verify_fa = FALSE), startExpanded = TRUE,
+      enrichr.menu <- menuItem("Enrichment analysis", tabName = "enrichR", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
                                if(sum(unlist(lapply(metadata(sce)[enrichr.listnames[(grepl("findMarkers", enrichr.listnames))]], length))) > 0)
                                        do.call(tagList, list(menuSubItem("Gene markers", tabName = "ORAfm"))),
                                if(sum(unlist(lapply(metadata(sce)[enrichr.listnames[(grepl("edgeR", enrichr.listnames))]], length))) > 0)
@@ -441,16 +440,16 @@ server <- function(input, output, session) {
 
     menu <- c(
       list(id = "menuItems"),
-      list(menuItem(paste0("Overview: [", choose_sce(), "]"), tabName = "overview", icon = icon("fa-regular fa-house", verify_fa = FALSE))),
-      list(menuItem("Cell feature", tabName = "cellFeatures", icon = icon("dna"))),
-      list(menuItem("Gene expression", tabName = "geneExpression", icon = icon("signal"), startExpanded = TRUE,
+      list(menuItem(paste0("Overview: [", choose_sce(), "]"), tabName = "overview", icon = fa_i("house", fill = "ffd500"))),
+      list(menuItem("Cell feature", tabName = "cellFeatures", icon = fa_i("dna", fill = "ffd500"))),
+      list(menuItem("Gene expression", tabName = "geneExpression", icon = fa_i("signal", fill = "ffd500"), startExpanded = TRUE,
                     menuSubItem("Single gene", tabName = "onegeneExpression"),
                     menuSubItem("Multiple genes", tabName = "multigeneExpression"))),
       list(fm.menu),
       list(edger.menu),
       list(deseq.menu),
       list(enrichr.menu),
-      list(menuItem("About", tabName = "about", icon = icon("fa-regular fa-circle-info", verify_fa = FALSE)))
+      list(menuItem("About", tabName = "about", icon = fa_i("circle-info", fill = "ffd500")))
     )
     do.call(sidebarMenu, menu)
   })
@@ -591,7 +590,7 @@ server <- function(input, output, session) {
           fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
             lapply(fm.sublistnames, function(sublistname) {
               fm.df <- as.data.frame(metadata(sce)[[listname]][[sublistname]]) %>% dplyr::arrange(Top, FDR)
-              fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), sublistname, icon("fa-thin fa-caret-left", verify_fa = FALSE)),
+              fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
                            width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                            renderDT(datatable(fm.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
 					      rownames = FALSE, selection = "none", class = "white-space: nowrap") %>% 
@@ -624,15 +623,15 @@ server <- function(input, output, session) {
               res <- metadata(sce)[[listname]][[sublistname]]
               edger.df <- edgeR::topTags(res, n = nrow(res), sort.by = "PValue", adjust.method = "BH")$table %>% as.data.frame %>% dplyr::arrange(FDR, Symbol)
               if("F" %in% colnames(edger.df)) { # QLFTest
-                fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), paste(sublistname, "(QLFTest)"),
-                                          icon("fa-thin fa-caret-left", verify_fa = FALSE)), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                fluidRow(box(title = span(fa("caret-right", fill = "purple"), paste(sublistname, "(QLFTest)"),
+                                          fa("caret-left", fill = "purple")), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                              renderDT(datatable(edger.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
                                       rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
                                       formatRound(columns = c("logFC","logCPM","F"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
               } else { # LRT
                 logFC_cols <- colnames(edger.df)[grep("logFC", colnames(edger.df))]
-                fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), paste(sublistname, "(LRT)"),
-                                          icon("fa-thin fa-caret-left", verify_fa = FALSE)), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                fluidRow(box(title = span(fa("caret-right", fill = "purple"), paste(sublistname, "(LRT)"),
+                                          fa("caret-left", fill = "purple")), width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                              renderDT(datatable(edger.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
                                       rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
                                       formatRound(columns = c(logFC_cols,"logCPM","LR"), digits = 4) %>% formatSignif(columns = c("PValue", "FDR"), digits = 4))))
@@ -663,7 +662,7 @@ server <- function(input, output, session) {
             lapply(deseq.sublistnames, function(sublistname) {
               res <- metadata(sce)[[listname]][[sublistname]]
               deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
-              fluidRow(box(title = span(icon("fa-thin fa-caret-right", verify_fa = FALSE), sublistname, icon("fa-thin fa-caret-left", verify_fa = FALSE)),
+              fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
                            width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                            renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
                                               rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
