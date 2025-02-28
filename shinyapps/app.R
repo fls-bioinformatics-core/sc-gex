@@ -50,7 +50,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.3"
+app.version <- "v0.7.5"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -468,8 +468,8 @@ server <- function(input, output, session) {
         ),
         fluidRow(
           uiOutput("overview.ui"),
-          uiOutput("runinfo.ui"),
-          uiOutput("overview.plot.ui")
+          uiOutput("overview.plot.ui"),
+          uiOutput("runinfo.ui")
         )
       )),
       ####################
@@ -773,49 +773,6 @@ server <- function(input, output, session) {
     )
   })
 
-  output$runinfo.ui <- renderUI({
-    sce <- sce()
-    runInfo.10x <- if(length(metadata(sce)[["runInfo"]][["10X"]]) > 0) TRUE else FALSE
-    runInfo.parse <- if(length(metadata(sce)[["runInfo"]][["Parse"]]) > 0) TRUE else FALSE
-    runInfo.wells <- if(length(metadata(sce)[["runInfo"]][["Wells"]]) > 0) TRUE else FALSE
-    runInfo.bcf <- if(length(metadata(sce)[["runInfo"]][["BCF"]]) > 0) TRUE else FALSE
-
-    if(runInfo.10x & runInfo.bcf) {
-      if(class(metadata(sce)[["runInfo"]][["10X"]]) == "character") { # 10X single-sample
-        df.10x <- data.frame("10X Sample Info" = names(metadata(sce)[["runInfo"]][["10X"]]), Value = metadata(sce)[["runInfo"]][["10X"]], check.names = FALSE)
-        df.bcf <- data.frame("BCF Run Info" = names(metadata(sce)[["runInfo"]][["BCF"]]), Value = metadata(sce)[["runInfo"]][["BCF"]], check.names = FALSE)
-        box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE, 
-	    column(width = 6, div(renderDT(datatable(df.10x, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						     rownames = FALSE, selection = "none")), style = "font-size:105%")), 
-	    column(width = 6, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						     rownames = FALSE, selection = "none")), style = "font-size:105%"))
-        )
-      } else { # 10X integrated
-        df.10x <- metadata(sce)[["runInfo"]][["10X"]]
-        df.bcf <- metadata(sce)[["runInfo"]][["BCF"]]
-	box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE, 
-	    column(width = 12, div(renderDT(datatable(df.10x, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						      selection = "none")), style = "font-size:105%")), 
-	    column(width = 12, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						      selection = "none")), style = "font-size:105%"))
-	)
-      }
-    } else if(runInfo.parse & runInfo.wells & runInfo.bcf) {
-      df.parse <- data.frame("Parse Biosciences Sample Info" = names(metadata(sce)[["runInfo"]][["Parse"]]), Value = metadata(sce)[["runInfo"]][["Parse"]], check.names = FALSE)
-      df.wells <- data.frame("Well No." = names(metadata(sce)[["runInfo"]][["Wells"]]), Sample = metadata(sce)[["runInfo"]][["Wells"]], check.names = FALSE)
-      df.bcf <- data.frame("BCF Run Info" = names(metadata(sce)[["runInfo"]][["BCF"]]), Value = metadata(sce)[["runInfo"]][["BCF"]], check.names = FALSE)
-
-      box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE, 
-	  column(width = 4, div(renderDT(datatable(df.parse, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE, selection = "none")), style = "font-size:105%")), 
-	  column(width = 5, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE, selection = "none")), style = "font-size:105%")), 
-	  column(width = 3, div(renderDT(datatable(df.wells, options = list(searching = FALSE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE), 
-						   rownames = FALSE, selection = "none")), style = "font-size:105%"))
-      )
-    }
-  })
-
   output$plotOverview <- renderPlotly({
     sce <- sce()
     sce.vars <- sce.vars()
@@ -851,6 +808,57 @@ server <- function(input, output, session) {
           showarrow = FALSE, xref = "paper", yref = "paper", font = list(size = 16)
         )
       ))
+  })
+
+  output$runinfo.ui <- renderUI({
+    sce <- sce()
+    runInfo <- metadata(sce)[["runInfo"]]
+
+    if(all(c("Sample","Data") %in% names(runInfo))) {
+      if(class(runInfo[["Sample"]]) == "character") { # Single-sample
+        df.sample <- data.frame(t(runInfo[["Sample"]]), check.names = FALSE)
+        df.data <- data.frame(t(runInfo[["Data"]]), check.names = FALSE)
+      } else { # Integrated
+        df.sample <- runInfo[["Sample"]]
+        df.data <- runInfo[["Data"]]
+      }
+      box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+        box(title = "Sample Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+            column(width = 12, div(renderDT(datatable(df.sample, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                      selection = "none")), style = "font-size:105%"))),
+        box(title = "Data Analysis Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+            column(width = 12, div(renderDT(datatable(df.data, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                      selection = "none")), style = "font-size:105%"))))
+    } else { # pre-v2.0.0
+      if(all(c("10X","BCF") %in% names(runInfo))) {
+        if(class(runInfo[["10X"]]) == "character") { # 10X single-sample
+          df.10x <- data.frame(t(runInfo[["10X"]]), check.names = FALSE)
+          df.bcf <- data.frame(t(runInfo[["BCF"]]), check.names = FALSE)
+        } else { # 10X integrated
+          df.10x <- runInfo[["10X"]]
+          df.bcf <- runInfo[["BCF"]]
+        }
+        box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+          box(title = "Sample Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+              column(width = 12, div(renderDT(datatable(df.10x, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                        selection = "none")), style = "font-size:105%"))),
+          box(title = "Data Analysis Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+              column(width = 12, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                        selection = "none")), style = "font-size:105%"))))
+      } else if(all(c("Parse","Wells","BCF") %in% names(runInfo))) {
+        df.parse <- data.frame(t(runInfo[["Parse"]]), check.names = FALSE)
+        df.wells <- data.frame(t(runInfo[["Wells"]]), check.names = FALSE)
+        df.bcf <- data.frame(t(runInfo[["BCF"]]), check.names = FALSE)
+
+        box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+          column(width = 4, div(renderDT(datatable(df.parse, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                   rownames = FALSE, selection = "none")), style = "font-size:105%")),
+          column(width = 5, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                   rownames = FALSE, selection = "none")), style = "font-size:105%")),
+          column(width = 3, div(renderDT(datatable(df.wells, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                   rownames = FALSE, selection = "none")), style = "font-size:105%")))
+      }
+    }
   })
 
   output$table_sample_label <- renderDT({
