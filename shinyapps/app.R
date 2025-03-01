@@ -50,7 +50,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.5"
+app.version <- "v0.7.6"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -1100,7 +1100,7 @@ server <- function(input, output, session) {
   output$gene.plot.ui <- renderUI({
     if(reset.gene.submit() == 0) {
       gene.color_by <- input$gene.color_by
-      if(!is.null(gene.color_by) & nchar(gene.color_by) > 0) {
+      if(!is.null(gene.color_by) && nchar(gene.color_by) > 0) {
         box(status = "primary", width = 12,
             plotlyOutput("plotReducedDim2", width = "100%", height = 850) %>% withSpinner(type = getOption("spinner.type", default = 8))
         )
@@ -1149,8 +1149,8 @@ server <- function(input, output, session) {
 
         # Create plot
 	dodge <- position_dodge(width = 1)
-        fig <- ggplot(df, aes_string(x = group_by, y = "expr", fill = group_by)) + 
-		geom_violin(aes(text = paste("Group:", levels(pull(group_cells, 1))[..x..], "<br /># Cells:", ..n..))) + 
+        fig <- ggplot(df, aes(x = .data[[group_by]], y = .data[["expr"]], fill = .data[[group_by]])) +
+		geom_violin(aes(text = paste("Group:", levels(pull(group_cells, 1))[after_stat(x)], "<br /># Cells:", after_stat(n)))) +
 		geom_boxplot(color = "grey", alpha = 0.3) + 
 		scale_fill_manual(values = discrete_func(palette, nrow(group_cells))) +
 		scale_x_discrete(drop = FALSE) + coord_flip() + theme(legend.position = "none") +
@@ -1179,7 +1179,7 @@ server <- function(input, output, session) {
     if(reset.gene.submit() == 0) {
       gene.color_by <- input$gene.color_by
       n.gene.group_by <- length(isolate(input$gene.group_by))
-      if(!is.null(gene.color_by) & nchar(gene.color_by) > 0 & n.gene.group_by > 0) {
+      if(!is.null(gene.color_by) && nchar(gene.color_by) > 0 && n.gene.group_by > 0) {
         heights <- gene.plot_height()
         plot_output_list <- lapply(1:n.gene.group_by, function(i) {
           box(status = "primary", width = 12,
@@ -1487,8 +1487,8 @@ server <- function(input, output, session) {
           levels(df$Group) <- paste0(levels(df$Group), " (", dplyr::count(df, Group)$n / length(features), ")")
 
 	  # Create plot
-          my.aes <- if(input$multi.color_by == "Detected") aes_string(x = "Group", y = "Expression", color = "prop.detected", fill = "prop.detected") 
-                  else aes_string(x = "Group", y = "Expression", color = "Group", fill = "Group")
+          box.color.fill <- if(input$multi.color_by == "Detected") "prop.detected" else "Group"
+          my.aes <- aes(x = .data[["Group"]], y = .data[["Expression"]], color = .data[[box.color.fill]], fill = .data[[box.color.fill]])
           fig <- ggplot(df, my.aes) + geom_boxplot(outlier.size = 0.5, alpha = 0.3) + 
                   facet_wrap(~ Symbol, scales = "free_y", ncol = input$multi.facet_ncol) +
                   cowplot::theme_cowplot() + xlab(xlab) + ylab("logcounts") + 
@@ -1793,7 +1793,7 @@ server <- function(input, output, session) {
     df$Term <- factor(df$Term, levels = rev(df$Term))
     bar.x <- ifelse(xaxis == "Gene count", "nGenes", "rGenes")
     bar.fill <- ifelse(color_by == "P-value", "P.value", ifelse(color_by == "FDR", "Adjusted.P.value", "Combined.Score"))
-    fig <- ggplot(df, aes_string(bar.x, "Term", fill = bar.fill)) + geom_col() + cowplot::theme_cowplot() + xlab(xaxis)
+    fig <- ggplot(df, aes(.data[[bar.x]], .data[["Term"]], fill = .data[[bar.fill]])) + geom_col() + cowplot::theme_cowplot() + xlab(xaxis)
     if(color_by == "Combined score") {
       fig + scale_fill_continuous(low = "blue", high = "red") + guides(fill = guide_colorbar(title = color_by, reverse = FALSE))
     } else {
