@@ -50,7 +50,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.6"
+app.version <- "v0.7.7"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -846,10 +846,9 @@ server <- function(input, output, session) {
               column(width = 12, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
                                                         selection = "none")), style = "font-size:105%"))))
       } else if(all(c("Parse","Wells","BCF") %in% names(runInfo))) {
-        df.parse <- data.frame(t(runInfo[["Parse"]]), check.names = FALSE)
-        df.wells <- data.frame(t(runInfo[["Wells"]]), check.names = FALSE)
-        df.bcf <- data.frame(t(runInfo[["BCF"]]), check.names = FALSE)
-
+        df.parse <- data.frame("Sample Summary" = runInfo[["Parse"]], check.names = FALSE)
+        df.bcf <- data.frame("Data Analysis Summary" = runInfo[["BCF"]], check.names = FALSE)
+        df.wells <- data.frame("Well Number" = runInfo[["Wells"]], check.names = FALSE)
         box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
           column(width = 4, div(renderDT(datatable(df.parse, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
                                                    rownames = FALSE, selection = "none")), style = "font-size:105%")),
@@ -857,6 +856,16 @@ server <- function(input, output, session) {
                                                    rownames = FALSE, selection = "none")), style = "font-size:105%")),
           column(width = 3, div(renderDT(datatable(df.wells, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
                                                    rownames = FALSE, selection = "none")), style = "font-size:105%")))
+      } else if(all(c("Parse Biosciences","BCF") %in% names(runInfo))) {
+        df.parse <- runInfo[["Parse Biosciences"]]
+        df.bcf <- runInfo[["BCF"]]
+        box(title = "Run Info", width = 12, status = "primary", solidHeader = TRUE, collapsible = TRUE,
+          box(title = "Sample Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+              column(width = 12, div(renderDT(datatable(df.parse, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                        selection = "none")), style = "font-size:105%"))),
+          box(title = "Data Analysis Summary", width = 12, status = "primary", solidHeader = FALSE, collapsible = FALSE,
+              column(width = 12, div(renderDT(datatable(df.bcf, options = list(searching = FALSE, pageLength = 20, scrollX = TRUE, lengthChange = FALSE),
+                                                        selection = "none")), style = "font-size:105%"))))
       }
     }
   })
