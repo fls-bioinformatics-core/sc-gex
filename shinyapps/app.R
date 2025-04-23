@@ -1,11 +1,10 @@
 #--------- Adjustment required; START -------- #
 
 # Set the paths to the directories where the HDF5-based object were saved
-filepaths <- c(Combined = "Integrated/combined_h5_sce",
-	       Sample_1 = "Sample_1/Sample_1_h5_sce",
-	       Sample_2 = "Sample_2/Sample_2_h5_sce",
-	       Sample_3 = "Sample_3/Sample_3_h5_sce",
-	       Sample_4 = "Sample_4/Sample_4_h5_sce")
+filepaths <- c(Combined         = "160k_Human_Integrated/combined_h5_sce",
+               Control1         = "160k_Human_Control1_PBMC/Control1_h5_sce",
+               "Kidney Cancer"  = "160k_Human_Kidney_Cancer_PBMC/KidneyCancer_h5_sce",
+               "Lung Cancer"    = "160k_Human_Lung_Cancer_PBMC/LungCancer_h5_sce")
 
 # Set the default selected reducedDimName in the dropdown menu, accessible from `reducedDimNames(sce)`
 # If not found, TSNE is selected
@@ -50,7 +49,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.7"
+app.version <- "v0.7.8"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -658,16 +657,25 @@ server <- function(input, output, session) {
         deseq.sublistnames <- names(metadata(sce)[[listname]])
 
         deseq_items$items[[length(deseq_items$items)+1]] <- tabItem(tabName = listname,
-          fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
-            lapply(deseq.sublistnames, function(sublistname) {
-              res <- metadata(sce)[[listname]][[sublistname]]
-              deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
-              fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
-                           width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
-                           renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
-                                              rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
-                                    formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
-        }))))
+        # Check if DESeq2 is installed
+        if(class(try(find.package("DESeq2"), silent = TRUE)) %in% c("try-error", "NULL")) {
+          fluidRow(box(title = "The DESeq2 package is required to view stored results",
+                       width = 6, status = "primary", solidHeader = TRUE, collapsible = FALSE,
+                       column(width = 6, "Please install",
+                              a("DESeq2", href = "https://bioconductor.org/packages/release/bioc/html/DESeq2.html", target = "_blank"),
+                              "and restart the Shiny App.")))
+        } else {
+            fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
+              lapply(deseq.sublistnames, function(sublistname) {
+                res <- metadata(sce)[[listname]][[sublistname]]
+                deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
+                fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
+                             width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                             renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                                rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                      formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+          })))
+        })
       }
     }
   })
