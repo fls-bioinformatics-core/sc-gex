@@ -2,17 +2,17 @@
 
 ## Bioinformatics Core Facility, University of Manchester
 
-1. [Prepare workspace](#1.-Prepare-workspace)
-2. [Import data](#2.-Import-data)
-3. [Prepare for data integration](#3.-Prepare-for-data-integration)
-4. [Data integration](#4.-Data-integration)
-5. [Clustering of cells](#5.-Clustering-of-cells)
-6. [Expression of manually selected genes](#6.-Expression-of-manually-selected-genes)
-7. [Define per-cluster cell types](#7.-Define-per-cluster-cell-types)
-8. [Marker gene detection (per-cluster)](#8.-Marker-gene-detection-(per-cluster))
-9. [DE analysis between conditions](#9.-DE-analysis-between-conditions)
-10. [DE analysis between conditions in each cluster/cell type](#10.-DE-analysis-between-conditions-in-each-cluster/cell-type)
-11. [Functional analysis using `enrichR`](#11.-Functional-analysis-using-enrichR)
+1. [Prepare workspace](#1---Prepare-workspace)
+2. [Import data](#2---Import-data)
+3. [Prepare data for integration](#3---Prepare-data-for-integration)
+4. [Data integration](#4---Data-integration)
+5. [Cell clustering](#5---Cell-clustering)
+6. [Expression of manually selected genes](#6---Expression-of-manually-selected-genes)
+7. [Define per-cluster cell types](#7---Define-per-cluster-cell-types)
+8. [Marker gene detection](#8---Marker-gene-detection)
+9. [DE analysis between conditions](#9---DE-analysis-between-conditions)
+10. [DE analysis between conditions in each cluster/cell type](#10---DE-analysis-between-conditions-in-each-cluster/cell-type)
+11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
 
 # Project summary
 
@@ -40,7 +40,7 @@
 
 <a href="#Show-run-info">See below</a>.
 
-# 1. Prepare workspace
+# 1 - Prepare workspace
 
 **Tested on R version 4.4 and Bioconductor version 3.20**
 
@@ -217,7 +217,7 @@ c_heatmap_col2 <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, "RdYlBu")))(
 
 
 
-# 2. Import data
+# 2 - Import data
 
 ## Load HDF5 objects
 
@@ -461,7 +461,7 @@ reset.fig()
     
 
 
-# 3. Prepare for data integration
+# 3 - Prepare data for integration
 
 ## Find common genes
 
@@ -828,7 +828,7 @@ runInfo <- c(runInfo, list(
 )
 ```
 
-# 4. Data integration
+# 4 - Data integration
 
 Large single-cell RNA sequencing (scRNA-seq) projects usually need to generate data across multiple batches due to logistical constraints. However, the processing of different batches is often subject to uncontrollable differences, and results in systematic differences in the observed expression in cells from different batches. We also often observe a strong donor effect in integrated datasets. This might be due to differences in cell type composition between donors, but the more likely explanation is that of a technical difference in sample preparation processing or uninteresting genotypic differences.
 
@@ -1380,7 +1380,7 @@ reset.fig()
     
 
 
-# 5. Clustering of cells
+# 5 - Cell clustering
 
 Here, we recommend using any or all of graph-based methods, for example **Walktrap**, **Louvain** and **Leiden** algorithms, for cell clustering.
 
@@ -2637,7 +2637,7 @@ write.table(ave.expr.gp, file = outfile, sep = "\t", quote = F, row.names = F, c
     [1] "Write to file: 160k_All_average_logcounts_in_groups.tsv"
 
 
-# 6. Expression of manually selected genes
+# 6 - Expression of manually selected genes
 
 <div class="alert alert-info">
     <strong>Tip!</strong> Use known markers to help manual annotation of cell clusters
@@ -2755,7 +2755,7 @@ reset.fig()
     
 
 
-# 7. Define per-cluster cell types
+# 7 - Define per-cluster cell types
 
 Introduces 2 new cell type labels:
 
@@ -3026,7 +3026,7 @@ reset.fig()
     
 
 
-# 8. Marker gene detection (per-cluster)
+# 8 - Marker gene detection
 
 Potential marker genes are identified by taking the top set of DE genes from each pairwise comparison between clusters. The results are arranged into a single output table that allows a marker set to be easily defined for a user-specified size of the top set. For example, to construct a marker set from the top 10 genes of each comparison, one would filter `marker.set` to retain rows with Top less than or equal to 10.
 
@@ -3805,7 +3805,7 @@ reset.fig()
     
 
 
-# 9. DE analysis between conditions
+# 9 - DE analysis between conditions
 
 ## Prepare input
 
@@ -4290,7 +4290,7 @@ reset.fig()
     
 
 
-# 10. DE analysis between conditions in each cluster/cell type
+# 10 - DE analysis between conditions in each cluster/cell type
 
 For this analysis, each cell is consider a sample. [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html) and [glmGamPoi](https://bioconductor.org/packages/release/bioc/html/glmGamPoi.html) are used to fit the gene-wise dispersion, its trend and calculate the MAP based on the quasi-likelihood framework for single-cell data. See [recommendations for single-cell analysis](https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#recommendations-for-single-cell-analysis) for more information.
 
@@ -4802,7 +4802,7 @@ reset.fig()
     
 
 
-# 11. Functional analysis using `enrichR`
+# 11 - Functional analysis using `enrichR`
 
 ## Enriched pathways
 

@@ -2,18 +2,18 @@
 
 ## Bioinformatics Core Facility, University of Manchester
 
-1. [Prepare workspace and data](#1.-Prepare-workspace-and-data)
-2. [Cells and genes QC plots](#2.-Cells-and-genes-QC-plots)
-3. [Quality filtering of cells](#3.-Quality-filtering-of-cells)
-4. [Classification of cell cycle phase](#4.-Classification-of-cell-cycle-phase)
-5. [Expression normalization](#5.-Expression-normalization)
-6. [Feature (HVGs) selection](#6.-Feature-(HVGs)-selection)
-7. [Dimensionality reduction using HVG](#7.-Dimensionality-reduction-using-HVG)
-8. [Cell type annotation](#8.-Cell-type-annotation)
-9. [Cell clustering](#9.-Cell-clustering)
-10. [Marker gene detection](#10.-Marker-gene-detection)
-11. [Functional analysis using `enrichR`](#11.-Functional-analysis-using-enrichR)
-12. [Doublet detection](#12.-Doublet-detection)
+1. [Prepare workspace and data](#1---Prepare-workspace-and-data)
+2. [Cells and genes QC plots](#2---Cells-and-genes-QC-plots)
+3. [Quality filtering of cells](#3---Quality-filtering-of-cells)
+4. [Classification of cell cycle phase](#4---Classification-of-cell-cycle-phase)
+5. [Expression normalization](#5---Expression-normalization)
+6. [Feature (HVGs) selection](#6---Feature-(HVGs)-selection)
+7. [Dimensionality reduction using HVG](#7---Dimensionality-reduction-using-HVG)
+8. [Cell type annotation](#8---Cell-type-annotation)
+9. [Cell clustering](#9---Cell-clustering)
+10. [Marker gene detection](#10---Marker-gene-detection)
+11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
+12. [Doublet detection](#12---Doublet-detection)
 
 # Project summary
 
@@ -172,7 +172,7 @@ if (suppressPackageStartupMessages(requireNamespace("kableExtra")) && requireNam
 </table>
 
 
-# 1. Prepare workspace and data
+# 1 - Prepare workspace and data
 
 **Tested on R version 4.4 and Bioconductor version 3.20**
 
@@ -746,7 +746,7 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
     [1] "Number of genes passed the ambient contamination cutoff: 12240"
 
 
-# 2. Cells and genes QC plots
+# 2 - Cells and genes QC plots
 
 ### Define mitochondrial genes 
 
@@ -1202,7 +1202,7 @@ plotRowData(cdSc, x = "mean", y = "n_cells_by_counts", colour_by = "pct_dropout"
     
 
 
-# 3. Quality filtering of cells
+# 3 - Quality filtering of cells
 
 __Picking thresholds for filtering out poor cells__ is not straightforward for different metrics as their absolute values depend on the protocol and biological system. For example, sequencing to greater depth will lead to more reads, regardless of the quality of the cells. To obtain an adaptive threshold, the assumption made here is that most of the dataset consists of high-quality cells. Plots to facilitate picking thresholds for cell cutoffs are below.
 
@@ -1675,7 +1675,7 @@ annot_c <- as(counts(cdScAnnot, withDimnames = FALSE), "dgCMatrix")
 rownames(annot_c) <- rownames(cdScAnnot)
 ```
 
-# 4. Classification of cell cycle phase
+# 4 - Classification of cell cycle phase
 
 On occasion, it can be desirable to determine cell cycle activity from scRNA-seq data. In and of itself, the distribution of cells across phases of the cell cycle is not usually informative, but we can use this to determine if there are differences in proliferation between subpopulations or across treatment conditions.
 
@@ -1771,7 +1771,7 @@ reset.fig()
 metadata(cdScAnnot)[['cyclone']] <- assignments
 ```
 
-# 5. Expression normalization
+# 5 - Expression normalization
 
 Single cell RNA-seq data requires different normalisation to bulk data methods (e.g. DESeq2) because scRNA-seq is very sparse. Here the deconvolution based method will be used.
 
@@ -1845,7 +1845,7 @@ annot_l <- as(logcounts(cdScAnnot, withDimnames = FALSE), "dgCMatrix")
 rownames(annot_l) <- rownames(cdScAnnot)
 ```
 
-# 6. Feature (HVGs) selection
+# 6 - Feature (HVGs) selection
 
 We often use scRNA-seq data in exploratory analyses to characterize heterogeneity across cells. Procedures like clustering and dimensionality reduction compare cells based on their gene expression profiles. We want to select genes that contain useful information about the biology of the system while removing genes that contain random noise. 
 
@@ -2259,7 +2259,7 @@ __Final Notes__ There are alternative approaches for determining the HVG, especi
 However, it has been mentioned that fitting the trendline to endogenous genes might not always be a good idea.
 
 
-# 7. Dimensionality reduction using HVG
+# 7 - Dimensionality reduction using HVG
 
 1. Principal components analysis (PCA)
 2. t-stochastic neighbor embedding (t-SNE)
@@ -2505,7 +2505,7 @@ reducedDimNames(cdScAnnot)
 
 
 
-# 8. Cell type annotation
+# 8 - Cell type annotation
 
 <div class="alert alert-danger">
   Please only use automated cell type annotation as a guide. It is always necessary to annotate cluster <strong>manually</strong>.
@@ -2843,7 +2843,7 @@ reset.fig()
     
 
 
-# 9. Cell clustering
+# 9 - Cell clustering
 
 The goal is to split the cells in the dataset into clusters, such that:
 
@@ -3581,7 +3581,7 @@ write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F
     [1] "Write to file: 160k_KidneyCancer_average_logcounts_in_clusters.tsv"
 
 
-# 10. Marker gene detection
+# 10 - Marker gene detection
 
 Potential marker genes are identified by taking the top set of DE genes from each pairwise comparison between clusters. The results are arranged into a single output table that allows a marker set to be easily defined for a user-specified size of the top set. For example, to construct a marker set from the top 10 genes of each comparison, one would filter `marker.set` to retain rows with Top less than or equal to 10.
 
@@ -4174,7 +4174,7 @@ reset.fig()
     
 
 
-# 11. Functional analysis using `enrichR`
+# 11 - Functional analysis using `enrichR`
 
 ## Enriched pathways
 
@@ -4595,7 +4595,7 @@ exportResList(metadata(cdScAnnot)[['findMarkers_Cluster']], concatenate = TRUE, 
     Creating a concatenated file: 160k_KidneyCancer_findMarkers_concatenated.tsv
 
 
-# 12. Doublet detection
+# 12 - Doublet detection
 
 In single-cell RNA sequencing (scRNA-seq) experiments, doublets are artifactual libraries generated from two cells. They typically arise due to errors in cell sorting or capture, especially in droplet-based protocols involving thousands of cells. Doublets are obviously undesirable when the aim is to characterize populations at the single-cell level. In particular, doublets can be mistaken for intermediate populations or transitory states that do not actually exist. Thus, it is desirable to identify and remove doublet libraries so that they do not compromise interpretation of the results. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.advanced/doublet-detection.html#doublet-detection)
 
