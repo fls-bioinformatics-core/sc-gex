@@ -2,9 +2,9 @@
 
 This repository holds the Shiny application tailored to work with `SingleCellExperiment` objects (in HDF5 format) created after running the UoM-BCF single-cell gene expression data analysis notebooks.
 
-## Prerequisite
+## Set up
 
-1. The App requires R version >=4.4 and Bioconductor version 3.20.
+1. The App has been tested on R version 4.4 and Bioconductor version 3.20.
 2. Required R packages (other dependencies not shown):
 
 | Package | Source |
