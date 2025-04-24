@@ -38,6 +38,56 @@ Finally, use the integration workflow found in the `160k_Human_Integrated` folde
 to combine the cells from all three samples into a common space for consistent analyses 
 and to perform differential expression comparisons.
 
+## Set up
+
+1. This workflow has been tested on R version 4.4 and Bioconductor version 3.20.
+2. Required R packages (other dependencies not shown):
+
+| Package | Source |
+| --- | --- |
+|	AnnotationHub	|	Bioconductor	|
+|	batchelor	|	Bioconductor	|
+|	BiocNeighbors	|	Bioconductor	|
+|	BiocParallel	|	Bioconductor	|
+|	BiocSingular	|	Bioconductor	|
+|	bluster	|	Bioconductor	|
+|	celldex	|	Bioconductor	|
+|	cowplot	|	CRAN	|
+|	DESeq2	|	Bioconductor	|
+|	dplyr	|	CRAN	|
+|	DropletUtils	|	Bioconductor	|
+|	edgeR	|	Bioconductor	|
+|	enrichR	|	CRAN	|
+|	ensembldb	|	Bioconductor	|
+|	ggforce	|	CRAN	|
+|	ggplot2	|	CRAN	|
+|	ggplotify	|	CRAN	|
+|	glmGamPoi	|	Bioconductor	|
+|	gtools	|	CRAN	|
+|	HDF5Array	|	Bioconductor	|
+|	igraph	|	CRAN	|
+|	limma	|	Bioconductor	|
+|	pals	|	CRAN	|
+|	pheatmap	|	CRAN	|
+|	plyr	|	CRAN	|
+|	RColorBrewer	|	CRAN	|
+|	scales	|	CRAN	|
+|	scater	|	Bioconductor	|
+|	scDblFinder	|	Bioconductor	|
+|	scran	|	Bioconductor	|
+|	scRUtils	|	GitHub	|
+|	SingleR	|	Bioconductor	|
+|	stringi	|	CRAN	|
+|	stringr	|	CRAN	|
+|	tidyverse	|	CRAN	|
+|	viridis	|	CRAN	|
+
+> [!WARNING]
+> The **scRUtils** R package is current available only on [GitHub](https://github.com/ycl6/scRUtils), 
+> see installation note [here](https://github.com/ycl6/scRUtils?tab=readme-ov-file#installation).
+
+Optional: `kableExtra`
+
 ## References
 
 The [Orchestrating Single-Cell Analysis with Bioconductor](https://bioconductor.org/books/3.20/OSCA/) 
