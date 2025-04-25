@@ -440,8 +440,8 @@ levels(cdSc$Sample) <- sample_name
 # Use uniquifyFeatureNames to make feature names unique
 rownames(cdSc) <- uniquifyFeatureNames(rowData(cdSc)$ID, rowData(cdSc)$Symbol)
 
-# Placeholder to mark non-ambient genes
-okay.genes <- c()
+# Placeholder to mark non-ambient genes, default is all genes
+okay.genes <- rownames(cdSc)
 ```
 
 ## Add SEQNAME to gene information
