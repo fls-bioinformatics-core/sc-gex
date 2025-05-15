@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.0</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.1</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -219,7 +219,7 @@ data.frame(ID = c(rep(sample_name, 2)), Type = c("filtered", rep("raw", length(s
 
 ## Load libraries
 
-The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see <a href=#Session-Info>Session Info</a>).  
+The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).  
 
 Commented line below are packages that are required but we are not loading and attaching them.
 
@@ -577,8 +577,7 @@ sce
 
 ```R
 # 'dgCMatrix' input is much faster when running emptyDrops 
-mat <- as(counts(sce, withDimnames = FALSE), "dgCMatrix")
-rownames(mat) <- rownames(sce)
+mat <- as(counts(sce, withDimnames = TRUE), "dgCMatrix")
 
 # Estimate the transcript proportions in the ambient solution
 ambient <- ambientProfileEmpty(mat, round = FALSE, good.turing = FALSE, BPPARAM = bpp)
@@ -1671,8 +1670,7 @@ Create a `dgCMatrix` counts matrix for faster computation in some steps.
 
 
 ```R
-annot_c <- as(counts(cdScAnnot, withDimnames = FALSE), "dgCMatrix")
-rownames(annot_c) <- rownames(cdScAnnot)
+annot_c <- as(counts(cdScAnnot, withDimnames = TRUE), "dgCMatrix")
 ```
 
 # 4 - Classification of cell cycle phase
@@ -1841,8 +1839,7 @@ Create a `dgCMatrix` logcounts matrix for faster computation in some steps.
 
 
 ```R
-annot_l <- as(logcounts(cdScAnnot, withDimnames = FALSE), "dgCMatrix")
-rownames(annot_l) <- rownames(cdScAnnot)
+annot_l <- as(logcounts(cdScAnnot, withDimnames = TRUE), "dgCMatrix")
 ```
 
 # 6 - Feature (HVGs) selection
@@ -1902,11 +1899,9 @@ Create `dgCMatrix` counts and logcounts matrices for faster computation in some 
 
 
 ```R
-filt_c <- as(counts(cdScFilt, withDimnames = FALSE), "dgCMatrix")
-rownames(filt_c) <- rownames(filt_c)
+filt_c <- as(counts(cdScFilt, withDimnames = TRUE), "dgCMatrix")
 
-filt_l <- as(logcounts(cdScFilt, withDimnames = FALSE), "dgCMatrix")
-rownames(filt_l) <- rownames(cdScFilt)
+filt_l <- as(logcounts(cdScFilt, withDimnames = TRUE), "dgCMatrix")
 ```
 
 ## Quantifying per-gene variation
@@ -1946,7 +1941,7 @@ For each gene, the function computes the variance and mean of the log-expression
 
 ```R
 set.seed(12345)
-var.out2 <- modelGeneVarByPoisson(filt_c, BPPARAM = bpp) # counts
+var.out2 <- modelGeneVarByPoisson(filt_c, size.factors = sizeFactors(cdScFilt), BPPARAM = bpp) # counts
 var.out2 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>% DataFrame
 ```
 
@@ -1954,11 +1949,11 @@ var.out2 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>
     DataFrame with 12524 rows and 6 columns
                   mean     total      tech       bio   p.value       FDR
              <numeric> <numeric> <numeric> <numeric> <numeric> <numeric>
-    GNLY      1.213025   4.21390  0.658397   3.55550         0         0
-    LYZ       1.416483   4.15582  0.655822   3.49999         0         0
-    CD74      3.775665   3.64919  0.184922   3.46427         0         0
-    NKG7      1.497459   3.94723  0.648296   3.29893         0         0
-    IGHM      0.916726   3.51941  0.602068   2.91734         0         0
+    LYZ        1.45634   4.59072  0.632304   3.95841         0         0
+    CD74       3.76971   4.04530  0.178336   3.86697         0         0
+    GNLY       1.20764   4.16534  0.640817   3.52452         0         0
+    NKG7       1.49643   3.89281  0.627994   3.26482         0         0
+    S100A9     1.12832   3.82526  0.634779   3.19048         0         0
     ...            ...       ...       ...       ...       ...       ...
     IL1RAPL2         0         0         0         0       NaN       NaN
     COL4A6           0         0         0         0       NaN       NaN
@@ -2080,7 +2075,7 @@ head(hvg.out2, 20)
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>'GNLY'</li><li>'LYZ'</li><li>'CD74'</li><li>'NKG7'</li><li>'IGHM'</li><li>'IL32'</li><li>'TRBC2'</li><li>'S100A9'</li><li>'FOS'</li><li>'TCF7'</li><li>'LTB'</li><li>'TRAC'</li><li>'TYMP'</li><li>'IL7R'</li><li>'SPI1'</li><li>'IFI30'</li><li>'PRF1'</li><li>'DUSP1'</li><li>'EFHD2'</li><li>'SAT1'</li></ol>
+<ol class=list-inline><li>'LYZ'</li><li>'CD74'</li><li>'GNLY'</li><li>'NKG7'</li><li>'S100A9'</li><li>'FOS'</li><li>'IGHM'</li><li>'IL32'</li><li>'TRBC2'</li><li>'TYMP'</li><li>'IFI30'</li><li>'SPI1'</li><li>'TCF7'</li><li>'DUSP1'</li><li>'SAT1'</li><li>'CST3'</li><li>'LTB'</li><li>'EFHD2'</li><li>'TRAC'</li><li>'PRF1'</li></ol>
 
 
 
@@ -2219,19 +2214,19 @@ hvg %>% DataFrame
 
 
     DataFrame with 2000 rows and 7 columns
-                Symbol      mean     total      tech       bio     p.value         FDR
-           <character> <numeric> <numeric> <numeric> <numeric>   <numeric>   <numeric>
-    GNLY          GNLY  1.213025   4.21390  0.658397   3.55550           0           0
-    LYZ            LYZ  1.416483   4.15582  0.655822   3.49999           0           0
-    CD74          CD74  3.775665   3.64919  0.184922   3.46427           0           0
-    NKG7          NKG7  1.497459   3.94723  0.648296   3.29893           0           0
-    IGHM          IGHM  0.916726   3.51941  0.602068   2.91734           0           0
-    ...            ...       ...       ...       ...       ...         ...         ...
-    PPP6R1      PPP6R1   1.15626  0.712580  0.653719 0.0588611 1.55108e-08 2.38812e-08
-    MRTFA        MRTFA   1.05920  0.696725  0.639423 0.0573024 1.79951e-08 2.76205e-08
-    TRA2A        TRA2A   1.14563  0.710648  0.652558 0.0580895 2.21579e-08 3.38803e-08
-    MYH9          MYH9   1.18206  0.714411  0.656211 0.0582000 2.48167e-08 3.78617e-08
-    LDB1          LDB1   1.16740  0.711841  0.654879 0.0569613 4.46103e-08 6.73081e-08
+                  Symbol      mean     total      tech       bio     p.value         FDR
+             <character> <numeric> <numeric> <numeric> <numeric>   <numeric>   <numeric>
+    LYZ              LYZ   1.45634   4.59072  0.632304   3.95841           0           0
+    CD74            CD74   3.76971   4.04530  0.178336   3.86697           0           0
+    GNLY            GNLY   1.20764   4.16534  0.640817   3.52452           0           0
+    NKG7            NKG7   1.49643   3.89281  0.627994   3.26482           0           0
+    S100A9        S100A9   1.12832   3.82526  0.634779   3.19048           0           0
+    ...              ...       ...       ...       ...       ...         ...         ...
+    MAF1            MAF1  0.940962  0.649845  0.597206 0.0526384 5.05196e-08 8.13392e-08
+    KDM4C          KDM4C  0.980784  0.660599  0.608066 0.0525330 8.98152e-08 1.42648e-07
+    CCNI            CCNI  1.395193  0.692392  0.637385 0.0550066 9.25833e-08 1.46913e-07
+    TNFRSF14    TNFRSF14  1.110026  0.687020  0.632535 0.0544856 9.75961e-08 1.54611e-07
+    SYNRG          SYNRG  1.055376  0.677930  0.624222 0.0537087 1.00737e-07 1.59445e-07
 
 
 
@@ -2319,15 +2314,15 @@ str(reducedDim(cdScAnnot, "PCA"))
 
 
 
-     num [1:18460, 1:50] 1.649 10.318 10.071 12.796 0.532 ...
+     num [1:18460, 1:50] 2.135 10.722 9.907 12.776 0.666 ...
      - attr(*, "dimnames")=List of 2
       ..$ : chr [1:18460] "AAACAAGCAACAAGTTACTTTAGG-1" "AAACAAGCAACTAGTGACTTTAGG-1" "AAACAAGCAGTTATCCACTTTAGG-1" "AAACAAGCATAGCCGGACTTTAGG-1" ...
       ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
-     - attr(*, "varExplained")= num [1:50] 222.5 80.9 54.3 17 14.2 ...
-     - attr(*, "percentVar")= num [1:50] 16.22 5.9 3.96 1.24 1.03 ...
-     - attr(*, "rotation")= num [1:2000, 1:50] 0.0129 -0.12647 -0.1002 0.00825 -0.00329 ...
+     - attr(*, "varExplained")= num [1:50] 231.9 81.1 54.6 17 14.8 ...
+     - attr(*, "percentVar")= num [1:50] 16.97 5.93 4 1.24 1.08 ...
+     - attr(*, "rotation")= num [1:2000, 1:50] -0.12405 -0.09781 0.01309 0.00846 -0.1065 ...
       ..- attr(*, "dimnames")=List of 2
-      .. ..$ : chr [1:2000] "GNLY" "LYZ" "CD74" "NKG7" ...
+      .. ..$ : chr [1:2000] "LYZ" "CD74" "GNLY" "NKG7" ...
       .. ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
 
 
@@ -2353,26 +2348,26 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 	<tr><th></th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td> 1</td><td>16.2203720</td></tr>
-	<tr><th scope=row>2</th><td> 2</td><td> 5.8967412</td></tr>
-	<tr><th scope=row>3</th><td> 3</td><td> 3.9599451</td></tr>
-	<tr><th scope=row>4</th><td> 4</td><td> 1.2397815</td></tr>
-	<tr><th scope=row>5</th><td> 5</td><td> 1.0336358</td></tr>
-	<tr><th scope=row>6</th><td> 6</td><td> 0.6484226</td></tr>
-	<tr><th scope=row>7</th><td> 7</td><td> 0.4898145</td></tr>
-	<tr><th scope=row>8</th><td> 8</td><td> 0.4670390</td></tr>
-	<tr><th scope=row>9</th><td> 9</td><td> 0.4104432</td></tr>
-	<tr><th scope=row>10</th><td>10</td><td> 0.3485293</td></tr>
-	<tr><th scope=row>11</th><td>11</td><td> 0.3346305</td></tr>
-	<tr><th scope=row>12</th><td>12</td><td> 0.2647437</td></tr>
-	<tr><th scope=row>13</th><td>13</td><td> 0.2482577</td></tr>
-	<tr><th scope=row>14</th><td>14</td><td> 0.2335705</td></tr>
-	<tr><th scope=row>15</th><td>15</td><td> 0.2178380</td></tr>
-	<tr><th scope=row>16</th><td>16</td><td> 0.1995924</td></tr>
-	<tr><th scope=row>17</th><td>17</td><td> 0.1939530</td></tr>
-	<tr><th scope=row>18</th><td>18</td><td> 0.1683556</td></tr>
-	<tr><th scope=row>19</th><td>19</td><td> 0.1591911</td></tr>
-	<tr><th scope=row>20</th><td>20</td><td> 0.1570722</td></tr>
+	<tr><th scope=row>1</th><td> 1</td><td>16.9709397</td></tr>
+	<tr><th scope=row>2</th><td> 2</td><td> 5.9338477</td></tr>
+	<tr><th scope=row>3</th><td> 3</td><td> 3.9987916</td></tr>
+	<tr><th scope=row>4</th><td> 4</td><td> 1.2437952</td></tr>
+	<tr><th scope=row>5</th><td> 5</td><td> 1.0835411</td></tr>
+	<tr><th scope=row>6</th><td> 6</td><td> 0.6578113</td></tr>
+	<tr><th scope=row>7</th><td> 7</td><td> 0.4877981</td></tr>
+	<tr><th scope=row>8</th><td> 8</td><td> 0.4645971</td></tr>
+	<tr><th scope=row>9</th><td> 9</td><td> 0.4130075</td></tr>
+	<tr><th scope=row>10</th><td>10</td><td> 0.3578047</td></tr>
+	<tr><th scope=row>11</th><td>11</td><td> 0.3389722</td></tr>
+	<tr><th scope=row>12</th><td>12</td><td> 0.2652962</td></tr>
+	<tr><th scope=row>13</th><td>13</td><td> 0.2492934</td></tr>
+	<tr><th scope=row>14</th><td>14</td><td> 0.2349211</td></tr>
+	<tr><th scope=row>15</th><td>15</td><td> 0.2233692</td></tr>
+	<tr><th scope=row>16</th><td>16</td><td> 0.2028569</td></tr>
+	<tr><th scope=row>17</th><td>17</td><td> 0.1931340</td></tr>
+	<tr><th scope=row>18</th><td>18</td><td> 0.1718654</td></tr>
+	<tr><th scope=row>19</th><td>19</td><td> 0.1618642</td></tr>
+	<tr><th scope=row>20</th><td>20</td><td> 0.1557931</td></tr>
 </tbody>
 </table>
 
@@ -2937,17 +2932,17 @@ for(i in 1:length(my.clusters[[method]])) {
     [1] "Walktrap cluster assignments:"
               walktrap
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      Control1 2673 1351 2015 3199  290  242  602  106  252 3224 2254   74  226   76  181  521 1007   69   32
+      Control1 1328 2015  796 3299 2409  289  237  280  572   95 3157 2256   75  221 1035   82   34  167   46
               walktrap
                  20   21
-      Control1   51   15
+      Control1   52   15
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.5691  0.1449  0.2341  0.2242  0.3316  0.6769 
+    -0.4509  0.1477  0.2344  0.2271  0.3277  0.6778 
 
 
 #### Manually tuning walktrap clustering resolution
@@ -2977,14 +2972,14 @@ for(i in 1:length(my.clusters[[method]])) {
     [1] "Walktrap cluster assignments:"
               walktrap
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1 8858 1641  295 2673 2015  242  602  106  252   74   76  521 1007   32   51   15
+      Control1 8879 1617  303 2015  796 2409  237  280  572   95   75 1035   34   46   52   15
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.5691  0.2521  0.3469  0.3022  0.3951  0.6769 
+    -0.5288  0.2564  0.3595  0.3134  0.4057  0.6778 
 
 
 
@@ -2998,23 +2993,23 @@ reset.fig()
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.5691  0.2521  0.3469  0.3022  0.3951  0.6769 
+    -0.5288  0.2564  0.3595  0.3134  0.4057  0.6778 
     [90m# A tibble: 16 × 2[39m
        cluster `% Different`
        [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1                4.41
-    [90m 2[39m 2               10.9 
-    [90m 3[39m 3               11.2 
-    [90m 4[39m 4               14.5 
-    [90m 5[39m 5                0.2 
-    [90m 6[39m 6                1.65
-    [90m 7[39m 7               12.6 
-    [90m 8[39m 8                6.6 
-    [90m 9[39m 9               13.1 
-    [90m10[39m 10               1.35
-    [90m11[39m 11              18.4 
-    [90m12[39m 12               0   
-    [90m13[39m 13               0.2 
+    [90m 1[39m 1                4.64
+    [90m 2[39m 2               11.0 
+    [90m 3[39m 3               14.2 
+    [90m 4[39m 4                0.4 
+    [90m 5[39m 5                1.01
+    [90m 6[39m 6                6.77
+    [90m 7[39m 7                1.69
+    [90m 8[39m 8               21.4 
+    [90m 9[39m 9                8.92
+    [90m10[39m 10               2.11
+    [90m11[39m 11              17.3 
+    [90m12[39m 12               0.29
+    [90m13[39m 13               2.94
     [90m14[39m 14               0   
     [90m15[39m 15               0   
     [90m16[39m 16               0   
@@ -3063,7 +3058,7 @@ method <- "louvain"
 dimname <- "PCA"
 n_dimred <- 20 # number of dimensions to use; default is 50
 mat <- reducedDim(cdScAnnot, dimname)[, seq_len(n_dimred), drop = FALSE]
-k <- 15
+k <- 20
 
 set.seed(12345)
 communities[[method]][[dimname]] <- clusterRows(mat, full = TRUE, 
@@ -3088,14 +3083,14 @@ for(i in 1:length(my.clusters[[method]])) {
     [1] "Louvain cluster assignments:"
               louvain
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1  323 2252 2794 1028 3221  405 1477 2416  582  469 2021  709  276   88  312   87
+      Control1  315 2271 2871 1045 3210  493 1459 2160  573 2027  969  286   52  307  388   34
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4034  0.1586  0.2496  0.2507  0.3627  0.6411 
+    -0.3704  0.1589  0.2500  0.2526  0.3637  0.6770 
 
 
 
@@ -3109,26 +3104,26 @@ reset.fig()
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4034  0.1586  0.2496  0.2507  0.3627  0.6411 
+    -0.3704  0.1589  0.2500  0.2526  0.3637  0.6770 
     [90m# A tibble: 16 × 2[39m
        cluster `% Different`
        [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1               24.5 
-    [90m 2[39m 2                0.13
-    [90m 3[39m 3               13.5 
-    [90m 4[39m 4                0.19
-    [90m 5[39m 5                0.99
-    [90m 6[39m 6               14.1 
-    [90m 7[39m 7                7.52
-    [90m 8[39m 8                6.54
-    [90m 9[39m 9                9.97
-    [90m10[39m 10              66.1 
-    [90m11[39m 11               0.84
-    [90m12[39m 12               0.14
-    [90m13[39m 13              17.4 
-    [90m14[39m 14               4.55
-    [90m15[39m 15               3.85
-    [90m16[39m 16              13.8 
+    [90m 1[39m 1               21.6 
+    [90m 2[39m 2                0.09
+    [90m 3[39m 3               14.7 
+    [90m 4[39m 4                0.1 
+    [90m 5[39m 5                0.87
+    [90m 6[39m 6               25.4 
+    [90m 7[39m 7                5.35
+    [90m 8[39m 8                0.74
+    [90m 9[39m 9                8.03
+    [90m10[39m 10               1.28
+    [90m11[39m 11               4.75
+    [90m12[39m 12              18.5 
+    [90m13[39m 13               0   
+    [90m14[39m 14               3.91
+    [90m15[39m 15              68.3 
+    [90m16[39m 16               2.94
 
 
 
@@ -3197,14 +3192,14 @@ for(i in 1:length(my.clusters[[method]])) {
     [1] "Leiden cluster assignments:"
               leiden
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17
-      Control1  316  152 2738 2257 1050 3240  406 1473 2216  568  387 2022  926  276   52  301   80
+      Control1  313 2259 2794 1048 3246  413 1483 2198  572  305 2021  936  279   52  158  305   78
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.3298  0.1610  0.2471  0.2555  0.3626  0.7284 
+    -0.2972  0.1587  0.2453  0.2536  0.3606  0.7320 
 
 
 
@@ -3218,27 +3213,27 @@ reset.fig()
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.3298  0.1610  0.2471  0.2555  0.3626  0.7284 
+    -0.2972  0.1587  0.2453  0.2536  0.3606  0.7320 
     [90m# A tibble: 17 × 2[39m
        cluster `% Different`
        [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1               22.8 
-    [90m 2[39m 2               45.4 
-    [90m 3[39m 3               11.9 
+    [90m 1[39m 1               23.3 
+    [90m 2[39m 2                0   
+    [90m 3[39m 3               12.9 
     [90m 4[39m 4                0   
-    [90m 5[39m 5                0   
-    [90m 6[39m 6                0.9 
-    [90m 7[39m 7               15.0 
-    [90m 8[39m 8               10.3 
-    [90m 9[39m 9                1.04
-    [90m10[39m 10               8.27
-    [90m11[39m 11              33.8 
-    [90m12[39m 12               1.19
-    [90m13[39m 13               1.94
-    [90m14[39m 14              17.4 
-    [90m15[39m 15               0   
-    [90m16[39m 16               2.99
-    [90m17[39m 17               6.25
+    [90m 5[39m 5                0.99
+    [90m 6[39m 6               16.2 
+    [90m 7[39m 7               11.6 
+    [90m 8[39m 8                0.86
+    [90m 9[39m 9                7.87
+    [90m10[39m 10              16.4 
+    [90m11[39m 11               1.68
+    [90m12[39m 12               2.46
+    [90m13[39m 13              16.5 
+    [90m14[39m 14               0   
+    [90m15[39m 15              44.9 
+    [90m16[39m 16               2.95
+    [90m17[39m 17               6.41
 
 
 
@@ -3347,7 +3342,7 @@ table_samples_by_clusters
 
               Cluster
     Sample        1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1  323 2252 2794 1028 3221  405 1477 2416  582  469 2021  709  276   88  312   87
+      Control1  315 2271 2871 1045 3210  493 1459 2160  573 2027  969  286   52  307  388   34
 
 
 
@@ -3496,15 +3491,15 @@ table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)
 
                   Cluster
     CellType          1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      B-cells       155    0    0 1028    0    0    0    0  582    0    0    0    0   30    0    2
-      CD4+ T-cells   62  654 2166    0 3178    1    0    0    0   48    0    0   49    3    0    0
-      CD8+ T-cells   50 1598  622    0   43    6 1067    0    0  297    0    0  226    5    2    1
-      DC              0    0    0    0    0    0    0    0    0    0    0    0    0    0    1    0
-      HSC             0    0    0    0    0    0    0    0    0    0    0    0    0   22    0    0
-      Monocytes       0    0    0    0    0  380    0 2416    0    0    0  709    0   28  308   84
+      B-cells       149    0    0 1045    0    2    0    0  573    0    0    0   19    0    0    9
+      CD4+ T-cells   62  656 2160    0 3170    1    0    0    0    0    0   49    3    0   60    0
+      CD8+ T-cells   49 1615  706    0   40    8 1059    0    0    0    0  234    2    1  200    3
+      DC              0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0
+      HSC             0    0    0    0    0    0    0    0    0    0    0    0    0    0    0   22
+      Monocytes       0    0    0    0    0  464    0 2160    0    0  969    0   28  304    0    0
       Neutrophils     0    0    1    0    0    0    0    0    0    0    0    0    0    0    0    0
-      NK cells       56    0    5    0    0   18  410    0    0  124 2021    0    1    0    0    0
-      T-cells         0    0    0    0    0    0    0    0    0    0    0    0    0    0    1    0
+      NK cells       55    0    4    0    0   18  400    0    0 2027    0    3    0    0  128    0
+      T-cells         0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0
 
 
 ## Visualising gene expressions in cells
@@ -3574,12 +3569,12 @@ write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.0000000000</td><td>0.00000000</td><td>0.0000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.322353449</td><td>0.3125434051</td><td>0.273920188</td><td>0.318871197</td><td>0.2854293855</td><td>0.34837640</td><td>0.2591794508</td><td>0.32262245</td><td>0.319188251</td><td>0.31661844</td><td>0.30953321</td><td>0.464571464</td><td>0.392588858</td><td>0.418393251</td><td>0.315816295</td><td>0.360772837</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.078276588</td><td>0.0685565525</td><td>0.069817468</td><td>0.057379462</td><td>0.0690406710</td><td>0.08052668</td><td>0.0726043241</td><td>0.08811385</td><td>0.092202826</td><td>0.10064273</td><td>0.09092250</td><td>0.097897996</td><td>0.068849907</td><td>0.069885568</td><td>0.083738350</td><td>0.070387048</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.008677126</td><td>0.0058104148</td><td>0.033417206</td><td>0.001369208</td><td>0.0032687954</td><td>0.04692065</td><td>0.0194661174</td><td>0.03159153</td><td>0.003811743</td><td>0.02275416</td><td>0.01260066</td><td>0.003590529</td><td>0.006179713</td><td>0.006367831</td><td>0.015349295</td><td>0.026820193</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.0003559899</td><td>0.000000000</td><td>0.000000000</td><td>0.0003700755</td><td>0.00000000</td><td>0.0004345291</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.001871448</td><td>0.006573339</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.027113062</td><td>0.0069922235</td><td>0.007873367</td><td>0.010930433</td><td>0.0172134475</td><td>0.28069550</td><td>0.0134220830</td><td>0.23135209</td><td>0.018121329</td><td>0.03138716</td><td>0.06013983</td><td>1.480795132</td><td>0.022856301</td><td>0.000000000</td><td>0.069613859</td><td>0.426283462</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.323950024</td><td>0.3134798601</td><td>0.274838214</td><td>0.316248953</td><td>0.2836551912</td><td>0.350696866</td><td>0.25866841</td><td>0.31414132</td><td>0.325542268</td><td>0.30880432</td><td>0.445158087</td><td>0.386258148</td><td>0.39591604</td><td>0.316138042</td><td>0.33106242</td><td>0.43700458</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.076648592</td><td>0.0694519816</td><td>0.068836109</td><td>0.057609012</td><td>0.0687172363</td><td>0.078573995</td><td>0.07242574</td><td>0.08764508</td><td>0.093925883</td><td>0.09090687</td><td>0.095953940</td><td>0.069582487</td><td>0.07296376</td><td>0.085102167</td><td>0.11443077</td><td>0.02891171</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.008897498</td><td>0.0057618028</td><td>0.033829495</td><td>0.001346934</td><td>0.0032799969</td><td>0.043278335</td><td>0.02053546</td><td>0.03526607</td><td>0.003871614</td><td>0.01256336</td><td>0.003573072</td><td>0.005963639</td><td>0.00000000</td><td>0.013103558</td><td>0.01470391</td><td>0.01648145</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.0003530115</td><td>0.000000000</td><td>0.000000000</td><td>0.0003713437</td><td>0.001160001</td><td>0.00043989</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.001901927</td><td>0.00000000</td><td>0.00000000</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.027801648</td><td>0.0069337241</td><td>0.008664431</td><td>0.010752618</td><td>0.0156165134</td><td>0.302367953</td><td>0.01323547</td><td>0.17175271</td><td>0.018405957</td><td>0.06021532</td><td>1.281369238</td><td>0.022057129</td><td>0.00000000</td><td>0.063902949</td><td>0.04422343</td><td>0.00000000</td></tr>
 </tbody>
 </table>
 
@@ -3658,22 +3653,22 @@ printMarkerStats(marker.genes.cluster, pval.type = pval.type, min.prop = min.pro
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 229; Up = 117; Down = 112; Max. P-value = 3.5e-42.
-    - Cluster2: 207; Up = 118; Down = 89; Max. P-value = 4.4e-246.
-    - Cluster3: 181; Up = 113; Down = 68; Max. P-value = 7.2e-250.
-    - Cluster4: 215; Up = 80; Down = 135; Max. P-value = 2.1e-213.
-    - Cluster5: 188; Up = 110; Down = 78; Max. P-value = 3.1e-289.
-    - Cluster6: 221; Up = 188; Down = 33; Max. P-value = 1.5e-97.
-    - Cluster7: 201; Up = 126; Down = 75; Max. P-value = 6.7e-212.
-    - Cluster8: 223; Up = 206; Down = 17; Max. P-value = 0.
-    - Cluster9: 215; Up = 69; Down = 146; Max. P-value = 1.3e-110.
-    - Cluster10: 192; Up = 75; Down = 117; Max. P-value = 9.2e-59.
-    - Cluster11: 216; Up = 156; Down = 60; Max. P-value = 3.7e-276.
-    - Cluster12: 233; Up = 183; Down = 50; Max. P-value = 1.4e-306.
-    - Cluster13: 179; Up = 90; Down = 89; Max. P-value = 8.2e-115.
-    - Cluster14: 214; Up = 6; Down = 208; Max. P-value = 6e-28.
-    - Cluster15: 200; Up = 118; Down = 82; Max. P-value = 1.6e-117.
-    - Cluster16: 215; Up = 132; Down = 83; Max. P-value = 2e-28.
+    - Cluster1: 185; Up = 113; Down = 72; Max. P-value = 3e-39.
+    - Cluster2: 173; Up = 101; Down = 72; Max. P-value = 0.
+    - Cluster3: 159; Up = 101; Down = 58; Max. P-value = 0.
+    - Cluster4: 199; Up = 86; Down = 113; Max. P-value = 7.7e-100.
+    - Cluster5: 168; Up = 97; Down = 71; Max. P-value = 0.
+    - Cluster6: 205; Up = 182; Down = 23; Max. P-value = 1.2e-130.
+    - Cluster7: 171; Up = 117; Down = 54; Max. P-value = 0.
+    - Cluster8: 218; Up = 202; Down = 16; Max. P-value = 1.9e-281.
+    - Cluster9: 179; Up = 66; Down = 113; Max. P-value = 9.7e-132.
+    - Cluster10: 192; Up = 147; Down = 45; Max. P-value = 5.5e-292.
+    - Cluster11: 225; Up = 187; Down = 38; Max. P-value = 0.
+    - Cluster12: 155; Up = 85; Down = 70; Max. P-value = 3.3e-80.
+    - Cluster13: 165; Up = 43; Down = 122; Max. P-value = 3.3e-28.
+    - Cluster14: 196; Up = 119; Down = 77; Max. P-value = 2e-117.
+    - Cluster15: 164; Up = 65; Down = 99; Max. P-value = 2.7e-122.
+    - Cluster16: 180; Up = 0; Down = 180; Max. P-value = 8.9e-56.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3737,22 +3732,22 @@ printMarkerStats(marker.genes.cluster.up, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 278; Up = 278; Down = 0; Max. P-value = 1.
-    - Cluster2: 250; Up = 250; Down = 0; Max. P-value = 1e-19.
-    - Cluster3: 279; Up = 279; Down = 0; Max. P-value = 4.8e-127.
-    - Cluster4: 251; Up = 251; Down = 0; Max. P-value = 1.1e-05.
-    - Cluster5: 253; Up = 253; Down = 0; Max. P-value = 1e-17.
-    - Cluster6: 253; Up = 253; Down = 0; Max. P-value = 5e-44.
-    - Cluster7: 250; Up = 250; Down = 0; Max. P-value = 1.1e-118.
-    - Cluster8: 245; Up = 245; Down = 0; Max. P-value = 0.
-    - Cluster9: 254; Up = 254; Down = 0; Max. P-value = 5e-24.
-    - Cluster10: 247; Up = 247; Down = 0; Max. P-value = 6.7e-16.
-    - Cluster11: 262; Up = 262; Down = 0; Max. P-value = 4.2e-106.
-    - Cluster12: 241; Up = 241; Down = 0; Max. P-value = 5.6e-169.
-    - Cluster13: 281; Up = 281; Down = 0; Max. P-value = 1e-06.
-    - Cluster14: 255; Up = 255; Down = 0; Max. P-value = 8.3e-06.
-    - Cluster15: 241; Up = 241; Down = 0; Max. P-value = 4.1e-22.
-    - Cluster16: 241; Up = 241; Down = 0; Max. P-value = 1.1e-05.
+    - Cluster1: 272; Up = 272; Down = 0; Max. P-value = 1.
+    - Cluster2: 251; Up = 251; Down = 0; Max. P-value = 5.4e-14.
+    - Cluster3: 272; Up = 272; Down = 0; Max. P-value = 1.1e-07.
+    - Cluster4: 248; Up = 248; Down = 0; Max. P-value = 9.5e-05.
+    - Cluster5: 252; Up = 252; Down = 0; Max. P-value = 2.7e-32.
+    - Cluster6: 234; Up = 234; Down = 0; Max. P-value = 1.8e-41.
+    - Cluster7: 243; Up = 243; Down = 0; Max. P-value = 9.9e-06.
+    - Cluster8: 244; Up = 244; Down = 0; Max. P-value = 1.3e-238.
+    - Cluster9: 245; Up = 245; Down = 0; Max. P-value = 7.1e-08.
+    - Cluster10: 261; Up = 261; Down = 0; Max. P-value = 1.9e-16.
+    - Cluster11: 241; Up = 241; Down = 0; Max. P-value = 2.6e-159.
+    - Cluster12: 275; Up = 275; Down = 0; Max. P-value = 1.1e-06.
+    - Cluster13: 241; Up = 241; Down = 0; Max. P-value = 0.00032.
+    - Cluster14: 244; Up = 244; Down = 0; Max. P-value = 1.1e-18.
+    - Cluster15: 258; Up = 258; Down = 0; Max. P-value = 9.2e-17.
+    - Cluster16: 249; Up = 249; Down = 0; Max. P-value = 1.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3816,22 +3811,22 @@ printMarkerStats(marker.genes.cluster.dn, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 168; Up = 0; Down = 168; Max. P-value = 1.2e-42.
-    - Cluster2: 207; Up = 0; Down = 207; Max. P-value = 0.
-    - Cluster3: 171; Up = 0; Down = 171; Max. P-value = 0.
-    - Cluster4: 250; Up = 0; Down = 250; Max. P-value = 6.3e-174.
-    - Cluster5: 214; Up = 0; Down = 214; Max. P-value = 4.9e-45.
-    - Cluster6: 139; Up = 0; Down = 139; Max. P-value = 1.7e-257.
-    - Cluster7: 192; Up = 0; Down = 192; Max. P-value = 9.5e-124.
-    - Cluster8: 210; Up = 0; Down = 210; Max. P-value = 4.7e-33.
-    - Cluster9: 244; Up = 0; Down = 244; Max. P-value = 9.8e-60.
-    - Cluster10: 147; Up = 0; Down = 147; Max. P-value = 8.3e-105.
-    - Cluster11: 223; Up = 0; Down = 223; Max. P-value = 0.
-    - Cluster12: 209; Up = 0; Down = 209; Max. P-value = 7.9e-21.
-    - Cluster13: 197; Up = 0; Down = 197; Max. P-value = 3.9e-165.
-    - Cluster14: 228; Up = 0; Down = 228; Max. P-value = 5.7e-52.
-    - Cluster15: 193; Up = 0; Down = 193; Max. P-value = 1.7e-221.
-    - Cluster16: 172; Up = 0; Down = 172; Max. P-value = 1.1e-10.
+    - Cluster1: 107; Up = 0; Down = 107; Max. P-value = 1.1e-09.
+    - Cluster2: 168; Up = 0; Down = 168; Max. P-value = 6.6e-185.
+    - Cluster3: 122; Up = 0; Down = 122; Max. P-value = 3.6e-197.
+    - Cluster4: 210; Up = 0; Down = 210; Max. P-value = 0.
+    - Cluster5: 175; Up = 0; Down = 175; Max. P-value = 1.4e-191.
+    - Cluster6: 116; Up = 0; Down = 116; Max. P-value = 4.4e-131.
+    - Cluster7: 147; Up = 0; Down = 147; Max. P-value = 0.
+    - Cluster8: 201; Up = 0; Down = 201; Max. P-value = 2.1e-84.
+    - Cluster9: 201; Up = 0; Down = 201; Max. P-value = 2.5e-37.
+    - Cluster10: 181; Up = 0; Down = 181; Max. P-value = 5.2e-124.
+    - Cluster11: 197; Up = 0; Down = 197; Max. P-value = 3.3e-20.
+    - Cluster12: 153; Up = 0; Down = 153; Max. P-value = 1.
+    - Cluster13: 199; Up = 0; Down = 199; Max. P-value = 1.6e-08.
+    - Cluster14: 178; Up = 0; Down = 178; Max. P-value = 1.2e-75.
+    - Cluster15: 107; Up = 0; Down = 107; Max. P-value = 8.3e-124.
+    - Cluster16: 199; Up = 0; Down = 199; Max. P-value = 1.6e-23.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3894,7 +3889,7 @@ geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
 print(paste("Number of genes to plot:", length(geneNames)))
 ```
 
-    [1] "Number of genes to plot: 978"
+    [1] "Number of genes to plot: 1184"
 
 
 
@@ -3935,28 +3930,28 @@ print(paste("Number of genes to plot:", length(geneNames)))
 <table class="dataframe">
 <caption>A matrix: 16 × 7 of type chr</caption>
 <tbody>
-	<tr><th scope=row>1</th><td>CD74 </td><td>CD79A    </td><td>CD37   </td><td>MS4A1 </td><td>NIBAN3</td><td>FCRL1  </td><td>CIITA </td></tr>
-	<tr><th scope=row>2</th><td>CD8A </td><td>NELL2    </td><td>CD74   </td><td>LEF1  </td><td>MYO1F </td><td>CD248  </td><td>CCR7  </td></tr>
-	<tr><th scope=row>3</th><td>CD74 </td><td>IL32     </td><td>IL7R   </td><td>CD3E  </td><td>CD4   </td><td>TRAC   </td><td>CD5   </td></tr>
-	<tr><th scope=row>4</th><td>IGHD </td><td>IGHM     </td><td>CD74   </td><td>MS4A1 </td><td>CD79A </td><td>NIBAN3 </td><td>FCRL1 </td></tr>
-	<tr><th scope=row>5</th><td>CD74 </td><td>LEF1     </td><td>CCR7   </td><td>NOG   </td><td>MYO1F </td><td>TRABD2A</td><td>CD4   </td></tr>
-	<tr><th scope=row>6</th><td>SPI1 </td><td>TYMP     </td><td>CD74   </td><td>CTSS  </td><td>IFI30 </td><td>FTH1   </td><td>DUSP1 </td></tr>
-	<tr><th scope=row>7</th><td>CCL5 </td><td>CD74     </td><td>NKG7   </td><td>KLRG1 </td><td>CST7  </td><td>PRF1   </td><td>SYNE1 </td></tr>
-	<tr><th scope=row>8</th><td>SPI1 </td><td>LYZ      </td><td>TNFAIP2</td><td>CST3  </td><td>TYMP  </td><td>HK3    </td><td>CD300E</td></tr>
-	<tr><th scope=row>9</th><td>CD74 </td><td>TNFRSF13C</td><td>MS4A1  </td><td>BANK1 </td><td>CD3E  </td><td>BLK    </td><td>IL32  </td></tr>
-	<tr><th scope=row>10</th><td>CD74 </td><td>CCL5     </td><td>CST7   </td><td>TCF7  </td><td>FGD2  </td><td>NKG7   </td><td>PRF1  </td></tr>
-	<tr><th scope=row>11</th><td>GNLY </td><td>PRF1     </td><td>IL2RB  </td><td>CTSW  </td><td>TRAC  </td><td>SH2D1B </td><td>KLRF1 </td></tr>
-	<tr><th scope=row>12</th><td>CSF1R</td><td>LST1     </td><td>SPI1   </td><td>FCGR3A</td><td>LILRB2</td><td>PLXNB2 </td><td>LRRC25</td></tr>
-	<tr><th scope=row>13</th><td>IL32 </td><td>PFN1     </td><td>FGD2   </td><td>CD74  </td><td>ACTG1 </td><td>SPI1   </td><td>COTL1 </td></tr>
-	<tr><th scope=row>14</th><td>PLCG1</td><td>CD2      </td><td>CD3E   </td><td>BCL11B</td><td>ITK   </td><td>LCK    </td><td>SCIMP </td></tr>
-	<tr><th scope=row>15</th><td>CST3 </td><td>CD74     </td><td>FGL2   </td><td>SAMHD1</td><td>CD3E  </td><td>KCTD12 </td><td>SPI1  </td></tr>
-	<tr><th scope=row>16</th><td>TYMP </td><td>MS4A1    </td><td>SPI1   </td><td>CD74  </td><td>CD37  </td><td>CD247  </td><td>CTSS  </td></tr>
+	<tr><th scope=row>1</th><td>CD74  </td><td>CD79A  </td><td>CD37  </td><td>MS4A1 </td><td>NIBAN3</td><td>FCRL1    </td><td>IRF8   </td></tr>
+	<tr><th scope=row>2</th><td>CD8A  </td><td>NELL2  </td><td>CD74  </td><td>LEF1  </td><td>ACTN1 </td><td>MYO1F    </td><td>CD3E   </td></tr>
+	<tr><th scope=row>3</th><td>CD74  </td><td>IL32   </td><td>IL7R  </td><td>CD3E  </td><td>EFHD2 </td><td>CD4      </td><td>TRAC   </td></tr>
+	<tr><th scope=row>4</th><td>IGHM  </td><td>CD74   </td><td>IGHD  </td><td>MS4A1 </td><td>CD79A </td><td>FCRL1    </td><td>CD37   </td></tr>
+	<tr><th scope=row>5</th><td>LEF1  </td><td>CD74   </td><td>CCR7  </td><td>EFHD2 </td><td>CD3E  </td><td>MYO1F    </td><td>TCF7   </td></tr>
+	<tr><th scope=row>6</th><td>TYMP  </td><td>SPI1   </td><td>CST3  </td><td>CTSS  </td><td>CD74  </td><td>DUSP1    </td><td>IFI30  </td></tr>
+	<tr><th scope=row>7</th><td>CCL5  </td><td>CD74   </td><td>NKG7  </td><td>KLRG1 </td><td>IL32  </td><td>CST7     </td><td>PRF1   </td></tr>
+	<tr><th scope=row>8</th><td>SPI1  </td><td>TNFAIP2</td><td>LYZ   </td><td>TYMP  </td><td>CD14  </td><td>IFI30    </td><td>CSF3R  </td></tr>
+	<tr><th scope=row>9</th><td>CD74  </td><td>MS4A1  </td><td>CD3E  </td><td>BLK   </td><td>IL32  </td><td>TNFRSF13C</td><td>POU2AF1</td></tr>
+	<tr><th scope=row>10</th><td>GNLY  </td><td>PRF1   </td><td>KLRF1 </td><td>IL2RB </td><td>CTSW  </td><td>TRAC     </td><td>KLRD1  </td></tr>
+	<tr><th scope=row>11</th><td>SPI1  </td><td>CSF1R  </td><td>PLXNB2</td><td>LRRC25</td><td>LST1  </td><td>FTH1     </td><td>CST3   </td></tr>
+	<tr><th scope=row>12</th><td>CD74  </td><td>PFN1   </td><td>FGD2  </td><td>IL32  </td><td>ACTG1 </td><td>COTL1    </td><td>TXNIP  </td></tr>
+	<tr><th scope=row>13</th><td>IRF8  </td><td>MYC    </td><td>APOL3 </td><td>RGS3  </td><td>MPEG1 </td><td>SIGLEC10 </td><td>ITM2C  </td></tr>
+	<tr><th scope=row>14</th><td>CST3  </td><td>CD74   </td><td>KCTD12</td><td>SPI1  </td><td>ITGAX </td><td>SAMHD1   </td><td>BCL11B </td></tr>
+	<tr><th scope=row>15</th><td>CD74  </td><td>PRF1   </td><td>NKG7  </td><td>GNLY  </td><td>FGD2  </td><td>KLRD1    </td><td>CST7   </td></tr>
+	<tr><th scope=row>16</th><td>GIMAP8</td><td>FCRL3  </td><td>RASSF4</td><td>CX3CR1</td><td>ID3   </td><td>NELL2    </td><td>CD7    </td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 69"
+    [1] "Number of genes to plot: 71"
 
 
 Alternatively, use genes identified from up- and downregulated `findMarkers` results.
@@ -4074,27 +4069,29 @@ print(paste("Number of genes to plot:", nrow(df)))
 
 
 <table class="dataframe">
-<caption>A tibble: 9 × 3</caption>
+<caption>A tibble: 11 × 3</caption>
 <thead>
 	<tr><th scope=col>gene</th><th scope=col>cluster</th><th scope=col>order</th></tr>
 	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>CD74 </td><td>1,4,9,15,16</td><td> 1</td></tr>
-	<tr><td>CD8A </td><td>2          </td><td> 2</td></tr>
-	<tr><td>IL32 </td><td>3,13       </td><td> 3</td></tr>
-	<tr><td>TCF7 </td><td>5,10       </td><td> 5</td></tr>
-	<tr><td>TYMP </td><td>6          </td><td> 6</td></tr>
-	<tr><td>CCL5 </td><td>7          </td><td> 7</td></tr>
-	<tr><td>SPI1 </td><td>8,12       </td><td> 8</td></tr>
-	<tr><td>GNLY </td><td>11         </td><td>11</td></tr>
-	<tr><td>ITM2C</td><td>14         </td><td>14</td></tr>
+	<tr><td>CD74 </td><td>1,4,9,14</td><td> 1</td></tr>
+	<tr><td>CD8A </td><td>2       </td><td> 2</td></tr>
+	<tr><td>IL32 </td><td>3,12    </td><td> 3</td></tr>
+	<tr><td>TCF7 </td><td>5       </td><td> 5</td></tr>
+	<tr><td>TYMP </td><td>6       </td><td> 6</td></tr>
+	<tr><td>CCL5 </td><td>7       </td><td> 7</td></tr>
+	<tr><td>SPI1 </td><td>8,11    </td><td> 8</td></tr>
+	<tr><td>GNLY </td><td>10      </td><td>10</td></tr>
+	<tr><td>IRF8 </td><td>13      </td><td>13</td></tr>
+	<tr><td>ZAP70</td><td>15      </td><td>15</td></tr>
+	<tr><td>H1-5 </td><td>16      </td><td>16</td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 9"
+    [1] "Number of genes to plot: 11"
 
 
 
@@ -4166,7 +4163,7 @@ reset.fig()
 ```R
 dimname <- "TSNE"
 
-fig(width = 16, height = 6)
+fig(width = 16, height = 9)
 as.data.frame(reducedDim(cdScAnnot, dimname)) %>% `colnames<-`(c("V1","V2")) %>%
     bind_cols(as_tibble(t(logcounts(cdScAnnot[df$gene,])))) %>%
     gather(., key = "Symbol", value = "Expression", -c(V1, V2) ) %>% 
@@ -4243,7 +4240,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     
     Connection is Live!
     
-    Running enrichR on 'Cluster1' with 278 up-regulated genes.
+    Running enrichR on 'Cluster1' with 272 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4254,7 +4251,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster2' with 250 up-regulated genes.
+    Running enrichR on 'Cluster2' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4265,7 +4262,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster3' with 279 up-regulated genes.
+    Running enrichR on 'Cluster3' with 272 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4276,7 +4273,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster4' with 251 up-regulated genes.
+    Running enrichR on 'Cluster4' with 248 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4287,7 +4284,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster5' with 253 up-regulated genes.
+    Running enrichR on 'Cluster5' with 252 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4298,7 +4295,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster6' with 253 up-regulated genes.
+    Running enrichR on 'Cluster6' with 234 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4309,7 +4306,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster7' with 250 up-regulated genes.
+    Running enrichR on 'Cluster7' with 243 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4320,7 +4317,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster8' with 245 up-regulated genes.
+    Running enrichR on 'Cluster8' with 244 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4331,7 +4328,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster9' with 254 up-regulated genes.
+    Running enrichR on 'Cluster9' with 245 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4342,7 +4339,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster10' with 247 up-regulated genes.
+    Running enrichR on 'Cluster10' with 261 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4353,7 +4350,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster11' with 262 up-regulated genes.
+    Running enrichR on 'Cluster11' with 241 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4364,7 +4361,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster12' with 241 up-regulated genes.
+    Running enrichR on 'Cluster12' with 275 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4375,7 +4372,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster13' with 281 up-regulated genes.
+    Running enrichR on 'Cluster13' with 241 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4386,7 +4383,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster14' with 255 up-regulated genes.
+    Running enrichR on 'Cluster14' with 244 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4397,7 +4394,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster15' with 241 up-regulated genes.
+    Running enrichR on 'Cluster15' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4408,7 +4405,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster16' with 241 up-regulated genes.
+    Running enrichR on 'Cluster16' with 249 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
@@ -4494,8 +4491,10 @@ reset.fig()
     
 
 
-    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
-    "There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting."
+
+    
+![png](Control1_files/Control1_260_11.png)
+    
 
 
 
@@ -4516,10 +4515,8 @@ reset.fig()
     
 
 
-
-    
-![png](Control1_files/Control1_260_15.png)
-    
+    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
+    "There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting."
 
 
 
@@ -4666,7 +4663,7 @@ metadata(cdScAnnot)[['DoubletDensity']] <- setNames(dbl.dens, colnames(cdScAnnot
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-     0.0000  0.0400  0.1600  0.9679  0.5000 18.1200 
+     0.0000  0.0400  0.1600  0.9766  0.5200 19.0000 
 
 
 
@@ -4705,10 +4702,10 @@ If cells with high scores are clustered in one or more clusters, we can choose t
 
 
 ```R
-chosen.doublet <- c(1, 6, 16)
+chosen.doublet <- c(1, 6, 15)
 nTop <- 25
 
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 for(ID in chosen.doublet) {
     dbl.markers <- marker.genes.cluster.up[[ID]]
     chosen <- rownames(dbl.markers)[dbl.markers$Top <= nTop]
