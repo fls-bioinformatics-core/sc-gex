@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.0.0</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.0.2</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -97,7 +97,7 @@ Commented line below are packages that are required but we are not loading and a
 
 ```R
 suppressPackageStartupMessages({
-    # R-4.4.2
+    # R-4.4.3
     library(batchelor)     # Single-cell batch correction methods
     library(BiocNeighbors) # AnnoyParam
     library(BiocParallel)  # MulticoreParam
@@ -192,8 +192,8 @@ c_phase_col <- setNames(c30[c(20, 3, 9)], c("G1", "S", "G2M"))
 c_phase_col
 
 # Set colours for heatmaps
-c_heatmap_col1 <- plasma(256, direction = -1) # logcounts
 breaks <- seq(-3, 3, by = 0.05) # 121 breaks
+c_heatmap_col1 <- plasma(length(breaks), direction = -1) # logcounts
 c_heatmap_col2 <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, "RdYlBu")))(length(breaks)) # scaled/z-score
 ```
 
@@ -544,7 +544,7 @@ rowData_colnames <- c("ID","Symbol","Type","SEQNAME","is_mito")
 # Add 'coarse_cell_type' and 'fine_cell_type' if using Cell Ranger's Cell Annotation prediction
 colData_colnames <- c("Sample","Barcode","sum","detected","subsets_Mt_percent","log10Sum","sizeFactor","CellCycle",
                       #"coarse_cell_type","fine_cell_type",
-                      "CellType","walktrap","louvain","leiden","label")
+                      "CellType","label")
 
 # Make all sce have identical rowData and colData column names and order
 for(i in 1:length(all.common)) {
@@ -571,7 +571,7 @@ all.common
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(18460): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       Control1_TTTGTGAGTGGCGTAGACTTTAGG-1 Control1_TTTGTGAGTTAATTCGACTTTAGG-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -585,7 +585,7 @@ all.common
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(17168): KidneyCancer_AAACAAGCAAATACCGATGTTGAC-1 KidneyCancer_AAACAAGCAACAGATTATGTTGAC-1
       ... KidneyCancer_TTTGTGAGTGTCCTTCATGTTGAC-1 KidneyCancer_TTTGTGAGTTGGATGAATGTTGAC-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -599,7 +599,7 @@ all.common
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(14037): LungCancer_AAACAAGCAAGGCCTGAGCTGTGA-1 LungCancer_AAACAAGCACCTTTGGAGCTGTGA-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -627,7 +627,7 @@ all.common.normed
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(18460): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       Control1_TTTGTGAGTGGCGTAGACTTTAGG-1 Control1_TTTGTGAGTTAATTCGACTTTAGG-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -641,7 +641,7 @@ all.common.normed
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(17168): KidneyCancer_AAACAAGCAAATACCGATGTTGAC-1 KidneyCancer_AAACAAGCAACAGATTATGTTGAC-1
       ... KidneyCancer_TTTGTGAGTGTCCTTCATGTTGAC-1 KidneyCancer_TTTGTGAGTTGGATGAATGTTGAC-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -655,7 +655,7 @@ all.common.normed
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(14037): LungCancer_AAACAAGCAAGGCCTGAGCTGTGA-1 LungCancer_AAACAAGCACCTTTGGAGCTGTGA-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -683,6 +683,19 @@ reset.fig()
     
 
 
+Create `dgCMatrix` counts and logcounts matrices for faster computation in some steps.
+
+
+```R
+normed_c <- list()
+normed_l <- list()
+
+for(i in names(all.common.normed)) {
+    normed_c[[i]] <-  as(counts(all.common.normed[[i]], withDimnames = TRUE), "dgCMatrix")
+    normed_l[[i]] <-  as(logcounts(all.common.normed[[i]], withDimnames = TRUE), "dgCMatrix")
+}
+```
+
 ## Identifying highly variable genes (HVGs)
 
 Identifying HVG based on common genes using re-normalised `SingleCellExperiment` objects.
@@ -695,19 +708,30 @@ Choose to model the variance of the log-expression profiles for each gene (`mode
 ```R
 # Choose variance modelling method to use
 hvg_model <- "modelGeneVarByPoisson" # Or modelGeneVar
+all.var <- list()
 
 message(paste0("Using '", hvg_model, "' method"))
-if(hvg_model == "modelGeneVar") {
-    set.seed(12345)
-    all.var <- lapply(all.common.normed, modelGeneVar, assay.type = "logcounts", BPPARAM = bpp)
-} else {
-    set.seed(12345)
-    all.var <- lapply(all.common.normed, modelGeneVarByPoisson, assay.type = "counts", BPPARAM = bpp)
+
+for(i in names(all.common.normed)) {
+    to_keep <- TRUE # Include all genes
+    # Optional
+    # Not is_mito and not ribosomal protein-coding genes (Human & Mouse)
+    #to_keep <- !rowData(all.common.normed[[i]])$is_mito & 
+    #            !grepl("^RPL|^RPS|^Rpl|^Rps", rownames(all.common.normed[[i]]))
+    
+    if(hvg_model == "modelGeneVar") {
+        set.seed(12345)
+        all.var[[i]] <- modelGeneVarByPoisson(normed_l[[i]][to_keep,], BPPARAM = bpp)
+    } else {
+        set.seed(12345)
+        all.var[[i]] <- modelGeneVarByPoisson(normed_c[[i]][to_keep,], 
+                                              size.factors = sizeFactors(all.common.normed[[i]]), BPPARAM = bpp)
+    }
 }
 
 # Print DataFrame
-for(i in 1:length(h5_df$Sample)) {
-    print(paste0(h5_df$Sample[i], ":"))
+for(i in 1:length(all.common.normed)) {
+    print(paste0(names(all.common.normed)[i], ":"))
     all.var[[i]] %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>% DataFrame %>% print
 }
 ```
@@ -735,11 +759,11 @@ for(i in 1:length(h5_df$Sample)) {
     DataFrame with 18129 rows and 6 columns
                  mean     total      tech       bio   p.value       FDR
             <numeric> <numeric> <numeric> <numeric> <numeric> <numeric>
-    GNLY     1.138577   3.42077  0.486239   2.93453         0         0
-    FOS      2.051771   2.70202  0.380513   2.32151         0         0
-    CCL5     1.212722   2.68365  0.486587   2.19706         0         0
-    CD74     1.797954   2.55010  0.424426   2.12568         0         0
-    NKG7     0.993822   2.47213  0.475249   1.99688         0         0
+    GNLY     1.138577   3.42077  0.485806   2.93496         0         0
+    FOS      2.051771   2.70202  0.379939   2.32208         0         0
+    CCL5     1.212722   2.68365  0.486043   2.19761         0         0
+    CD74     1.797954   2.55010  0.423862   2.12624         0         0
+    NKG7     0.993822   2.47213  0.475705   1.99642         0         0
     ...           ...       ...       ...       ...       ...       ...
     PCDH11Y         0         0         0         0       NaN       NaN
     AMELY           0         0         0         0       NaN       NaN
@@ -750,11 +774,11 @@ for(i in 1:length(h5_df$Sample)) {
     DataFrame with 18129 rows and 6 columns
                  mean     total      tech       bio   p.value       FDR
             <numeric> <numeric> <numeric> <numeric> <numeric> <numeric>
-    GNLY     1.720334   5.00735  0.452945   4.55441         0         0
-    CD74     2.968303   4.47523  0.231526   4.24371         0         0
-    CCL5     2.221786   4.47919  0.362607   4.11658         0         0
-    IGHM     0.940615   4.10908  0.482037   3.62705         0         0
-    NKG7     1.662264   3.66641  0.461710   3.20470         0         0
+    GNLY     1.720334   5.00735  0.452335   4.55502         0         0
+    CD74     2.968303   4.47523  0.231769   4.24346         0         0
+    CCL5     2.221786   4.47919  0.362671   4.11652         0         0
+    IGHM     0.940615   4.10908  0.481994   3.62709         0         0
+    NKG7     1.662264   3.66641  0.461079   3.20533         0         0
     ...           ...       ...       ...       ...       ...       ...
     PCDH11Y         0         0         0         0       NaN       NaN
     AMELY           0         0         0         0       NaN       NaN
@@ -836,7 +860,11 @@ Computational correction of batch effects is critical for eliminating batch-to-b
 
 ## Diagnosing batch effects
 
-Before performing any correction, we check that there actually is a batch effect across these datasets by checking that they cluster separately. Here, we use the `cbind` function to combine `SingleCellExperiment` objects in the list without applying any correction, and we informally verify that cells from different batches are separated using a t-SNE plot.
+Before performing any correction, we check that there actually is a batch effect across these datasets by checking that they cluster separately.
+
+### Create a single `SingleCellExperiment` object
+
+ Here, we use the `cbind` function to combine `SingleCellExperiment` objects in the list without applying any correction, and we informally verify that cells from different batches are separated using a t-SNE plot.
 
 It is also possible to combine `SingleCellExperiment` objects with the `correctExperiments` function, and without applying any correction using the `NoCorrectParam` flag. However, data stored in `metadata` and `altExps` is not retained.
 
@@ -845,8 +873,6 @@ It is also possible to combine `SingleCellExperiment` objects with the `correctE
     <br />
     If it takes longer than 1 minute for the merging to complete, it means there is a problem with <code>cbind()</code> concerning the columns in either <code>rowData()</code> and/or <code>colData()</code>. Interrupt the kernel and check for consistency of the columns of the objects stored in <code>all.common.normed</code>. Alternatively, use <code>correctExperiments()</code> to merge data and it'll throw out warning messages if there's a problem with the data structure.
 </div>
-
-### Create a single `SingleCellExperiment` object
 
 
 ```R
@@ -873,7 +899,7 @@ combined
     rowData names(5): ID Symbol Type SEQNAME is_mito
     colnames(49665): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(13): Sample Barcode ... leiden label
+    colData names(10): Sample Barcode ... CellType label
     reducedDimNames(0):
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -905,6 +931,20 @@ c_celltype_col <- choosePalette(combined$CellType, c40)
 #c_celltype_col
 ```
 
+
+```R
+# Add HVG to rowData
+rowData(combined)$is_hvg <- FALSE
+rowData(combined)[rownames(combined) %in% hvg_genes,]$is_hvg <- TRUE
+table("Is HVG" = rowData(combined)$is_hvg)
+```
+
+
+    Is HVG
+    FALSE  TRUE 
+    14629  3500 
+
+
 ### Add additional variables that describes the samples  to `colData`
 
 <div class="alert alert-warning">
@@ -932,15 +972,6 @@ c_cond_col
 
 
 Create a `dgCMatrix` logcounts matrix for faster computation in some steps.
-
-
-```R
-normed_l <- list()
-for(i in names(all.common.normed)) {
-    normed_l[[i]] <-  as(logcounts(all.common.normed[[i]], withDimnames = FALSE), "dgCMatrix")
-    rownames(normed_l[[i]]) <- rownames(all.common.normed[[i]])
-}
-```
 
 ### Run `multiBatchPCA` on the *uncorrected* `logcounts` matrix
 
@@ -982,13 +1013,13 @@ str(pca)
 reducedDim(combined, "PCA") <- pca
 ```
 
-     num [1:49665, 1:50] 5.5265 -0.8773 -0.0921 -3.2691 6.8074 ...
+     num [1:49665, 1:50] 5.5259 -0.8486 -0.0831 -3.2809 6.8182 ...
      - attr(*, "dimnames")=List of 2
       ..$ : chr [1:49665] "Control1_AAACAAGCAACAAGTTACTTTAGG-1" "Control1_AAACAAGCAACTAGTGACTTTAGG-1" "Control1_AAACAAGCAGTTATCCACTTTAGG-1" "Control1_AAACAAGCATAGCCGGACTTTAGG-1" ...
       ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
      - attr(*, "varExplained")= num [1:50] 158.3 89 67.1 52 32.7 ...
      - attr(*, "percentVar")= num [1:50] 8.64 4.85 3.66 2.84 1.78 ...
-     - attr(*, "rotation")= num [1:3500, 1:50] 0.00311 0.10852 0.01264 0.07427 -0.01582 ...
+     - attr(*, "rotation")= num [1:3500, 1:50] 0.00311 0.10852 0.01265 0.07427 -0.01582 ...
       ..- attr(*, "dimnames")=List of 2
       .. ..$ : chr [1:3500] "GNLY" "CD74" "NKG7" "FOS" ...
       .. ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
@@ -1008,7 +1039,7 @@ as.data.frame(percentVar) %>% rownames_to_column("PC") %>% mutate(PC = as.numeri
 
 
     
-![png](Integrated_files/Integrated_47_0.png)
+![png](Integrated_files/Integrated_49_0.png)
     
 
 
@@ -1019,13 +1050,13 @@ For `n_dimred`, better to include more PCs in integrated dataset than that used 
 
 ```R
 set.seed(12345)
-combined <- runTSNE(combined, dimred = "PCA", name = "TSNE", n_dimred = 50, n_threads = nthreads, BPPARAM = bpp)
+combined <- runTSNE(combined, dimred = "PCA", name = "TSNE", n_dimred = 30, n_threads = nthreads, BPPARAM = bpp)
 ```
 
 
 ```R
 set.seed(12345)
-combined <- runUMAP(combined, dimred = "PCA", name = "UMAP", n_dimred = 50,
+combined <- runUMAP(combined, dimred = "PCA", name = "UMAP", n_dimred = 30,
                     n_neighbors = 30, spread = 1, min_dist = 0.3, n_threads = nthreads, BPPARAM = bpp)
 ```
 
@@ -1041,10 +1072,10 @@ combined
     metadata(24): Control1_Samples Control1_cyclone ... LungCancer_DoubletDensity LungCancer_runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
+    rowData names(6): ID Symbol ... is_mito is_hvg
     colnames(49665): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(14): Sample Barcode ... label condition
+    colData names(11): Sample Barcode ... label condition
     reducedDimNames(3): PCA TSNE UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -1063,7 +1094,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_53_0.png)
+![png](Integrated_files/Integrated_55_0.png)
     
 
 
@@ -1078,7 +1109,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_54_0.png)
+![png](Integrated_files/Integrated_56_0.png)
     
 
 
@@ -1160,7 +1191,7 @@ corrected
     dim: 3500 49665 
     metadata(2): merge.info pca.info
     assays(1): reconstructed
-    rownames(3500): GNLY CD74 ... PPP2R2A CD244
+    rownames(3500): GNLY CD74 ... CMPK2 ASCC3
     rowData names(1): rotation
     colnames(49665): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
@@ -1185,12 +1216,12 @@ metadata(corrected)$merge.info
     DataFrame with 2 rows and 6 columns
                          left        right                               pairs batch.size   skipped
                        <List>       <List>                     <DataFrameList>  <numeric> <logical>
-    1              LungCancer KidneyCancer 35629:20041,35630:29332,35630:31630   0.730185     FALSE
-    2 LungCancer,KidneyCancer     Control1  35644:12864,35644:12006,35644:1220   0.744159     FALSE
+    1              LungCancer KidneyCancer 35629:20041,35630:29332,35630:31630   0.729777     FALSE
+    2 LungCancer,KidneyCancer     Control1  35644:12864,35644:12006,35644:1220   0.743482     FALSE
                            lost.var
                            <matrix>
-    1 0.0000000:0.0116568:0.0117827
-    2 0.0112596:0.0181595:0.0164908
+    1 0.0000000:0.0116580:0.0117947
+    2 0.0112386:0.0182646:0.0165127
 
 
 
@@ -1227,8 +1258,8 @@ metadata(corrected)$merge.info$lost.var
 	<tr><th scope=col>Control1</th><th scope=col>KidneyCancer</th><th scope=col>LungCancer</th></tr>
 </thead>
 <tbody>
-	<tr><td>0.00000000</td><td>0.01165681</td><td>0.01178272</td></tr>
-	<tr><td>0.01125956</td><td>0.01815954</td><td>0.01649082</td></tr>
+	<tr><td>0.00000000</td><td>0.01165801</td><td>0.01179465</td></tr>
+	<tr><td>0.01123859</td><td>0.01826459</td><td>0.01651267</td></tr>
 </tbody>
 </table>
 
@@ -1252,10 +1283,10 @@ combined
     metadata(24): Control1_Samples Control1_cyclone ... LungCancer_DoubletDensity LungCancer_runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
+    rowData names(6): ID Symbol ... is_mito is_hvg
     colnames(49665): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(14): Sample Barcode ... label condition
+    colData names(11): Sample Barcode ... label condition
     reducedDimNames(4): PCA TSNE UMAP MNN
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -1266,7 +1297,7 @@ combined
 
 ```R
 set.seed(12345)
-combined <- runTSNE(combined, dimred = "MNN", name = "MNN-TSNE", n_dimred = 50, 
+combined <- runTSNE(combined, dimred = "MNN", name = "MNN-TSNE", n_dimred = 30, 
                     n_threads = nthreads, BPPARAM = bpp)
 ```
 
@@ -1281,7 +1312,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_71_0.png)
+![png](Integrated_files/Integrated_73_0.png)
     
 
 
@@ -1296,7 +1327,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_72_0.png)
+![png](Integrated_files/Integrated_74_0.png)
     
 
 
@@ -1305,7 +1336,7 @@ reset.fig()
 
 ```R
 set.seed(12345)
-combined <- runUMAP(combined, dimred = "MNN", name = "MNN-UMAP", n_dimred = 50, 
+combined <- runUMAP(combined, dimred = "MNN", name = "MNN-UMAP", n_dimred = 30, 
                     n_neighbors = 30, spread = 1, min_dist = 0.3, n_threads = nthreads, BPPARAM = bpp)
 ```
 
@@ -1320,7 +1351,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_75_0.png)
+![png](Integrated_files/Integrated_77_0.png)
     
 
 
@@ -1335,7 +1366,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_76_0.png)
+![png](Integrated_files/Integrated_78_0.png)
     
 
 
@@ -1357,7 +1388,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_78_0.png)
+![png](Integrated_files/Integrated_80_0.png)
     
 
 
@@ -1376,7 +1407,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_80_0.png)
+![png](Integrated_files/Integrated_82_0.png)
     
 
 
@@ -1452,19 +1483,19 @@ combined$first.pass <- my.clusters[[method]][[dimname]]
 
                   
                       1    2    3    4    5    6    7    8    9   10   11   12   13
-      Control1      330 5458 2780 1611  496 1421 3430  467 2014  253   86  111    3
-      KidneyCancer  209 1961 7380  655  155 2839  111 2408  279   17   23  594  537
-      LungCancer    275  375 3474 2053   69 3070   79 2132 1281   12    8  465  744
+      Control1      328 5472 2714 1415 1613  501 3425  470 2012  313   82  112    3
+      KidneyCancer  208 1965 7401 2824  655  155  111 2381  285   23   23  600  537
+      LungCancer    274  383 3479 3078 2053   69   77 2112 1279   16    8  463  746
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4945  0.1119  0.2256  0.2267  0.3688  0.6199 
+    -0.4767  0.1122  0.2270  0.2276  0.3702  0.6367 
 
 
-### (Optional) Remove randomly scattered cells that high `DoubletDensity` scores
+### (Optional) Remove randomly scattered cells that have high `DoubletDensity` scores
 
 If there are many cells with high doublet scores randomly scattered on the dimensionality reduction plots (i.e. TSNE or UMAP), we can choose to do a round of doublet cell cleaning now. *The aim is to NOT remove doublet cluster(s).*
 
@@ -1483,7 +1514,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_88_0.png)
+![png](Integrated_files/Integrated_90_0.png)
     
 
 
@@ -1508,12 +1539,12 @@ head(upper)
 	<tr><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Control1</td><td>1</td><td>0.3219096</td><td>75%</td><td>2.3887628</td><td>3.3544916</td></tr>
-	<tr><td>Control1</td><td>2</td><td>0.2972515</td><td>75%</td><td>0.3364722</td><td>1.2282268</td></tr>
-	<tr><td>Control1</td><td>3</td><td>0.5072478</td><td>75%</td><td>0.6205765</td><td>2.1423199</td></tr>
-	<tr><td>Control1</td><td>4</td><td>0.1133287</td><td>75%</td><td>0.1133287</td><td>0.4533147</td></tr>
-	<tr><td>Control1</td><td>5</td><td>0.3560794</td><td>75%</td><td>2.5790796</td><td>3.6473179</td></tr>
-	<tr><td>Control1</td><td>6</td><td>0.2231436</td><td>75%</td><td>0.2623643</td><td>0.9317949</td></tr>
+	<tr><td>Control1</td><td>1</td><td>0.3200037</td><td>75%</td><td>2.3887628</td><td>3.3487739</td></tr>
+	<tr><td>Control1</td><td>2</td><td>0.3254224</td><td>75%</td><td>0.3646431</td><td>1.3409103</td></tr>
+	<tr><td>Control1</td><td>3</td><td>0.5359616</td><td>75%</td><td>0.6312718</td><td>2.2391566</td></tr>
+	<tr><td>Control1</td><td>4</td><td>0.2231436</td><td>75%</td><td>0.2623643</td><td>0.9317949</td></tr>
+	<tr><td>Control1</td><td>5</td><td>0.1133287</td><td>75%</td><td>0.1133287</td><td>0.4533147</td></tr>
+	<tr><td>Control1</td><td>6</td><td>0.3558069</td><td>75%</td><td>2.5771819</td><td>3.6446026</td></tr>
 </tbody>
 </table>
 
@@ -1540,12 +1571,12 @@ table("Is doublet" = colnames(combined) %in% doublets$Barcode)
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>Control1_AAAGGCTTCCAACATTACTTTAGG-1</td><td>Control1</td><td>2 </td><td>2.64</td><td>1.2282268</td></tr>
-	<tr><th scope=row>2</th><td>Control1_AAATCCTTCATCAGCCACTTTAGG-1</td><td>Control1</td><td>12</td><td>0.72</td><td>0.3812407</td></tr>
-	<tr><th scope=row>3</th><td>Control1_AACCAGGTCATGGAACACTTTAGG-1</td><td>Control1</td><td>2 </td><td>4.48</td><td>1.2282268</td></tr>
-	<tr><th scope=row>4</th><td>Control1_AACCATAAGAGGCGGAACTTTAGG-1</td><td>Control1</td><td>3 </td><td>9.76</td><td>2.1423199</td></tr>
-	<tr><th scope=row>5</th><td>Control1_AACCATAAGCTTATCGACTTTAGG-1</td><td>Control1</td><td>9 </td><td>2.72</td><td>0.8067847</td></tr>
-	<tr><th scope=row>6</th><td>Control1_AACCATTTCGCGGATAACTTTAGG-1</td><td>Control1</td><td>9 </td><td>2.44</td><td>0.8067847</td></tr>
+	<tr><th scope=row>1</th><td>Control1_AAATCCTTCATCAGCCACTTTAGG-1</td><td>Control1</td><td>12</td><td>0.74</td><td>0.4533147</td></tr>
+	<tr><th scope=row>2</th><td>Control1_AACCAGGTCATGGAACACTTTAGG-1</td><td>Control1</td><td>2 </td><td>4.74</td><td>1.3409103</td></tr>
+	<tr><th scope=row>3</th><td>Control1_AACCATAAGAGGCGGAACTTTAGG-1</td><td>Control1</td><td>3 </td><td>9.86</td><td>2.2391566</td></tr>
+	<tr><th scope=row>4</th><td>Control1_AACCATAAGCTTATCGACTTTAGG-1</td><td>Control1</td><td>9 </td><td>3.16</td><td>0.8697782</td></tr>
+	<tr><th scope=row>5</th><td>Control1_AACCATTTCGCGGATAACTTTAGG-1</td><td>Control1</td><td>9 </td><td>2.44</td><td>0.8697782</td></tr>
+	<tr><th scope=row>6</th><td>Control1_AACCATTTCTAATGAGACTTTAGG-1</td><td>Control1</td><td>4 </td><td>1.84</td><td>0.9317949</td></tr>
 </tbody>
 </table>
 
@@ -1554,7 +1585,7 @@ table("Is doublet" = colnames(combined) %in% doublets$Barcode)
 
     Is doublet
     FALSE  TRUE 
-    48494  1171 
+    48584  1081 
 
 
 
@@ -1568,7 +1599,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_92_0.png)
+![png](Integrated_files/Integrated_94_0.png)
     
 
 
@@ -1582,14 +1613,14 @@ combined
 
 
     class: SingleCellExperiment 
-    dim: 18129 48494 
+    dim: 18129 48584 
     metadata(24): Control1_Samples Control1_cyclone ... LungCancer_DoubletDensity LungCancer_runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
-    colnames(48494): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
+    rowData names(6): ID Symbol ... is_mito is_hvg
+    colnames(48584): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(16): Sample Barcode ... DoubletDensity first.pass
+    colData names(13): Sample Barcode ... DoubletDensity first.pass
     reducedDimNames(6): PCA TSNE ... MNN-TSNE MNN-UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -1598,14 +1629,14 @@ combined
 
 ```R
 set.seed(12345)
-combined <- runTSNE(combined, dimred = "MNN", name = "MNN-TSNE", n_dimred = 50, 
+combined <- runTSNE(combined, dimred = "MNN", name = "MNN-TSNE", n_dimred = 30, 
                     n_threads = nthreads, BPPARAM = bpp)
 ```
 
 
 ```R
 set.seed(12345)
-combined <- runUMAP(combined, dimred = "MNN", name = "MNN-UMAP", n_dimred = 50, 
+combined <- runUMAP(combined, dimred = "MNN", name = "MNN-UMAP", n_dimred = 30, 
                     n_neighbors = 30, spread = 1, min_dist = 0.3, n_threads = nthreads, BPPARAM = bpp)
 ```
 
@@ -1643,16 +1674,21 @@ combined$first.pass <- my.clusters[[method]][[dimname]]
 
                   
                       1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      Control1      329 2164 2837 1007 3145  491 1348 3102  556  115 1997   28   54   79  285  307   95   95    4
-      KidneyCancer  201  956  659  175  964  155 2679   81  457 1216  280   16 3738   23   24  497 3579  547  529
-      LungCancer    269   59  670 1739  325   71 2591   67  261 1093 1254    8 1615    8    7   87 2363  458  735
+      Control1      327 2177 2606 1011 3158  491 1332 2468  547  455 1990  636  326   43   82  289   36  101    3
+      KidneyCancer  205  947 4159  174  967  157 1592   50  454 1678  275   33   27 3789   22   23   21  551  526
+      LungCancer    269   67 2999 1739  329   70 2200   47  258  648 1244   22   21 1620    8    7   17  455  735
+                  
+                     20
+      Control1       15
+      KidneyCancer 1151
+      LungCancer    935
 
 
     Silhouette width summary:
 
 
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4876  0.0592  0.1276  0.1317  0.1931  0.5620 
+        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+    -0.47202  0.03836  0.12043  0.12744  0.20580  0.63243 
 
 
 <div style="width: 100%; height: 25px; border-bottom: 1px dashed black; text-align: center">
@@ -1676,7 +1712,28 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_101_0.png)
+![png](Integrated_files/Integrated_103_0.png)
+    
+
+
+
+```R
+p1 <- plotProjections(combined, "CellType", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Cell Type", 
+                      feat_color = c_celltype_col, text_by = "first.pass", point_size = 0.1, point_alpha = 0.1, 
+                      legend_pos = "none", add_void = TRUE)
+
+p2 <- plotProjections(combined, "first.pass", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = method, 
+                      feat_color = c30(), text_by = "first.pass", point_size = 0.1, point_alpha = 0.1,
+                      guides_size = 4)
+
+fig(width = 16, height = 15)    
+plot_grid(p1, p2, ncol = 1)
+reset.fig()
+```
+
+
+    
+![png](Integrated_files/Integrated_104_0.png)
     
 
 
@@ -1684,13 +1741,13 @@ reset.fig()
 
 You may divide your cells into subsets containing fewer clusters.
 
-In this example, we create 2 subsets:
+In this example, we create 3 subsets:
 
 <div class="alert alert-info">
     <ul>
-        <li>Subset 1: 2, 7, 10, 16, 18</li>
-        <li>Subset 2: 3, 5, 12, 13, 17</li>
-        <li>Subset 3: 1, 4, 6, 8, 9, 11, 14, 15, 19</li>
+        <li>Subset 1: 2, 7, 10, 18, 20</li>
+        <li>Subset 2: 3, 5, 14, 17</li>
+        <li>Subset 3: 1, 4, 6, 8, 9, 11, 12, 13, 15, 16, 19</li>
     </ul>
 </div>
 
@@ -1698,7 +1755,7 @@ In this example, we create 2 subsets:
 
 
 ```R
-subset1 <- combined[, combined$first.pass %in% c(2, 7, 10, 16, 18)]
+subset1 <- combined[, combined$first.pass %in% c(2, 7, 10, 18, 20)]
 colData(subset1) <- droplevels(colData(subset1))
 dim(subset1)
 
@@ -1728,13 +1785,13 @@ reset.fig()
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>18129</li><li>14212</li></ol>
+<ol class=list-inline><li>18129</li><li>14304</li></ol>
 
 
 
 
     
-![png](Integrated_files/Integrated_104_1.png)
+![png](Integrated_files/Integrated_107_1.png)
     
 
 
@@ -1742,7 +1799,7 @@ reset.fig()
 
 
 ```R
-subset2 <- combined[, combined$first.pass %in% c(3, 5, 12, 13, 17)]
+subset2 <- combined[, combined$first.pass %in% c(3, 5, 14, 17)]
 colData(subset2) <- droplevels(colData(subset2))
 dim(subset2)
 
@@ -1772,13 +1829,13 @@ reset.fig()
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>18129</li><li>20096</li></ol>
+<ol class=list-inline><li>18129</li><li>19744</li></ol>
 
 
 
 
     
-![png](Integrated_files/Integrated_106_1.png)
+![png](Integrated_files/Integrated_109_1.png)
     
 
 
@@ -1786,7 +1843,7 @@ reset.fig()
 
 
 ```R
-subset3 <- combined[, combined$first.pass %in% c(1, 4, 6, 8, 9, 11, 14, 15, 19)]
+subset3 <- combined[, combined$first.pass %in% c(1, 4, 6, 8, 9, 11, 12, 13, 15, 16, 19)]
 colData(subset3) <- droplevels(colData(subset3))
 dim(subset3)
 
@@ -1816,13 +1873,13 @@ reset.fig()
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>18129</li><li>14186</li></ol>
+<ol class=list-inline><li>18129</li><li>14536</li></ol>
 
 
 
 
     
-![png](Integrated_files/Integrated_108_1.png)
+![png](Integrated_files/Integrated_111_1.png)
     
 
 
@@ -1836,7 +1893,7 @@ Here, we use the **Louvain** algorithm to perform clustering, but feel free to u
 ```R
 method <- "louvain"
 dimname <- "MNN" # or "PCA" without batch correction
-n_dimred <- 50 # number of dimensions to use; default is 50
+n_dimred <- 20 # number of dimensions to use; default is 50
 k <- 15
 
 mat <- reducedDim(subset1, dimname)[, seq_len(n_dimred), drop = FALSE]
@@ -1864,32 +1921,35 @@ subset1$merged.louvain <- my.clusters[[method]][[dimname]]
 
                   
                       1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      Control1     1342  817  774   87  454   10  204   95  114   13   25    4   68    2   13    3    1    1    1
-      KidneyCancer   11  368   16  387   10  189    5  179  499 1287   11  157  405   21  729   11  705   39  187
-      LungCancer      6   13   84   94   22  147    6  153   90  310  433  109  323  668   58  109  424  255  188
+      Control1      534 1052  572  649  121  117  260  420   54   91   21   29    4   72    4   16   34   17    7
+      KidneyCancer   26   25  344   16  399    1   23   13  498  189  887    8  416  403  566  890  542   45  233
+      LungCancer      2    5   12   72   84    9    9   32   92  157  166  426  290  315   50   93  371  208  228
                   
-                     20   21   22   23
-      Control1        1    0    0    0
-      KidneyCancer  615   61    3    0
-      LungCancer     43  383  245  125
+                     20   21   22   23   24   25
+      Control1        2    2    2    0    0    0
+      KidneyCancer   25  114  193   58    5    0
+      LungCancer    702  148   73  370  253  138
 
 
     Silhouette width summary:
 
 
-        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -0.36644  0.01334  0.07794  0.07275  0.13726  0.36216 
+         Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    -0.506687  0.006988  0.113495  0.098712  0.198879  0.454367 
 
 
 <div class="alert alert-warning">
   <strong>Note!</strong> After partially running the workflow, usually after preliminary manual curation of per-cluster cell types, you may want/need to come back to this stage to fine-tune the clusters.
 </div>
 
-As an example of changing pre-defined clusters, here we merge cluster 1 and 2, which are both **naive CD8 T cells**.
+Example of changing pre-defined clusters, we:
+- merge clusters 1, 2 and 3, which are **naive CD8 T cells**
+- merge clusters 15 and 20, which are **activated CD8(hi) T**
 
 
 ```R
-levels(subset1$merged.louvain)[2] <- 1
+levels(subset1$merged.louvain)[c(2, 3)] <- 1
+levels(subset1$merged.louvain)[20] <- 15
 levels(subset1$merged.louvain) <- seq(1:nlevels(subset1$merged.louvain))
 table(subset1$condition, subset1$merged.louvain)
 ```
@@ -1897,12 +1957,12 @@ table(subset1$condition, subset1$merged.louvain)
 
              
                  1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20
-      Control 2159  774   87  454   10  204   95  114   13   25    4   68    2   13    3    1    1    1    1    0
-      Cancer   398  100  481   32  336   11  332  589 1597  444  266  728  689  787  120 1129  294  375  658  444
+      Control 2158  649  121  117  260  420   54   91   21   29    4   72    6   16   34   17    7    2    2    0
+      Cancer   414   88  483   10   32   45  590  346 1053  434  706  718  882  983  913  253  461  727  262  428
              
                 21   22
       Control    0    0
-      Cancer   248  125
+      Cancer   258  138
 
 
 
@@ -1922,7 +1982,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_114_0.png)
+![png](Integrated_files/Integrated_117_0.png)
     
 
 
@@ -1940,7 +2000,7 @@ mat <- reducedDim(subset2, dimname)[, seq_len(n_dimred), drop = FALSE]
 set.seed(12345)
 communities[[method]][[dimname]] <- clusterRows(mat, full = TRUE,
                                                 NNGraphParam(cluster.fun = method, k = k, type = "jaccard", 
-                                                             cluster.args = list(resolution = 0.6), 
+                                                             cluster.args = list(resolution = 0.8), 
                                                              BNPARAM = AnnoyParam(), num.threads = nthreads))
 my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clusters)
 ```
@@ -1960,16 +2020,37 @@ subset2$merged.louvain <- my.clusters[[method]][[dimname]]
 
                   
                       1    2    3    4    5    6    7    8    9
-      Control1     2161 3139  288  323   14  163   28   24   19
-      KidneyCancer  292  942  246   28  839 2477   16 2978 1138
-      LungCancer    217  307  315   21 1288 1683    8  337  805
+      Control1     2054 3152  353   13   22  196   37   16    0
+      KidneyCancer  231  966  469  841 2898 1065   21 1205 1240
+      LungCancer    173  311  597 1300  320  669   18  820  757
 
 
     Silhouette width summary:
 
 
         Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -0.25800  0.03423  0.11327  0.12293  0.20316  0.41417 
+    -0.26903  0.03060  0.09698  0.09755  0.16908  0.32973 
+
+
+<div class="alert alert-warning">
+  <strong>Note!</strong> After partially running the workflow, usually after preliminary manual curation of per-cluster cell types, you may want/need to come back to this stage to fine-tune the clusters.
+</div>
+
+Example of changing pre-defined clusters, we:
+- merge clusters 6 and 9, which are **ICOS(hi) Momory CD4+ T**
+
+
+```R
+levels(subset2$merged.louvain)[9] <- 6
+levels(subset2$merged.louvain) <- seq(1:nlevels(subset2$merged.louvain))
+table(subset2$condition, subset2$merged.louvain)
+```
+
+
+             
+                 1    2    3    4    5    6    7    8
+      Control 2054 3152  353   13   22  196   37   16
+      Cancer   404 1277 1066 2141 3218 3731   39 2025
 
 
 
@@ -1989,7 +2070,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_118_0.png)
+![png](Integrated_files/Integrated_123_0.png)
     
 
 
@@ -2007,7 +2088,7 @@ mat <- reducedDim(subset3, dimname)[, seq_len(n_dimred), drop = FALSE]
 set.seed(12345)
 communities[[method]][[dimname]] <- clusterRows(mat, full = TRUE,
                                                 NNGraphParam(cluster.fun = method, k = k, type = "jaccard", 
-                                                             cluster.args = list(resolution = 1.1), 
+                                                             cluster.args = list(resolution = 1.25), 
                                                              BNPARAM = AnnoyParam(), num.threads = nthreads))
 my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clusters)
 ```
@@ -2026,37 +2107,38 @@ subset3$merged.louvain <- my.clusters[[method]][[dimname]]
 
 
                   
-                      1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18
-      Control1      328  993  407 1174  317 1201 1541  729  141   80  181  286  248   82  134    3    5    0
-      KidneyCancer  202    2  145    6  342   40   14   37    4   23   77   25  114   10  185  526  173    0
-      LungCancer    272   67   57   22  186   25  104   22   11    8  195    7   72   14  791  733 1672  153
+                      1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
+      Control1      327 1002  409 1286  318 1165 1520  646  327  144   81  177  297  232   82    6  148    3    0
+      KidneyCancer  205    1  144    5  339   33   15   45   27  180   22   75   23  118   11  171    5  527    0
+      LungCancer    271   67   56   23  185   22   89   23   20  781    8  206    7   76   14 1667   12  736  157
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.3929  0.1135  0.2045  0.1928  0.2816  0.5179 
+    -0.4167  0.1140  0.2067  0.1960  0.2858  0.5548 
 
 
 <div class="alert alert-warning">
   <strong>Note!</strong> After partially running the workflow, usually after preliminary manual curation of per-cluster cell types, you may want/need to come back to this stage to fine-tune the clusters.
 </div>
 
-As an example of changing pre-defined clusters, here we merge clusters of **NK cells**.
+Example of changing pre-defined clusters, we: 
+- merge clusters of **NK cells**.
 
 
 ```R
-levels(subset3$merged.louvain)[c(9, 11, 15)] <- 7
+levels(subset3$merged.louvain)[c(10, 12, 17)] <- 7
 levels(subset3$merged.louvain) <- seq(1:nlevels(subset3$merged.louvain))
 table(subset3$condition, subset3$merged.louvain)
 ```
 
 
              
-                 1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
-      Control  328  993  407 1174  317 1201 1997  729   80  286  248   82    3    5    0
-      Cancer   474   69  202   28  528   65 1381   59   31   32  186   24 1259 1845  153
+                 1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
+      Control  327 1002  409 1286  318 1165 1989  646  327   81  297  232   82    6    3    0
+      Cancer   476   68  200   28  524   55 1363   68   47   30   30  194   25 1838 1263  157
 
 
 
@@ -2076,7 +2158,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_124_0.png)
+![png](Integrated_files/Integrated_129_0.png)
     
 
 
@@ -2108,9 +2190,9 @@ colLabels(combined) <- combined$merged.louvain
 
 
 ```R
-levels(colLabels(combined)) <- c(1, 23, 13, 24, 21, 43, 41, 42, 10, 19, 17, 40, 12, 22, 11, 14, 18, 15, 2, 
-                                 26, 20, 16, 8, 3, 9, 25, 7, 4, 29, 6, 5, 44, 30, 45, 34, 33, 35, 27, 36, 
-                                 39, 38, 32, 46, 37, 31, 28)
+levels(colLabels(combined)) <- c(10, 21, 12, 22, 43, 20, 42, 41, 8, 17, 25, 40, 11, 19, 13, 24, 14, 9, 
+                                 16, 26, 18, 15, 6, 1, 7, 5, 4, 2, 29, 3, 44, 30, 45, 34, 33, 35, 27, 
+                                 36, 23, 39, 38, 32, 46, 31, 37, 28)
 colLabels(combined) <- factor(colLabels(combined), levels = gtools::mixedsort(levels(colLabels(combined))))
 ```
 
@@ -2132,19 +2214,19 @@ table_samples_by_clusters
 
                   Cluster
     Sample            1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      Control1     2159    1 3139  163   19   24   14 2161  288   13    3    2   87    1    1    0    4    1   25
-      KidneyCancer  379  615  942 2477 1138 2978  839  292  246 1287   11   21  387  705  187    0  157   39   11
-      LungCancer     19   43  307 1683  805  337 1288  217  315  310  109  668   94  424  188  125  109  255  433
+      Control1     3152  196   16   22   13 2054  353   21    2 2158    6  121   34    7    0    2   29    0   16
+      KidneyCancer  966 2305 1205 2898  841  231  469  887   25  395  759  399  542  233    0  114    8    5  890
+      LungCancer    311 1426  820  320 1300  173  597  166  702   19  123   84  371  228  138  148  426  253   93
                   Cluster
     Sample           20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36   37   38
-      Control1        0   10   13  774  454  323    0 1997    0   28  993    5  248  317 1174 1201  729    3  286
-      KidneyCancer    3  189  729   16   10   28   61  280    0   16    2  173  114  342    6   40   37  526   25
-      LungCancer    245  147   58   84   22   21  383 1101  153    8   67 1672   72  186   22   25   22  733    7
+      Control1      420  649  117  327   17    4    0 1989    0   37 1002    6  232  318 1286 1165  646    3  297
+      KidneyCancer   13   16    1   27   45  416   58  275    0   21    1  171  118  339    5   33   45  527   23
+      LungCancer     32   72    9   20  208  290  370 1088  157   18   67 1667   76  185   23   22   23  736    7
                   Cluster
     Sample           39   40   41   42   43   44   45   46
-      Control1       80   68   95  114  204  328  407   82
-      KidneyCancer   23  405  179  499    5  202  145   10
-      LungCancer      8  323  153   90    6  272   57   14
+      Control1       81   72   91   54  260  327  409   82
+      KidneyCancer   22  403  189  498   23  205  144   11
+      LungCancer      8  315  157   92    9  271   56   14
 
 
 
@@ -2160,7 +2242,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_132_0.png)
+![png](Integrated_files/Integrated_137_0.png)
     
 
 
@@ -2177,7 +2259,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_133_0.png)
+![png](Integrated_files/Integrated_138_0.png)
     
 
 
@@ -2199,7 +2281,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_135_0.png)
+![png](Integrated_files/Integrated_140_0.png)
     
 
 
@@ -2218,7 +2300,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_136_0.png)
+![png](Integrated_files/Integrated_141_0.png)
     
 
 
@@ -2234,7 +2316,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_137_0.png)
+![png](Integrated_files/Integrated_142_0.png)
     
 
 
@@ -2253,7 +2335,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_138_1.png)
+![png](Integrated_files/Integrated_143_1.png)
     
 
 
@@ -2269,7 +2351,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_139_0.png)
+![png](Integrated_files/Integrated_144_0.png)
     
 
 
@@ -2288,7 +2370,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_140_1.png)
+![png](Integrated_files/Integrated_145_1.png)
     
 
 
@@ -2296,7 +2378,7 @@ reset.fig()
 ```R
 # Coloured by condition
 fig(width = 16, height = 9)
-plotProjections(combined, "condition", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Stage", 
+plotProjections(combined, "condition", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Condition", 
                 feat_color = c_cond_col, text_by = "label", point_size = 0.1, point_alpha = 0.1,
                 text_size = 6, guides_nrow = 1, guides_size = 4, legend_pos = "bottom")
 reset.fig()
@@ -2304,7 +2386,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_141_0.png)
+![png](Integrated_files/Integrated_146_0.png)
     
 
 
@@ -2323,7 +2405,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_142_1.png)
+![png](Integrated_files/Integrated_147_1.png)
     
 
 
@@ -2339,7 +2421,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_143_0.png)
+![png](Integrated_files/Integrated_148_0.png)
     
 
 
@@ -2351,52 +2433,52 @@ table(Cluster = combined$label, CellType = combined$CellType)
 
            CellType
     Cluster B-cells CD4+ T-cells CD8+ T-cells   DC  HSC Monocytes Neutrophils NK cells Platelets T-cells
-         1        0          908         1649    0    0         0           0        0         0       0
-         2        0          488          171    0    0         0           0        0         0       0
-         3        0         4349           39    0    0         0           0        0         0       0
-         4        0         4138          185    0    0         0           0        0         0       0
-         5        0         1427          534    0    0         0           0        0         0       1
-         6        0         3058          281    0    0         0           0        0         0       0
-         7        0          722         1418    0    0         0           0        0         0       1
-         8        0         2069          599    0    0         0           0        0         0       2
-         9        0          779           70    0    0         0           0        0         0       0
-         10       0            0         1391    0    0         0           0      219         0       0
-         11       0            0           78    0    0         0           0       45         0       0
-         12       0            0          543    0    0         0           0      148         0       0
-         13       0          106          462    0    0         0           0        0         0       0
-         14       0           18         1112    0    0         0           0        0         0       0
-         15       0            0          224    0    0         0           0      152         0       0
-         16       0            0          105    0    0         0           0       20         0       0
-         17       0            0          166    0    0         0           0      104         0       0
-         18       0            0          245    0    0         0           0       50         0       0
-         19       0            0            1    0    0         0           0      468         0       0
-         20       0            0            7    0    0         0           0      241         0       0
-         21       0            0           21    0    0         0           0      325         0       0
-         22       0            0           34    0    0         0           0      766         0       0
-         23       0            0          647    0    0         0           0      227         0       0
-         24       0            0          337    0    0         0           0      149         0       0
-         25       0           59          311    0    0         0           0        2         0       0
-         26       0            0          383    0    0         0           0       61         0       0
-         27       0            0           13    0    0         0           0     3365         0       0
-         28       0            0            0    0    0         0           0      153         0       0
-         29       0            9           43    0    0         0           0        0         0       0
-         30    1062            0            0    0    0         0           0        0         0       0
-         31    1850            0            0    0    0         0           0        0         0       0
-         32     434            0            0    0    0         0           0        0         0       0
-         33     845            0            0    0    0         0           0        0         0       0
-         34       0            0            0    0    0      1202           0        0         0       0
-         35       0            0            0    0    0      1266           0        0         0       0
-         36       0            0            0    0    0       788           0        0         0       0
-         37       0            0            0    0    0      1262           0        0         0       0
-         38       0            0            0    1    0       317           0        0         0       0
-         39      23            5            9    0   33        40           0        1         0       0
-         40       0          523          265    0    0         0           0        7         1       0
-         41       0            1          203    0    0         0           0      223         0       0
-         42       0           31          657    0    0         0           0       15         0       0
-         43       0            0          103    0    0         0           0      112         0       0
-         44     301          197          166    0    0         0           0      138         0       0
-         45       0            2           11    0    0       576           1       19         0       0
-         46       2            0            0    0    0       104           0        0         0       0
+         1        0         4390           39    0    0         0           0        0         0       0
+         2        0         3822          105    0    0         0           0        0         0       0
+         3        0         1480          560    0    0         0           0        0         0       1
+         4        0         2965          275    0    0         0           0        0         0       0
+         5        0          743         1410    0    0         0           0        0         0       1
+         6        0         1916          540    0    0         0           0        0         0       2
+         7        0         1267          152    0    0         0           0        0         0       0
+         8        0            0          927    0    0         0           0      147         0       0
+         9        0            0          565    0    0         0           0      164         0       0
+         10       0          925         1647    0    0         0           0        0         0       0
+         11       0          492          396    0    0         0           0        0         0       0
+         12       0           98          506    0    0         0           0        0         0       0
+         13       0            6          941    0    0         0           0        0         0       0
+         14       0            0          313    0    0         0           0      155         0       0
+         15       0            0          118    0    0         0           0       20         0       0
+         16       0            0           76    0    0         0           0      188         0       0
+         17       0            0            5    0    0         0           0      458         0       0
+         18       0            0           12    0    0         0           0      246         0       0
+         19       0            0           19    0    0         0           0      980         0       0
+         20       0            0          191    0    0         0           0      274         0       0
+         21       0            0          622    0    0         0           0      115         0       0
+         22       0            0          127    0    0         0           0        0         0       0
+         23       0           64          308    0    0         0           0        2         0       0
+         24       0            0          190    0    0         0           0       80         0       0
+         25       0            0          623    0    0         0           0       87         0       0
+         26       0            0          370    0    0         0           0       58         0       0
+         27       0            0            0    0    0         0           0     3352         0       0
+         28       0            0            0    0    0         0           0      157         0       0
+         29       0            9           56    0    0         0           0       11         0       0
+         30    1070            0            0    0    0         0           0        0         0       0
+         31    1844            0            0    0    0         0           0        0         0       0
+         32     425            0            0    0    0         1           0        0         0       0
+         33     842            0            0    0    0         0           0        0         0       0
+         34       0            0            0    0    0      1314           0        0         0       0
+         35       0            0            0    0    0      1220           0        0         0       0
+         36       0            0            0    0    0       714           0        0         0       0
+         37       0            0            0    0    0      1266           0        0         0       0
+         38       0            0            0    1    0       326           0        0         0       0
+         39      23            7            8    0   33        39           0        1         0       0
+         40       0          525          260    0    0         0           0        4         1       0
+         41       0            1          202    0    0         0           0      234         0       0
+         42       0           38          592    0    0         0           0       14         0       0
+         43       0            1          164    0    0         0           0      127         0       0
+         44     302          197          167    0    0         0           0      137         0       0
+         45       0            2           12    0    0       575           1       19         0       0
+         46       2            0            0    0    0       105           0        0         0       0
 
 
 
@@ -2411,7 +2493,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_145_0.png)
+![png](Integrated_files/Integrated_150_0.png)
     
 
 
@@ -2430,7 +2512,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_146_0.png)
+![png](Integrated_files/Integrated_151_0.png)
     
 
 
@@ -2458,7 +2540,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_148_0.png)
+![png](Integrated_files/Integrated_153_0.png)
     
 
 
@@ -2481,15 +2563,14 @@ Create a `dgCMatrix` logcounts matrix for faster computation in some steps.
 
 
 ```R
-sce_l <- as(logcounts(combined, withDimnames = FALSE), "dgCMatrix")
-rownames(sce_l) <- rownames(combined)
+sce_l <- as(logcounts(combined, withDimnames = TRUE), "dgCMatrix") # update object with new cell counts
 ```
 
 ### Average `logcounts` expression across samples
 
 
 ```R
-# Use logcounts from cdScAnnot
+# Use logcounts from combined
 ave.expr.sample <- sumCountsAcrossCells(sce_l, average = TRUE, BPPARAM = bpp,
                                        ids = DataFrame(Sample = combined$Sample)) %>% 
     `colnames<-`(.$Sample) %>% assay %>% as.data.frame %>% rownames_to_column("Symbol")
@@ -2508,12 +2589,12 @@ write.table(ave.expr.sample, file = outfile, sep = "\t", quote = F, row.names = 
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.0000000000</td><td>0.0002540986</td><td>0.000347090</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.3079627448</td><td>0.1777618222</td><td>0.239002679</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.0767702381</td><td>0.0262869859</td><td>0.054636288</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.0160913945</td><td>0.0118817931</td><td>0.009661303</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.0001657382</td><td>0.0002445113</td><td>0.002616299</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.1119948700</td><td>0.0252295532</td><td>0.027066362</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.0000000000</td><td>0.0002537205</td><td>0.0003468364</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.3082084279</td><td>0.1779314846</td><td>0.2390327569</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.0764449751</td><td>0.0262705475</td><td>0.0546844268</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.0161321525</td><td>0.0118384252</td><td>0.0096542455</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.0001740714</td><td>0.0002441475</td><td>0.0026143878</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.1119712608</td><td>0.0252597339</td><td>0.0272285993</td></tr>
 </tbody>
 </table>
 
@@ -2526,7 +2607,7 @@ write.table(ave.expr.sample, file = outfile, sep = "\t", quote = F, row.names = 
 
 
 ```R
-# Use logcounts from cdScAnnot
+# Use logcounts from combined
 ave.expr.label <- sumCountsAcrossCells(sce_l, average = TRUE, BPPARAM = bpp,
                                        ids = DataFrame(cluster = combined$label)) %>% 
     `colnames<-`(paste0("Cluster", .$cluster)) %>% assay %>% as.data.frame %>% rownames_to_column("Symbol")
@@ -2545,12 +2626,12 @@ write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>⋯</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.000000000</td><td>0.0000000000</td><td>0.0001851207</td><td>0.000281499</td><td>0.0000000000</td><td>0.0004142627</td><td>0.000000000</td><td>0.000000000</td><td>⋯</td><td>0.003930734</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.289073072</td><td>0.228131873</td><td>0.2552326726</td><td>0.2005263889</td><td>0.177815553</td><td>0.1446207341</td><td>0.1837185189</td><td>0.262239658</td><td>0.184388779</td><td>⋯</td><td>0.299139082</td><td>0.318064380</td><td>0.367755827</td><td>0.22306059</td><td>0.26079603</td><td>0.237045133</td><td>0.33632238</td><td>0.282463396</td><td>0.32322653</td><td>0.366947259</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.060047975</td><td>0.016069338</td><td>0.0575419993</td><td>0.0319562699</td><td>0.026365587</td><td>0.0207637371</td><td>0.0395390713</td><td>0.063304630</td><td>0.062215989</td><td>⋯</td><td>0.078312564</td><td>0.074023435</td><td>0.043037060</td><td>0.07034118</td><td>0.07672287</td><td>0.054938099</td><td>0.12193443</td><td>0.063856410</td><td>0.07120116</td><td>0.066152143</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.005441157</td><td>0.002791956</td><td>0.0037047209</td><td>0.0067637874</td><td>0.015719263</td><td>0.0160182473</td><td>0.0152492059</td><td>0.030616690</td><td>0.015085388</td><td>⋯</td><td>0.036951024</td><td>0.016046641</td><td>0.005048371</td><td>0.02249621</td><td>0.01225767</td><td>0.014251745</td><td>0.02315386</td><td>0.008603543</td><td>0.04525137</td><td>0.022012800</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.000000000</td><td>0.0008175283</td><td>0.0012098753</td><td>0.001723708</td><td>0.0006784237</td><td>0.0010308344</td><td>0.000000000</td><td>0.004149378</td><td>⋯</td><td>0.002706363</td><td>0.001836137</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.002219976</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.005395099</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.005462020</td><td>0.014186765</td><td>0.0180847976</td><td>0.0137838744</td><td>0.020078066</td><td>0.0138197940</td><td>0.0131753584</td><td>0.006752527</td><td>0.006932925</td><td>⋯</td><td>0.108856059</td><td>0.055838898</td><td>0.000000000</td><td>0.02814627</td><td>0.02894928</td><td>0.023659862</td><td>0.03694294</td><td>0.026656862</td><td>0.20506764</td><td>0.323875106</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.0000000000</td><td>0.0002037884</td><td>0.0002706031</td><td>0.0000000000</td><td>0.0004117625</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>⋯</td><td>0.003918315</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.2551996459</td><td>0.2011802743</td><td>0.1737607984</td><td>0.1445734710</td><td>0.1901048721</td><td>0.254229768</td><td>0.202880981</td><td>0.167191138</td><td>0.188604859</td><td>⋯</td><td>0.298117938</td><td>0.316736258</td><td>0.371844532</td><td>0.22539362</td><td>0.25263445</td><td>0.213248222</td><td>0.35232308</td><td>0.286644755</td><td>0.32523292</td><td>0.354003183</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.0561845094</td><td>0.0309880514</td><td>0.0249914890</td><td>0.0206990732</td><td>0.0399673240</td><td>0.064066904</td><td>0.054817602</td><td>0.043014934</td><td>0.048940082</td><td>⋯</td><td>0.078065131</td><td>0.071986092</td><td>0.043037060</td><td>0.07791203</td><td>0.08271696</td><td>0.048577863</td><td>0.10477568</td><td>0.062810228</td><td>0.07120116</td><td>0.065533899</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.0036704256</td><td>0.0065747452</td><td>0.0147927222</td><td>0.0163363347</td><td>0.0164280070</td><td>0.030756309</td><td>0.013090710</td><td>0.007855634</td><td>0.013170065</td><td>⋯</td><td>0.036834275</td><td>0.012302117</td><td>0.005048371</td><td>0.02266707</td><td>0.01197717</td><td>0.016821896</td><td>0.02270548</td><td>0.007921126</td><td>0.04525137</td><td>0.021807073</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.0008099603</td><td>0.0011162357</td><td>0.0016569889</td><td>0.0006991533</td><td>0.0010246130</td><td>0.000000000</td><td>0.003079391</td><td>0.000000000</td><td>0.000000000</td><td>⋯</td><td>0.002697812</td><td>0.001785601</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.001426776</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.005344678</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.0177076213</td><td>0.0148687867</td><td>0.0202659239</td><td>0.0137251790</td><td>0.0129246918</td><td>0.006960947</td><td>0.005820796</td><td>0.005149588</td><td>0.007870599</td><td>⋯</td><td>0.109075852</td><td>0.062738953</td><td>0.000000000</td><td>0.03340675</td><td>0.03228690</td><td>0.021545128</td><td>0.03274246</td><td>0.026623665</td><td>0.20650888</td><td>0.330439272</td></tr>
 </tbody>
 </table>
 
@@ -2582,12 +2663,12 @@ write.table(ave.expr.cond, file = outfile, sep = "\t", quote = F, row.names = F,
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.0000000000</td><td>0.0002958678</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.3079627448</td><td>0.2052695355</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.0767702381</td><td>0.0390207151</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.0160913945</td><td>0.0108844097</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.0001657382</td><td>0.0013098532</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.1119948700</td><td>0.0260545975</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.0000000000</td><td>0.0002955281</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.3082084279</td><td>0.2053650361</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.0764449751</td><td>0.0390279516</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.0161321525</td><td>0.0108577614</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.0001740714</td><td>0.0013083497</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.1119712608</td><td>0.0261437248</td></tr>
 </tbody>
 </table>
 
@@ -2596,7 +2677,7 @@ write.table(ave.expr.cond, file = outfile, sep = "\t", quote = F, row.names = F,
     [1] "Write to file: 160k_All_average_logcounts_in_conditions.tsv"
 
 
-### Average `logcounts` expression across condition and clusters
+### Average `logcounts` expression across conditions and clusters
 
 
 ```R
@@ -2623,12 +2704,12 @@ write.table(ave.expr.gp, file = outfile, sep = "\t", quote = F, row.names = F, c
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>⋯</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0</td><td>0.000000000</td><td>0.000000000</td><td>0.0001923742</td><td>0.00000000</td><td>0.0002842517</td><td>⋯</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.158008350</td><td>0.313234146</td><td>0.22847858</td><td>0</td><td>0.186600208</td><td>0.282541353</td><td>0.1961165309</td><td>0.31307246</td><td>0.1772989458</td><td>⋯</td><td>0.204633090</td><td>0.40450736</td><td>0.23687279</td><td>0.34168486</td><td>0.253968789</td><td>0.32364158</td><td>0.26773367</td><td>0.35076844</td><td>0.33753737</td><td>0.375555030</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.026161921</td><td>0.066294686</td><td>0.01609376</td><td>0</td><td>0.026093871</td><td>0.070055128</td><td>0.0301900701</td><td>0.07703229</td><td>0.0259657770</td><td>⋯</td><td>0.045589660</td><td>0.10323837</td><td>0.08412407</td><td>0.12397322</td><td>0.058159362</td><td>0.07208934</td><td>0.05320892</td><td>0.08013097</td><td>0.03701892</td><td>0.074678941</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.002080362</td><td>0.006060701</td><td>0.00279620</td><td>0</td><td>0.004585689</td><td>0.003354186</td><td>0.0065048462</td><td>0.01337235</td><td>0.0151928461</td><td>⋯</td><td>0.014240085</td><td>0.01431199</td><td>0.07604164</td><td>0.02030206</td><td>0.007506229</td><td>0.01018929</td><td>0.04235259</td><td>0.04669008</td><td>0.00000000</td><td>0.028455571</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0</td><td>0.001917775</td><td>0.000379743</td><td>0.0012572815</td><td>0.00000000</td><td>0.0017405632</td><td>⋯</td><td>0.001560006</td><td>0.00562982</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.006974153</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.000000000</td><td>0.006468914</td><td>0.01420833</td><td>0</td><td>0.022829395</td><td>0.016196935</td><td>0.0139107089</td><td>0.01054687</td><td>0.0202744032</td><td>⋯</td><td>0.023182708</td><td>0.02612516</td><td>0.00000000</td><td>0.03893496</td><td>0.025618463</td><td>0.02815748</td><td>0.08773256</td><td>0.26330274</td><td>0.00000000</td><td>0.418667820</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.0000000000</td><td>0.0002144939</td><td>0.00000000</td><td>0.0002727412</td><td>0.0000000</td><td>0.0000000000</td><td>0.00000000</td><td>0.0004142627</td><td>⋯</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.185150794</td><td>0.2835792091</td><td>0.1953205089</td><td>0.31272509</td><td>0.1725332653</td><td>0.3291205</td><td>0.1438488721</td><td>0.25056253</td><td>0.1891442906</td><td>⋯</td><td>0.201470843</td><td>0.34192699</td><td>0.28743473</td><td>0.36030934</td><td>0.25884435</td><td>0.327112628</td><td>0.26534482</td><td>0.35451806</td><td>0.32403588</td><td>0.363139556</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.025522391</td><td>0.0686069475</td><td>0.0272234436</td><td>0.10265005</td><td>0.0242231156</td><td>0.1222387</td><td>0.0204505682</td><td>0.05704858</td><td>0.0402100028</td><td>⋯</td><td>0.048814230</td><td>0.04599533</td><td>0.04671503</td><td>0.11192161</td><td>0.05628426</td><td>0.072309797</td><td>0.05374101</td><td>0.07973913</td><td>0.03553816</td><td>0.074678941</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.004485141</td><td>0.0033403522</td><td>0.0060686663</td><td>0.01620832</td><td>0.0136216090</td><td>0.1630117</td><td>0.0164480188</td><td>0.00000000</td><td>0.0165277567</td><td>⋯</td><td>0.017365806</td><td>0.01087918</td><td>0.03928324</td><td>0.02066514</td><td>0.00747469</td><td>0.008570984</td><td>0.04277611</td><td>0.04646177</td><td>0.00000000</td><td>0.028455571</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.001875725</td><td>0.0003781768</td><td>0.0011748747</td><td>0.00000000</td><td>0.0016700812</td><td>0.0000000</td><td>0.0007039331</td><td>0.00000000</td><td>0.0010308344</td><td>⋯</td><td>0.001557362</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td><td>0.006974153</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.022328829</td><td>0.0158353872</td><td>0.0149218568</td><td>0.01385856</td><td>0.0204260497</td><td>0.0000000</td><td>0.0138190118</td><td>0.00000000</td><td>0.0130031696</td><td>⋯</td><td>0.022212946</td><td>0.01424861</td><td>0.01158091</td><td>0.03534696</td><td>0.02551082</td><td>0.028243584</td><td>0.08294552</td><td>0.26693106</td><td>0.00000000</td><td>0.431182952</td></tr>
 </tbody>
 </table>
 
@@ -2660,12 +2741,13 @@ T cells: CD3D, CD3E, CD3G
   - Tumour-infiltrating (TIL) (with Naive markers): ZEB1, SETD1B, TMEM123, STAT3
   - Activated: DUSP4, IL21R, DUSP2, CXCR3
   - Terminally differentiated effector (TE): CX3CR1, KLRG1, ADRB2
+  - Mucosal-associated invariant T (MAIT): KLRB1 (CD161), SLC4A10, LTK, CXCR6, CCR5
   - gamma delta (γδ) T: PTPRC (CD45), TRDC, not KLRC1
     
 - Double-negative (DN) T: CD3+ CD4- CD8-
-- Double-positive (DP) T: CD4, CD8A, CXCR3, CCR5
+- Double-positive (DP) T: CD4, CD8A
 - Naive: ATM, LEF1, CCR7, TCF7, NELL2, TGFBR2
-- Cytotoxic : GZMH, CST7, GNLY, CTSW, FGFBP2, GZMB, PRF1, KLRC1, KLRC3, KLRC4
+- Cytotoxic : GZMH, CST7, GNLY, CTSW, FGFBP2, GZMB, PRF1, KLRC1, KLRC3, KLRC4, ADGRG1, FCRL6, IKZF2
 - Inflamed: CCL3, CCL4, IFIT2, IFIT3, ZC3HAV1
 
 Natural Killer (NK) cells: CD7, MATK, IL2RB, KLRF1, NCR1
@@ -2693,24 +2775,25 @@ Dendritic cells:
 ```R
 geneNames <- c("CD3E","CD3D","CD3G","CD4","CD8A","TGFBR2","CCR7","LEF1","IL7R","TCF7","NELL2","SETD1B","STAT3",
                "NR3C1","ZEB1","TMEM123","CCR4","CD28","ICOS","CCR6","GPR183","SLC2A3","RORA","MAF","CD40LG",
-               "STAM","FOXP3","CTLA4","GZMB","GNLY","GZMH","FGFBP2","KLRG1","ADRB2","CCL5","CST7","KLRK1","CTSW",
-               "MATK","DUSP4","PDE4B","CXCR4","IL21R","DUSP2","GZMK","CXCR3","CCL3","CCL4","ZC3HAV1","IFIT2",
-               "IFIT3","KLRC1","KLRC3","KLRC4","CCR5","KLRF1","NCR1","TRDC","ATM","CD7","PRF1","IL2RB","GATA3",
-               "ICAM3","RORC","PTGDR2","MBOAT2","BACH2","CD24","CD22","CD79A","MS4A1","TCL1A","IGHM","IGHD",
-               "CD83","BACH1","CD55","JUND","IGHA1","TNFRSF13B","IGHG1","ARHGAP25","PARP15","S100A12","TREM1",
-               "VEGFA","LYZ","CD14","VCAN","S100A8","S100A9","GBP1","TCF7L2","SIGLEC10","WARS1","IFITM3",
-               "HES4","CDKN1C","FCGR3A","CX3CR1","PTPRC","HIF1A","THBD","IER3","FOSL1","CD1D","CD33",
-               "FCER1A","CD1C","CLEC10A","TCF4","MZB1","ITM2C","LILRA4","CLEC4C","SERPINF1")
+               "STAM","FOXP3","CTLA4","GNLY","GZMH","FGFBP2","KLRG1","ADRB2","CCL5","CST7","CTSW","MATK","KLRK1",
+               "ADGRG1","FCRL6","GZMB","DUSP4","PDE4B","CXCR4","IL21R","DUSP2","GZMK","CXCR3","ZC3HAV1","IFIT2",
+               "IFIT3","CCL3","CCL4","IKZF2","KLRC1","KLRC3","KLRC4","CCR5","SLC4A10","LTK","CXCR6","KLRB1",
+               "KLRF1","NCR1","TRDC","ATM","CD7","PRF1","IL2RB","GATA3","ICAM3","RORC","PTGDR2","MBOAT2","BACH2",
+               "CD24","CD22","CD79A","MS4A1","TCL1A","IGHM","IGHD","CD83","BACH1","CD55","JUND","IGHA1",
+               "TNFRSF13B","IGHG1","ARHGAP25","PARP15","S100A12","TREM1","VEGFA","LYZ","CD14","VCAN","S100A8",
+               "S100A9","GBP1","TCF7L2","SIGLEC10","WARS1","IFITM3","HES4","CDKN1C","FCGR3A","CX3CR1","PTPRC",
+               "HIF1A","THBD","IER3","FOSL1","CD1D","CD33","FCER1A","CD1C","CLEC10A","TCF4","MZB1","ITM2C",
+               "LILRA4","CLEC4C","SERPINF1")
 length(geneNames)
 ```
 
 
-117
+124
 
 
 
 ```R
-fig(width = 16, height = 28)
+fig(width = 16, height = 30)
 plotDots(combined, features = geneNames, group = "label", zlim = c(-3, 3),
               center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     guides(colour = guide_colourbar(title = "Row (Gene) Z-Score", barwidth = 10), 
@@ -2728,7 +2811,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_163_1.png)
+![png](Integrated_files/Integrated_168_1.png)
     
 
 
@@ -2744,14 +2827,14 @@ p <- as.data.frame(reducedDim(combined, dimname)) %>%
     facet_wrap(~ Symbol, ncol = 5) + scale_color_viridis(option = "plasma", direction = -1) +
     theme_classic(base_size = 20) + labs(x = paste(dimname, "1"), y = paste(dimname, "2"))
 
-fig(width = 16, height = 70)
+fig(width = 16, height = 72)
 p
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_164_0.png)
+![png](Integrated_files/Integrated_169_0.png)
     
 
 
@@ -2767,11 +2850,11 @@ Introduces 2 new cell type labels:
 
 ```R
 combined$CellType_1 <- combined$label
-levels(combined$CellType_1) <- c("CD8+ T","CD8+ T","CD4+ T","CD4+ T","CD4+ T","CD4+ T","CD4+ T","CD4+ T","CD4+ T",
-                                 "CD4+ T","CD4+ T","CD4+ T","CD8+ T","CD8+ T","CD8+ T","CD8+ T","CD8+ T","CD8+ T",
-                                 "CD8+ T","CD8+ T","gdT","gdT","CD8+ T","CD8+ T","Other T","Other T","NK","NK",
-                                 "ILC","B","B","B","B","Monocytes","Monocytes","Monocytes","Monocytes","DCs",
-                                 "DCs","Unknown","Unknown","Doublets","Doublets","Doublets","Doublets","Doublets")
+levels(combined$CellType_1) <- c("CD4 T","CD4 T","CD4 T","CD4 T","CD4 T","CD4 T","CD4 T","CD4 T","CD4 T","CD8 T",
+                                 "CD8 T","CD8 T","CD8 T","CD8 T","CD8 T","CD8 T","CD8 T","CD8 T","gdT","CD8 T",
+                                 "CD8 T","CD8 T","Other T","Other T","Other T","Other T","NK","NK","ILC","B",
+                                 "B","B","B","Monocytes","Monocytes","Monocytes","Monocytes","DCs","DCs",
+                                 "Unknown","Unknown","Doublets","Doublets","Doublets","Doublets","Doublets")
 combined$ClusterCellType <- combined$CellType_1
 ```
 
@@ -2783,17 +2866,17 @@ table("Coarse Cell Type" = combined$CellType_1, "Condition" = combined$condition
 
                     Condition
     Coarse Cell Type Control Cancer
-           CD8+ T       3507   4550
-           CD4+ T       5826  16270
-           gdT            23   1123
-           Other T       323    493
-           NK           1997   1534
-           ILC            28     24
-           B            1563   2628
-           Monocytes    3107   1411
-           DCs           366     63
-           Unknown       163   1060
-           Doublets     1135   1300
+           CD4 T        5829  15642
+           CD8 T        3543   4388
+           gdT            16    983
+           Other T       348   1434
+           NK           1989   1520
+           ILC            37     39
+           B            1558   2624
+           Monocytes    3100   1414
+           DCs           378     60
+           Unknown       163   1064
+           Doublets     1132   1323
 
 
 
@@ -2804,8 +2887,8 @@ table("Coarse Cell Type" = combined$CellType_1, "Clusters" = combined$label)
 
                     Clusters
     Coarse Cell Type    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18
-           CD8+ T    2557  659    0    0    0    0    0    0    0    0    0    0  568 1130  376  125  270  295
-           CD4+ T       0    0 4388 4323 1962 3339 2141 2670  849 1610  123  691    0    0    0    0    0    0
+           CD4 T     4429 3927 2041 3240 2154 2458 1419 1074  729    0    0    0    0    0    0    0    0    0
+           CD8 T        0    0    0    0    0    0    0    0    0 2572  888  604  947  468  138  264  463  258
            gdT          0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
            Other T      0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
            NK           0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
@@ -2817,30 +2900,30 @@ table("Coarse Cell Type" = combined$CellType_1, "Clusters" = combined$label)
            Doublets     0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
                     Clusters
     Coarse Cell Type   19   20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36
-           CD8+ T     469  248    0    0  874  486    0    0    0    0    0    0    0    0    0    0    0    0
-           CD4+ T       0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
-           gdT          0    0  346  800    0    0    0    0    0    0    0    0    0    0    0    0    0    0
-           Other T      0    0    0    0    0    0  372  444    0    0    0    0    0    0    0    0    0    0
-           NK           0    0    0    0    0    0    0    0 3378  153    0    0    0    0    0    0    0    0
-           ILC          0    0    0    0    0    0    0    0    0    0   52    0    0    0    0    0    0    0
-           B            0    0    0    0    0    0    0    0    0    0    0 1062 1850  434  845    0    0    0
-           Monocytes    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0 1202 1266  788
+           CD4 T        0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+           CD8 T        0  465  737  127    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+           gdT        999    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+           Other T      0    0    0    0  374  270  710  428    0    0    0    0    0    0    0    0    0    0
+           NK           0    0    0    0    0    0    0    0 3352  157    0    0    0    0    0    0    0    0
+           ILC          0    0    0    0    0    0    0    0    0    0   76    0    0    0    0    0    0    0
+           B            0    0    0    0    0    0    0    0    0    0    0 1070 1844  426  842    0    0    0
+           Monocytes    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0 1314 1220  714
            DCs          0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
            Unknown      0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
            Doublets     0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0
                     Clusters
     Coarse Cell Type   37   38   39   40   41   42   43   44   45   46
-           CD8+ T       0    0    0    0    0    0    0    0    0    0
-           CD4+ T       0    0    0    0    0    0    0    0    0    0
+           CD4 T        0    0    0    0    0    0    0    0    0    0
+           CD8 T        0    0    0    0    0    0    0    0    0    0
            gdT          0    0    0    0    0    0    0    0    0    0
            Other T      0    0    0    0    0    0    0    0    0    0
            NK           0    0    0    0    0    0    0    0    0    0
            ILC          0    0    0    0    0    0    0    0    0    0
            B            0    0    0    0    0    0    0    0    0    0
-           Monocytes 1262    0    0    0    0    0    0    0    0    0
-           DCs          0  318  111    0    0    0    0    0    0    0
-           Unknown      0    0    0  796  427    0    0    0    0    0
-           Doublets     0    0    0    0    0  703  215  802  609  106
+           Monocytes 1266    0    0    0    0    0    0    0    0    0
+           DCs          0  327  111    0    0    0    0    0    0    0
+           Unknown      0    0    0  790  437    0    0    0    0    0
+           Doublets     0    0    0    0    0  644  292  803  609  107
 
 
 
@@ -2859,7 +2942,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_169_0.png)
+![png](Integrated_files/Integrated_174_0.png)
     
 
 
@@ -2876,7 +2959,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_170_0.png)
+![png](Integrated_files/Integrated_175_0.png)
     
 
 
@@ -2893,7 +2976,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_171_0.png)
+![png](Integrated_files/Integrated_176_0.png)
     
 
 
@@ -2903,18 +2986,18 @@ reset.fig()
 ```R
 combined$CellType_2 <- combined$label
 levels(combined$CellType_2) <- paste(1:nlevels(combined$label), 
-                                     c("Naive CD8+ T","CD8+ TILs","Naive CD4+ T","ICOS(hi) Momory CD4+ T",
-                                       "ICOS(hi) Momory CD4+ T","Th17-like T","Effector CD4+ T","CD40LG+ CD4+ T",
-                                       "Memory Tregs","CTSW- Cytotoxic CD4+ T","Cytotoxic CD4+ T",
-                                       "Inflamed Cytotoxic CD4+ T","Naive-like Activated CD8+ T",
-                                       "Activated CD8(hi) T","Activated CD8(lo) T","Inflamed Activated CD8+ T",
-                                       "CD16- Cytotoxic CD8+ T","DUSP2/4+ Cytotoxic CD8+ T",
-                                       "CD16+ Cytotoxic CD8+ T","CD16+ Inflamed Cytotoxic CD8+ T","CD45(lo) gdT",
-                                       "CD45(hi) gdT","TE CD8(hi) T","TE CD8(lo) T","DP T","Activated DN T","NK",
-                                       "Inflamed NK","ILC2","Naive B","Activated B","USM B","SM B",
-                                       "CD14 Monocytes","Stimulated CD14 Monocytes","CD16 Monocytes","CD14 TAM",
-                                       "CD1C+ DCs","pDCs","Cytotoxic-like","Momory-like","Naive T/TIL/NK",
-                                       "Naive T/Effect T/NK","B/T","Monocytes/T","B/Monocytes"))
+                                     c("Naive CD4 T","ICOS(hi) Momory CD4 T","ICOS(hi) Momory CD4 T",
+                                       "Th17-like T","Effector CD4 T","CD40LG+ CD4 T","Memory Tregs",
+                                       "CTSW- Cytotoxic CD4 T","Inflamed Cytotoxic CD4 T","Naive CD8 T",
+                                       "CD8 TILs","Naive-like Activated CD8 T","Activated CD8(hi) T",
+                                       "Activated CD8(lo) T","Inflamed Activated CD8 T","CD16(lo) Cytotoxic CD8 T",
+                                       "CD16+ Cytotoxic CD8 T","CD16+ Inflamed Cytotoxic CD8 T","gdT",
+                                       "TE CD8(lo) T","TE CD8(hi) T","MAITs","DP T","Cytotoxic DP T",
+                                       "Cytotoxic DP T","Activated DN T","NK","Inflamed NK","ILC2","Naive B",
+                                       "Activated B","USM B","SM B","CD14 Monocytes","Stimulated CD14 Monocytes",
+                                       "CD16 Monocytes","CD14 TAM","CD1C+ DCs","pDCs","Cytotoxic-like",
+                                       "Momory-like","Naive T/TIL/NK","Naive T/Effect T/NK","B/T","Monocytes/T",
+                                       "B/Monocytes"))
 ```
 
 
@@ -2923,54 +3006,54 @@ table("Fine Cell Type" = combined$CellType_2, "Condition" = combined$condition)
 ```
 
 
-                                        Condition
-    Fine Cell Type                       Control Cancer
-      1 Naive CD8+ T                        2159    398
-      2 CD8+ TILs                              1    658
-      3 Naive CD4+ T                        3139   1249
-      4 ICOS(hi) Momory CD4+ T               163   4160
-      5 ICOS(hi) Momory CD4+ T                19   1943
-      6 Th17-like T                           24   3315
-      7 Effector CD4+ T                       14   2127
-      8 CD40LG+ CD4+ T                      2161    509
-      9 Memory Tregs                         288    561
-      10 CTSW- Cytotoxic CD4+ T               13   1597
-      11 Cytotoxic CD4+ T                      3    120
-      12 Inflamed Cytotoxic CD4+ T             2    689
-      13 Naive-like Activated CD8+ T          87    481
-      14 Activated CD8(hi) T                   1   1129
-      15 Activated CD8(lo) T                   1    375
-      16 Inflamed Activated CD8+ T             0    125
-      17 CD16- Cytotoxic CD8+ T                4    266
-      18 DUSP2/4+ Cytotoxic CD8+ T             1    294
-      19 CD16+ Cytotoxic CD8+ T               25    444
-      20 CD16+ Inflamed Cytotoxic CD8+ T       0    248
-      21 CD45(lo) gdT                         10    336
-      22 CD45(hi) gdT                         13    787
-      23 TE CD8(hi) T                        774    100
-      24 TE CD8(lo) T                        454     32
-      25 DP T                                323     49
-      26 Activated DN T                        0    444
-      27 NK                                 1997   1381
-      28 Inflamed NK                           0    153
-      29 ILC2                                 28     24
-      30 Naive B                             993     69
-      31 Activated B                           5   1845
-      32 USM B                               248    186
-      33 SM B                                317    528
-      34 CD14 Monocytes                     1174     28
-      35 Stimulated CD14 Monocytes          1201     65
-      36 CD16 Monocytes                      729     59
-      37 CD14 TAM                              3   1259
-      38 CD1C+ DCs                           286     32
-      39 pDCs                                 80     31
-      40 Cytotoxic-like                       68    728
-      41 Momory-like                          95    332
-      42 Naive T/TIL/NK                      114    589
-      43 Naive T/Effect T/NK                 204     11
-      44 B/T                                 328    474
-      45 Monocytes/T                         407    202
-      46 B/Monocytes                          82     24
+                                       Condition
+    Fine Cell Type                      Control Cancer
+      1 Naive CD4 T                        3152   1277
+      2 ICOS(hi) Momory CD4 T               196   3731
+      3 ICOS(hi) Momory CD4 T                16   2025
+      4 Th17-like T                          22   3218
+      5 Effector CD4 T                       13   2141
+      6 CD40LG+ CD4 T                      2054    404
+      7 Memory Tregs                        353   1066
+      8 CTSW- Cytotoxic CD4 T                21   1053
+      9 Inflamed Cytotoxic CD4 T              2    727
+      10 Naive CD8 T                       2158    414
+      11 CD8 TILs                             6    882
+      12 Naive-like Activated CD8 T         121    483
+      13 Activated CD8(hi) T                 34    913
+      14 Activated CD8(lo) T                  7    461
+      15 Inflamed Activated CD8 T             0    138
+      16 CD16(lo) Cytotoxic CD8 T             2    262
+      17 CD16+ Cytotoxic CD8 T               29    434
+      18 CD16+ Inflamed Cytotoxic CD8 T       0    258
+      19 gdT                                 16    983
+      20 TE CD8(lo) T                       420     45
+      21 TE CD8(hi) T                       649     88
+      22 MAITs                              117     10
+      23 DP T                               327     47
+      24 Cytotoxic DP T                      17    253
+      25 Cytotoxic DP T                       4    706
+      26 Activated DN T                       0    428
+      27 NK                                1989   1363
+      28 Inflamed NK                          0    157
+      29 ILC2                                37     39
+      30 Naive B                           1002     68
+      31 Activated B                          6   1838
+      32 USM B                              232    194
+      33 SM B                               318    524
+      34 CD14 Monocytes                    1286     28
+      35 Stimulated CD14 Monocytes         1165     55
+      36 CD16 Monocytes                     646     68
+      37 CD14 TAM                             3   1263
+      38 CD1C+ DCs                          297     30
+      39 pDCs                                81     30
+      40 Cytotoxic-like                      72    718
+      41 Momory-like                         91    346
+      42 Naive T/TIL/NK                      54    590
+      43 Naive T/Effect T/NK                260     32
+      44 B/T                                327    476
+      45 Monocytes/T                        409    200
+      46 B/Monocytes                         82     25
 
 
 
@@ -2979,16 +3062,16 @@ table("Fine Cell Type" = combined$CellType_2, "Condition" = combined$condition)
 c_celltype_col3 <- choosePalette(combined$CellType_2, c_clust_col) # same colour as cluster colours
 
 # Coloured by CellType_2
-fig(width = 16, height = 12)
+fig(width = 16, height = 11)
 plotProjections(combined, "CellType_2", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Fine Cell Type", 
                 feat_color = c_celltype_col3, text_by = "label", point_size = 0.1, point_alpha = 0.1,
-                text_size = 6, guides_nrow = 12, guides_size = 4, legend_pos = "bottom", rel_height = c(5, 2))
+                text_size = 6, guides_nrow = 10, guides_size = 4, legend_pos = "bottom", rel_height = c(6, 2))
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_175_0.png)
+![png](Integrated_files/Integrated_180_0.png)
     
 
 
@@ -2996,16 +3079,15 @@ reset.fig()
 ```R
 fig(width = 16, height = 22)
 data.frame(table("ct" = combined$CellType_2, "label" = combined$label, "Condition" = combined$condition)) %>% 
-    ggplot(aes(Condition, Freq, fill = ct)) + geom_col() + 
-    facet_wrap(~ ct, ncol = 4, scales = "free_y") + scale_fill_manual(values = c_celltype_col3) + 
-    theme_cowplot(16) + guides(fill = guide_legend("Fine CT", ncol = 1)) +
+    ggplot(aes(Condition, Freq, fill = ct)) + geom_col() + facet_wrap(~ ct, ncol = 5, scales = "free_y") + 
+    scale_fill_manual(values = c_celltype_col3) + theme_cowplot(16) + guides(fill = "none") +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1)) + ylab("Number of cells")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_176_0.png)
+![png](Integrated_files/Integrated_181_0.png)
     
 
 
@@ -3013,16 +3095,16 @@ reset.fig()
 ```R
 fig(width = 16, height = 22)
 data.frame(prop.table(table("Condition" = combined$condition, "ct" = combined$CellType_2, "label" = combined$label), 1)) %>% 
-    ggplot(aes(Condition, Freq, fill = ct)) + geom_col() + 
-    facet_wrap(~ ct, ncol = 4, scales = "free_y") + scale_fill_manual(values = c_celltype_col3) + 
-    scale_y_continuous(labels = percent) + theme_cowplot(16) + guides(fill = guide_legend("Fine CT", ncol = 1)) + 
+    ggplot(aes(Condition, Freq, fill = ct)) + geom_col() + facet_wrap(~ ct, ncol = 5, scales = "free_y") + 
+    scale_fill_manual(values = c_celltype_col3) + scale_y_continuous(labels = percent) + 
+    theme_cowplot(16) + guides(fill = "none") +
     theme(axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1)) + ylab("% Cells in condition")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_177_0.png)
+![png](Integrated_files/Integrated_182_0.png)
     
 
 
@@ -3067,6 +3149,22 @@ More explanation can be found by `?findMarkers`, `?combineMarkers` and `?combine
 
 ## Find marker genes for clusters
 
+<div class="alert alert-warning">
+  <strong>Warning!</strong> All doublet clusters are not included in the marker analysis.
+</div>
+
+
+```R
+not_doublets <- combined$CellType_1 != "Doublets"
+table(not_doublets)
+```
+
+
+    not_doublets
+    FALSE  TRUE 
+     2455 46129 
+
+
 ### Run `findMarkers` (both directions)
 
 Considers both up- and downregulated genes to be potential markers.
@@ -3078,15 +3176,16 @@ pval.type <- "any"
 min.prop <- 0.3
 
 # Using logcounts from combined
-marker.genes.cluster <- findMarkers(sce_l, groups = combined$label, pval.type = pval.type, min.prop = min.prop,
-                                    block = combined$condition, #blocking on uninteresting factors
-                                    BPPARAM = bpp)
+marker.genes.cluster <- findMarkers(sce_l[, not_doublets], groups = droplevels(combined$label[not_doublets]),
+                                    #blocking on uninteresting factors
+                                    block = droplevels(combined$condition[not_doublets]),
+                                    pval.type = pval.type, min.prop = min.prop, BPPARAM = bpp)
 marker.genes.cluster
 ```
 
 
-    List of length 46
-    names(46): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46
+    List of length 41
+    names(41): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41
 
 
 Print the number of markers that passed the FDR or `Top` threshold. This will be the number of genes as inut for `enrichR`.
@@ -3097,52 +3196,47 @@ printMarkerStats(marker.genes.cluster, pval.type = pval.type, min.prop = min.pro
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 167; Up = 74; Down = 93; Max. P-value = 4.5e-138.
-    - Cluster2: 164; Up = 95; Down = 69; Max. P-value = 3.6e-160.
-    - Cluster3: 175; Up = 110; Down = 65; Max. P-value = 5.4e-221.
-    - Cluster4: 152; Up = 106; Down = 46; Max. P-value = 0.
-    - Cluster5: 159; Up = 114; Down = 45; Max. P-value = 2.3e-77.
-    - Cluster6: 155; Up = 122; Down = 33; Max. P-value = 0.
-    - Cluster7: 167; Up = 121; Down = 46; Max. P-value = 2e-310.
-    - Cluster8: 145; Up = 79; Down = 66; Max. P-value = 1.4e-274.
-    - Cluster9: 166; Up = 79; Down = 87; Max. P-value = 3.1e-119.
-    - Cluster10: 140; Up = 90; Down = 50; Max. P-value = 0.
-    - Cluster11: 138; Up = 74; Down = 64; Max. P-value = 1.1e-45.
-    - Cluster12: 159; Up = 129; Down = 30; Max. P-value = 9.1e-197.
-    - Cluster13: 134; Up = 50; Down = 84; Max. P-value = 1.6e-101.
-    - Cluster14: 148; Up = 105; Down = 43; Max. P-value = 3.2e-267.
-    - Cluster15: 150; Up = 99; Down = 51; Max. P-value = 3.6e-50.
-    - Cluster16: 156; Up = 130; Down = 26; Max. P-value = 2.8e-20.
-    - Cluster17: 118; Up = 56; Down = 62; Max. P-value = 4.9e-67.
-    - Cluster18: 147; Up = 105; Down = 42; Max. P-value = 1.5e-65.
-    - Cluster19: 158; Up = 113; Down = 45; Max. P-value = 5.3e-230.
-    - Cluster20: 163; Up = 122; Down = 41; Max. P-value = 2.7e-35.
-    - Cluster21: 139; Up = 66; Down = 73; Max. P-value = 2.7e-71.
-    - Cluster22: 142; Up = 81; Down = 61; Max. P-value = 3.8e-157.
-    - Cluster23: 121; Up = 71; Down = 50; Max. P-value = 2.6e-210.
-    - Cluster24: 90; Up = 57; Down = 33; Max. P-value = 3.5e-207.
-    - Cluster25: 118; Up = 50; Down = 68; Max. P-value = 4.2e-76.
-    - Cluster26: 186; Up = 158; Down = 28; Max. P-value = 4.4e-46.
-    - Cluster27: 181; Up = 142; Down = 39; Max. P-value = 0.
-    - Cluster28: 175; Up = 111; Down = 64; Max. P-value = 1.4e-54.
-    - Cluster29: 144; Up = 4; Down = 140; Max. P-value = 1.4e-27.
-    - Cluster30: 193; Up = 76; Down = 117; Max. P-value = 5.9e-221.
-    - Cluster31: 207; Up = 162; Down = 45; Max. P-value = 0.
-    - Cluster32: 200; Up = 70; Down = 130; Max. P-value = 7.5e-95.
-    - Cluster33: 208; Up = 94; Down = 114; Max. P-value = 1.7e-179.
-    - Cluster34: 210; Up = 155; Down = 55; Max. P-value = 5.5e-227.
-    - Cluster35: 217; Up = 152; Down = 65; Max. P-value = 2.4e-242.
-    - Cluster36: 226; Up = 145; Down = 81; Max. P-value = 0.
-    - Cluster37: 221; Up = 215; Down = 6; Max. P-value = 1.9e-200.
-    - Cluster38: 195; Up = 93; Down = 102; Max. P-value = 8.5e-152.
-    - Cluster39: 165; Up = 10; Down = 155; Max. P-value = 3.4e-35.
-    - Cluster40: 171; Up = 33; Down = 138; Max. P-value = 2.9e-175.
-    - Cluster41: 157; Up = 23; Down = 134; Max. P-value = 4.2e-70.
-    - Cluster42: 121; Up = 62; Down = 59; Max. P-value = 3.1e-59.
-    - Cluster43: 78; Up = 49; Down = 29; Max. P-value = 3.2e-26.
-    - Cluster44: 185; Up = 125; Down = 60; Max. P-value = 1.3e-75.
-    - Cluster45: 225; Up = 205; Down = 20; Max. P-value = 8e-176.
-    - Cluster46: 198; Up = 102; Down = 96; Max. P-value = 4.4e-26.
+    - Cluster1: 196; Up = 121; Down = 75; Max. P-value = 6e-314.
+    - Cluster2: 176; Up = 126; Down = 50; Max. P-value = 4e-175.
+    - Cluster3: 182; Up = 135; Down = 47; Max. P-value = 1.2e-80.
+    - Cluster4: 177; Up = 144; Down = 33; Max. P-value = 4.1e-176.
+    - Cluster5: 180; Up = 132; Down = 48; Max. P-value = 7.5e-131.
+    - Cluster6: 162; Up = 82; Down = 80; Max. P-value = 2.7e-200.
+    - Cluster7: 170; Up = 95; Down = 75; Max. P-value = 1.1e-211.
+    - Cluster8: 159; Up = 88; Down = 71; Max. P-value = 1.1e-205.
+    - Cluster9: 172; Up = 135; Down = 37; Max. P-value = 3.4e-152.
+    - Cluster10: 177; Up = 78; Down = 99; Max. P-value = 1.5e-147.
+    - Cluster11: 178; Up = 110; Down = 68; Max. P-value = 1.5e-188.
+    - Cluster12: 151; Up = 63; Down = 88; Max. P-value = 6.1e-89.
+    - Cluster13: 175; Up = 113; Down = 62; Max. P-value = 1.5e-183.
+    - Cluster14: 162; Up = 102; Down = 60; Max. P-value = 1.7e-152.
+    - Cluster15: 179; Up = 145; Down = 34; Max. P-value = 1.8e-31.
+    - Cluster16: 143; Up = 70; Down = 73; Max. P-value = 4.9e-28.
+    - Cluster17: 179; Up = 121; Down = 58; Max. P-value = 6.1e-180.
+    - Cluster18: 186; Up = 144; Down = 42; Max. P-value = 3.5e-85.
+    - Cluster19: 167; Up = 92; Down = 75; Max. P-value = 1.4e-100.
+    - Cluster20: 131; Up = 89; Down = 42; Max. P-value = 5.3e-74.
+    - Cluster21: 135; Up = 71; Down = 64; Max. P-value = 0.
+    - Cluster22: 137; Up = 35; Down = 102; Max. P-value = 7.2e-56.
+    - Cluster23: 133; Up = 51; Down = 82; Max. P-value = 1.8e-94.
+    - Cluster24: 144; Up = 92; Down = 52; Max. P-value = 1.2e-90.
+    - Cluster25: 162; Up = 105; Down = 57; Max. P-value = 5.8e-119.
+    - Cluster26: 202; Up = 162; Down = 40; Max. P-value = 5.3e-143.
+    - Cluster27: 197; Up = 150; Down = 47; Max. P-value = 0.
+    - Cluster28: 187; Up = 118; Down = 69; Max. P-value = 5.9e-30.
+    - Cluster29: 159; Up = 11; Down = 148; Max. P-value = 4.3e-22.
+    - Cluster30: 215; Up = 93; Down = 122; Max. P-value = 3.9e-162.
+    - Cluster31: 219; Up = 170; Down = 49; Max. P-value = 2.7e-111.
+    - Cluster32: 211; Up = 75; Down = 136; Max. P-value = 1e-75.
+    - Cluster33: 214; Up = 97; Down = 117; Max. P-value = 6.9e-112.
+    - Cluster34: 213; Up = 162; Down = 51; Max. P-value = 6.1e-169.
+    - Cluster35: 229; Up = 163; Down = 66; Max. P-value = 9.5e-275.
+    - Cluster36: 236; Up = 146; Down = 90; Max. P-value = 2.7e-248.
+    - Cluster37: 226; Up = 220; Down = 6; Max. P-value = 2.9e-223.
+    - Cluster38: 211; Up = 103; Down = 108; Max. P-value = 6.7e-125.
+    - Cluster39: 183; Up = 18; Down = 165; Max. P-value = 4.1e-29.
+    - Cluster40: 192; Up = 40; Down = 152; Max. P-value = 3.4e-217.
+    - Cluster41: 169; Up = 24; Down = 145; Max. P-value = 1.2e-68.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3199,11 +3293,6 @@ exportResList(marker.genes.cluster, col_anno = c("ID","Symbol"), prefix = paste0
     Creating file: 160k_All_cluster_findMarkers_Cluster39.tsv
     Creating file: 160k_All_cluster_findMarkers_Cluster40.tsv
     Creating file: 160k_All_cluster_findMarkers_Cluster41.tsv
-    Creating file: 160k_All_cluster_findMarkers_Cluster42.tsv
-    Creating file: 160k_All_cluster_findMarkers_Cluster43.tsv
-    Creating file: 160k_All_cluster_findMarkers_Cluster44.tsv
-    Creating file: 160k_All_cluster_findMarkers_Cluster45.tsv
-    Creating file: 160k_All_cluster_findMarkers_Cluster46.tsv
 
 
 ### Run `findMarkers` (upregulated genes)
@@ -3218,15 +3307,17 @@ min.prop <- 0.3
 direction <- "up"
 
 # Using logcounts from combined
-marker.genes.cluster.up <- findMarkers(sce_l, groups = combined$label, pval.type = pval.type, min.prop = min.prop,
-                                       block = combined$condition, #blocking on uninteresting factors
+marker.genes.cluster.up <- findMarkers(sce_l[, not_doublets], groups = droplevels(combined$label[not_doublets]),
+                                       #blocking on uninteresting factors
+                                       block = droplevels(combined$condition[not_doublets]), 
+                                       pval.type = pval.type, min.prop = min.prop,
                                        lfc = 0.5, direction = direction, BPPARAM = bpp)
 marker.genes.cluster.up
 ```
 
 
-    List of length 46
-    names(46): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46
+    List of length 41
+    names(41): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41
 
 
 Print the number of markers that passed the FDR or `Top` threshold. This will be the number of genes as inut for `enrichR`.
@@ -3237,52 +3328,47 @@ printMarkerStats(marker.genes.cluster.up, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 262; Up = 262; Down = 0; Max. P-value = 0.084.
-    - Cluster2: 251; Up = 251; Down = 0; Max. P-value = 1.1e-10.
-    - Cluster3: 250; Up = 250; Down = 0; Max. P-value = 9e-73.
-    - Cluster4: 241; Up = 241; Down = 0; Max. P-value = 6.1e-34.
-    - Cluster5: 269; Up = 269; Down = 0; Max. P-value = 9.1e-160.
-    - Cluster6: 255; Up = 255; Down = 0; Max. P-value = 2.9e-28.
-    - Cluster7: 254; Up = 254; Down = 0; Max. P-value = 0.0026.
-    - Cluster8: 238; Up = 238; Down = 0; Max. P-value = 0.0058.
-    - Cluster9: 247; Up = 247; Down = 0; Max. P-value = 1.
-    - Cluster10: 250; Up = 250; Down = 0; Max. P-value = 7.4e-42.
-    - Cluster11: 253; Up = 253; Down = 0; Max. P-value = 2e-31.
-    - Cluster12: 257; Up = 257; Down = 0; Max. P-value = 9.8e-101.
-    - Cluster13: 243; Up = 243; Down = 0; Max. P-value = 1.7e-68.
-    - Cluster14: 254; Up = 254; Down = 0; Max. P-value = 1.3e-191.
-    - Cluster15: 252; Up = 252; Down = 0; Max. P-value = 0.00014.
-    - Cluster16: 256; Up = 256; Down = 0; Max. P-value = 3.9e-16.
-    - Cluster17: 239; Up = 239; Down = 0; Max. P-value = 1.
-    - Cluster18: 260; Up = 260; Down = 0; Max. P-value = 5.3e-16.
-    - Cluster19: 254; Up = 254; Down = 0; Max. P-value = 2.2e-56.
-    - Cluster20: 257; Up = 257; Down = 0; Max. P-value = 5.4e-09.
-    - Cluster21: 248; Up = 248; Down = 0; Max. P-value = 0.093.
-    - Cluster22: 249; Up = 249; Down = 0; Max. P-value = 1e-08.
-    - Cluster23: 249; Up = 249; Down = 0; Max. P-value = 0.86.
-    - Cluster24: 247; Up = 247; Down = 0; Max. P-value = 2e-73.
-    - Cluster25: 247; Up = 247; Down = 0; Max. P-value = 9e-06.
-    - Cluster26: 264; Up = 264; Down = 0; Max. P-value = 4.1e-74.
-    - Cluster27: 239; Up = 239; Down = 0; Max. P-value = 3.2e-286.
-    - Cluster28: 249; Up = 249; Down = 0; Max. P-value = 5.4e-11.
-    - Cluster29: 232; Up = 232; Down = 0; Max. P-value = 0.06.
-    - Cluster30: 242; Up = 242; Down = 0; Max. P-value = 6e-08.
-    - Cluster31: 228; Up = 228; Down = 0; Max. P-value = 3.7e-44.
-    - Cluster32: 243; Up = 243; Down = 0; Max. P-value = 4.2e-18.
-    - Cluster33: 237; Up = 237; Down = 0; Max. P-value = 3.5e-21.
-    - Cluster34: 241; Up = 241; Down = 0; Max. P-value = 1e-211.
-    - Cluster35: 267; Up = 267; Down = 0; Max. P-value = 2.8e-264.
-    - Cluster36: 253; Up = 253; Down = 0; Max. P-value = 0.
-    - Cluster37: 246; Up = 246; Down = 0; Max. P-value = 1e-253.
-    - Cluster38: 248; Up = 248; Down = 0; Max. P-value = 7.7e-37.
-    - Cluster39: 244; Up = 244; Down = 0; Max. P-value = 0.01.
-    - Cluster40: 249; Up = 249; Down = 0; Max. P-value = 1.
-    - Cluster41: 247; Up = 247; Down = 0; Max. P-value = 1.
-    - Cluster42: 215; Up = 215; Down = 0; Max. P-value = 1.1e-09.
-    - Cluster43: 232; Up = 232; Down = 0; Max. P-value = 0.0044.
-    - Cluster44: 213; Up = 213; Down = 0; Max. P-value = 2.4e-16.
-    - Cluster45: 237; Up = 237; Down = 0; Max. P-value = 1.3e-89.
-    - Cluster46: 247; Up = 247; Down = 0; Max. P-value = 5.5e-09.
+    - Cluster1: 254; Up = 254; Down = 0; Max. P-value = 0.
+    - Cluster2: 252; Up = 252; Down = 0; Max. P-value = 0.
+    - Cluster3: 278; Up = 278; Down = 0; Max. P-value = 2.5e-26.
+    - Cluster4: 248; Up = 248; Down = 0; Max. P-value = 1.7e-13.
+    - Cluster5: 263; Up = 263; Down = 0; Max. P-value = 0.0018.
+    - Cluster6: 248; Up = 248; Down = 0; Max. P-value = 0.98.
+    - Cluster7: 258; Up = 258; Down = 0; Max. P-value = 6.7e-124.
+    - Cluster8: 252; Up = 252; Down = 0; Max. P-value = 7e-37.
+    - Cluster9: 265; Up = 265; Down = 0; Max. P-value = 3.2e-133.
+    - Cluster10: 274; Up = 274; Down = 0; Max. P-value = 1.3e-22.
+    - Cluster11: 261; Up = 261; Down = 0; Max. P-value = 0.079.
+    - Cluster12: 246; Up = 246; Down = 0; Max. P-value = 1.1e-25.
+    - Cluster13: 255; Up = 255; Down = 0; Max. P-value = 1.1e-11.
+    - Cluster14: 255; Up = 255; Down = 0; Max. P-value = 0.0064.
+    - Cluster15: 268; Up = 268; Down = 0; Max. P-value = 0.072.
+    - Cluster16: 251; Up = 251; Down = 0; Max. P-value = 2.2e-24.
+    - Cluster17: 258; Up = 258; Down = 0; Max. P-value = 1.
+    - Cluster18: 266; Up = 266; Down = 0; Max. P-value = 3e-54.
+    - Cluster19: 258; Up = 258; Down = 0; Max. P-value = 4.7e-25.
+    - Cluster20: 262; Up = 262; Down = 0; Max. P-value = 3e-29.
+    - Cluster21: 260; Up = 260; Down = 0; Max. P-value = 4e-20.
+    - Cluster22: 250; Up = 250; Down = 0; Max. P-value = 8.7e-39.
+    - Cluster23: 254; Up = 254; Down = 0; Max. P-value = 2.4e-08.
+    - Cluster24: 266; Up = 266; Down = 0; Max. P-value = 3.4e-06.
+    - Cluster25: 263; Up = 263; Down = 0; Max. P-value = 8.8e-17.
+    - Cluster26: 270; Up = 270; Down = 0; Max. P-value = 8.2e-29.
+    - Cluster27: 241; Up = 241; Down = 0; Max. P-value = 0.
+    - Cluster28: 251; Up = 251; Down = 0; Max. P-value = 0.024.
+    - Cluster29: 245; Up = 245; Down = 0; Max. P-value = 0.46.
+    - Cluster30: 245; Up = 245; Down = 0; Max. P-value = 9.1e-08.
+    - Cluster31: 232; Up = 232; Down = 0; Max. P-value = 5.8e-41.
+    - Cluster32: 252; Up = 252; Down = 0; Max. P-value = 1.6e-12.
+    - Cluster33: 243; Up = 243; Down = 0; Max. P-value = 6.4e-43.
+    - Cluster34: 246; Up = 246; Down = 0; Max. P-value = 1.9e-22.
+    - Cluster35: 265; Up = 265; Down = 0; Max. P-value = 7.7e-124.
+    - Cluster36: 258; Up = 258; Down = 0; Max. P-value = 0.
+    - Cluster37: 248; Up = 248; Down = 0; Max. P-value = 2.1e-248.
+    - Cluster38: 251; Up = 251; Down = 0; Max. P-value = 1.9e-21.
+    - Cluster39: 251; Up = 251; Down = 0; Max. P-value = 8.9e-08.
+    - Cluster40: 262; Up = 262; Down = 0; Max. P-value = 0.081.
+    - Cluster41: 261; Up = 261; Down = 0; Max. P-value = 1.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3340,11 +3426,6 @@ exportResList(marker.genes.cluster.up, col_anno = c("ID","Symbol"), prefix = pas
     Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster39.tsv
     Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster40.tsv
     Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster41.tsv
-    Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster42.tsv
-    Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster43.tsv
-    Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster44.tsv
-    Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster45.tsv
-    Creating file: 160k_All_cluster_findMarkers_upregulated_Cluster46.tsv
 
 
 ### Run `findMarkers` (downregulated genes)
@@ -3359,15 +3440,17 @@ min.prop <- 0.3
 direction <- "down"
 
 # Using logcounts from combined
-marker.genes.cluster.dn <- findMarkers(sce_l, groups = combined$label, pval.type = pval.type, min.prop = min.prop,
-                                       block = combined$condition, #blocking on uninteresting factors
+marker.genes.cluster.dn <- findMarkers(sce_l[, not_doublets], groups = droplevels(combined$label[not_doublets]),
+                                       #blocking on uninteresting factors
+                                       block = droplevels(combined$condition[not_doublets]), 
+                                       pval.type = pval.type, min.prop = min.prop,
                                        lfc = 0.5, direction = direction, BPPARAM = bpp)
 marker.genes.cluster.dn
 ```
 
 
-    List of length 46
-    names(46): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46
+    List of length 41
+    names(41): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 ... 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41
 
 
 Print the number of markers that passed the FDR or `Top` threshold. This will be the number of genes as inut for `enrichR`.
@@ -3378,52 +3461,47 @@ printMarkerStats(marker.genes.cluster.dn, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 189; Up = 0; Down = 189; Max. P-value = 1.4e-25.
-    - Cluster2: 196; Up = 0; Down = 196; Max. P-value = 1.2e-37.
-    - Cluster3: 190; Up = 0; Down = 190; Max. P-value = 2.2e-78.
-    - Cluster4: 156; Up = 0; Down = 156; Max. P-value = 9.3e-159.
-    - Cluster5: 132; Up = 0; Down = 132; Max. P-value = 0.0039.
-    - Cluster6: 163; Up = 0; Down = 163; Max. P-value = 1.2e-24.
-    - Cluster7: 102; Up = 0; Down = 102; Max. P-value = 1.9e-11.
-    - Cluster8: 123; Up = 0; Down = 123; Max. P-value = 3.4e-116.
-    - Cluster9: 155; Up = 0; Down = 155; Max. P-value = 4.6e-14.
-    - Cluster10: 132; Up = 0; Down = 132; Max. P-value = 0.
-    - Cluster11: 150; Up = 0; Down = 150; Max. P-value = 2.6e-18.
-    - Cluster12: 133; Up = 0; Down = 133; Max. P-value = 5.1e-85.
-    - Cluster13: 137; Up = 0; Down = 137; Max. P-value = 1.4e-26.
-    - Cluster14: 119; Up = 0; Down = 119; Max. P-value = 3e-27.
-    - Cluster15: 116; Up = 0; Down = 116; Max. P-value = 5.4e-86.
-    - Cluster16: 124; Up = 0; Down = 124; Max. P-value = 9.2e-91.
-    - Cluster17: 137; Up = 0; Down = 137; Max. P-value = 4.2e-53.
-    - Cluster18: 96; Up = 0; Down = 96; Max. P-value = 2.7e-90.
-    - Cluster19: 148; Up = 0; Down = 148; Max. P-value = 0.
-    - Cluster20: 128; Up = 0; Down = 128; Max. P-value = 0.00012.
-    - Cluster21: 162; Up = 0; Down = 162; Max. P-value = 4.6e-43.
-    - Cluster22: 155; Up = 0; Down = 155; Max. P-value = 4.4e-49.
-    - Cluster23: 135; Up = 0; Down = 135; Max. P-value = 0.31.
-    - Cluster24: 97; Up = 0; Down = 97; Max. P-value = 1.
-    - Cluster25: 139; Up = 0; Down = 139; Max. P-value = 2.4e-97.
-    - Cluster26: 102; Up = 0; Down = 102; Max. P-value = 0.26.
-    - Cluster27: 141; Up = 0; Down = 141; Max. P-value = 5.5e-113.
-    - Cluster28: 175; Up = 0; Down = 175; Max. P-value = 7.7e-72.
-    - Cluster29: 161; Up = 0; Down = 161; Max. P-value = 4.8e-21.
-    - Cluster30: 205; Up = 0; Down = 205; Max. P-value = 4e-106.
-    - Cluster31: 203; Up = 0; Down = 203; Max. P-value = 0.
-    - Cluster32: 202; Up = 0; Down = 202; Max. P-value = 1.5e-72.
-    - Cluster33: 207; Up = 0; Down = 207; Max. P-value = 1e-63.
-    - Cluster34: 207; Up = 0; Down = 207; Max. P-value = 6.4e-306.
-    - Cluster35: 214; Up = 0; Down = 214; Max. P-value = 6.3e-89.
-    - Cluster36: 203; Up = 0; Down = 203; Max. P-value = 6.9e-27.
-    - Cluster37: 218; Up = 0; Down = 218; Max. P-value = 4.5e-113.
-    - Cluster38: 201; Up = 0; Down = 201; Max. P-value = 1.2e-27.
-    - Cluster39: 210; Up = 0; Down = 210; Max. P-value = 1.1e-14.
-    - Cluster40: 183; Up = 0; Down = 183; Max. P-value = 0.
-    - Cluster41: 158; Up = 0; Down = 158; Max. P-value = 4.2e-48.
-    - Cluster42: 101; Up = 0; Down = 101; Max. P-value = 6.4e-40.
-    - Cluster43: 78; Up = 0; Down = 78; Max. P-value = 5.5e-13.
-    - Cluster44: 142; Up = 0; Down = 142; Max. P-value = 1.2e-118.
-    - Cluster45: 150; Up = 0; Down = 150; Max. P-value = 4.7e-35.
-    - Cluster46: 193; Up = 0; Down = 193; Max. P-value = 2.8e-41.
+    - Cluster1: 202; Up = 0; Down = 202; Max. P-value = 3.8e-63.
+    - Cluster2: 162; Up = 0; Down = 162; Max. P-value = 2.7e-182.
+    - Cluster3: 142; Up = 0; Down = 142; Max. P-value = 1.1e-33.
+    - Cluster4: 175; Up = 0; Down = 175; Max. P-value = 1.4e-179.
+    - Cluster5: 115; Up = 0; Down = 115; Max. P-value = 2.2e-84.
+    - Cluster6: 144; Up = 0; Down = 144; Max. P-value = 6.7e-28.
+    - Cluster7: 159; Up = 0; Down = 159; Max. P-value = 2.2e-29.
+    - Cluster8: 165; Up = 0; Down = 165; Max. P-value = 9.5e-289.
+    - Cluster9: 147; Up = 0; Down = 147; Max. P-value = 3.5e-126.
+    - Cluster10: 204; Up = 0; Down = 204; Max. P-value = 0.
+    - Cluster11: 182; Up = 0; Down = 182; Max. P-value = 2.8e-25.
+    - Cluster12: 154; Up = 0; Down = 154; Max. P-value = 6.7e-19.
+    - Cluster13: 132; Up = 0; Down = 132; Max. P-value = 7.6e-20.
+    - Cluster14: 132; Up = 0; Down = 132; Max. P-value = 8.3e-65.
+    - Cluster15: 139; Up = 0; Down = 139; Max. P-value = 1.5e-10.
+    - Cluster16: 146; Up = 0; Down = 146; Max. P-value = 1.1e-78.
+    - Cluster17: 158; Up = 0; Down = 158; Max. P-value = 5.9e-17.
+    - Cluster18: 148; Up = 0; Down = 148; Max. P-value = 5.4e-06.
+    - Cluster19: 169; Up = 0; Down = 169; Max. P-value = 2e-115.
+    - Cluster20: 140; Up = 0; Down = 140; Max. P-value = 2.3e-09.
+    - Cluster21: 148; Up = 0; Down = 148; Max. P-value = 1.
+    - Cluster22: 87; Up = 0; Down = 87; Max. P-value = 1e-16.
+    - Cluster23: 159; Up = 0; Down = 159; Max. P-value = 2e-05.
+    - Cluster24: 132; Up = 0; Down = 132; Max. P-value = 4.4e-49.
+    - Cluster25: 111; Up = 0; Down = 111; Max. P-value = 2.3e-12.
+    - Cluster26: 119; Up = 0; Down = 119; Max. P-value = 2.8e-09.
+    - Cluster27: 162; Up = 0; Down = 162; Max. P-value = 8.8e-174.
+    - Cluster28: 192; Up = 0; Down = 192; Max. P-value = 2.4e-06.
+    - Cluster29: 174; Up = 0; Down = 174; Max. P-value = 0.18.
+    - Cluster30: 213; Up = 0; Down = 213; Max. P-value = 2.2e-178.
+    - Cluster31: 211; Up = 0; Down = 211; Max. P-value = 5e-73.
+    - Cluster32: 214; Up = 0; Down = 214; Max. P-value = 1.5e-17.
+    - Cluster33: 210; Up = 0; Down = 210; Max. P-value = 4.9e-81.
+    - Cluster34: 221; Up = 0; Down = 221; Max. P-value = 1.7e-29.
+    - Cluster35: 220; Up = 0; Down = 220; Max. P-value = 4.3e-32.
+    - Cluster36: 216; Up = 0; Down = 216; Max. P-value = 3.3e-65.
+    - Cluster37: 224; Up = 0; Down = 224; Max. P-value = 5.2e-119.
+    - Cluster38: 213; Up = 0; Down = 213; Max. P-value = 6.9e-44.
+    - Cluster39: 226; Up = 0; Down = 226; Max. P-value = 2.9e-07.
+    - Cluster40: 200; Up = 0; Down = 200; Max. P-value = 0.
+    - Cluster41: 176; Up = 0; Down = 176; Max. P-value = 1.1e-21.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3481,11 +3559,6 @@ exportResList(marker.genes.cluster.dn, col_anno = c("ID","Symbol"), prefix = pas
     Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster39.tsv
     Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster40.tsv
     Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster41.tsv
-    Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster42.tsv
-    Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster43.tsv
-    Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster44.tsv
-    Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster45.tsv
-    Creating file: 160k_All_cluster_findMarkers_downregulated_Cluster46.tsv
 
 
 ## Save `findMarkers` results to `metadata`
@@ -3517,7 +3590,7 @@ geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
 print(paste("Number of genes to plot:", length(geneNames)))
 ```
 
-    [1] "Number of genes to plot: 1694"
+    [1] "Number of genes to plot: 1692"
 
 
 
@@ -3531,7 +3604,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_197_0.png)
+![png](Integrated_files/Integrated_204_0.png)
     
 
 
@@ -3551,60 +3624,55 @@ print(paste("Number of genes to plot:", length(geneNames)))
 
 
 <table class="dataframe">
-<caption>A matrix: 46 × 4 of type chr</caption>
+<caption>A matrix: 41 × 4 of type chr</caption>
 <tbody>
-	<tr><th scope=row>1</th><td>CCL5 </td><td>NELL2 </td><td>NKG7  </td><td>EFHD2    </td></tr>
-	<tr><th scope=row>2</th><td>NELL2</td><td>CCL5  </td><td>EFHD2 </td><td>NKG7     </td></tr>
-	<tr><th scope=row>3</th><td>CCR7 </td><td>MAL   </td><td>LEF1  </td><td>CCL5     </td></tr>
-	<tr><th scope=row>4</th><td>CCR4 </td><td>MAL   </td><td>CD4   </td><td>CCR7     </td></tr>
-	<tr><th scope=row>5</th><td>CCR4 </td><td>MAL   </td><td>CCL5  </td><td>NKG7     </td></tr>
-	<tr><th scope=row>6</th><td>MAL  </td><td>CCR6  </td><td>NELL2 </td><td>CR1      </td></tr>
-	<tr><th scope=row>7</th><td>CD4  </td><td>CCL5  </td><td>NKG7  </td><td>IL7R     </td></tr>
-	<tr><th scope=row>8</th><td>NKG7 </td><td>CCL5  </td><td>EFHD2 </td><td>IL7R     </td></tr>
-	<tr><th scope=row>9</th><td>CCL5 </td><td>NKG7  </td><td>GNLY  </td><td>EFHD2    </td></tr>
-	<tr><th scope=row>10</th><td>GNLY </td><td>FGFBP2</td><td>NKG7  </td><td>CD4      </td></tr>
-	<tr><th scope=row>11</th><td>GNLY </td><td>TRAC  </td><td>NKG7  </td><td>IL32     </td></tr>
-	<tr><th scope=row>12</th><td>IFIT2</td><td>OASL  </td><td>GNLY  </td><td>HEATR9   </td></tr>
-	<tr><th scope=row>13</th><td>GNLY </td><td>NKG7  </td><td>EFHD2 </td><td>IL7R     </td></tr>
-	<tr><th scope=row>14</th><td>CD8A </td><td>CCL5  </td><td>NKG7  </td><td>NELL2    </td></tr>
-	<tr><th scope=row>15</th><td>CCL5 </td><td>NKG7  </td><td>GNLY  </td><td>SLC7A5   </td></tr>
-	<tr><th scope=row>16</th><td>CCL5 </td><td>PMAIP1</td><td>NFKBIZ</td><td>IFIT2    </td></tr>
-	<tr><th scope=row>17</th><td>NKG7 </td><td>CCL5  </td><td>LTB   </td><td>GNLY     </td></tr>
-	<tr><th scope=row>18</th><td>GNLY </td><td>CTSW  </td><td>CCL5  </td><td>NKG7     </td></tr>
-	<tr><th scope=row>19</th><td>GNLY </td><td>CTSW  </td><td>GZMH  </td><td>ADGRG1   </td></tr>
-	<tr><th scope=row>20</th><td>IFIT2</td><td>PMAIP1</td><td>GNLY  </td><td>RGS3     </td></tr>
-	<tr><th scope=row>21</th><td>NKG7 </td><td>GNLY  </td><td>CST7  </td><td>IL7R     </td></tr>
-	<tr><th scope=row>22</th><td>KLRC3</td><td>TRDC  </td><td>GNLY  </td><td>NKG7     </td></tr>
-	<tr><th scope=row>23</th><td>CCL5 </td><td>GZMH  </td><td>NKG7  </td><td>IL32     </td></tr>
-	<tr><th scope=row>24</th><td>CCL5 </td><td>KLRG1 </td><td>GNLY  </td><td>NKG7     </td></tr>
-	<tr><th scope=row>25</th><td>MYBL1</td><td>PDZD4 </td><td>PFN1  </td><td>COTL1    </td></tr>
-	<tr><th scope=row>26</th><td>DUSP2</td><td>KLRB1 </td><td>SLC7A5</td><td>CCL5     </td></tr>
-	<tr><th scope=row>27</th><td>GNLY </td><td>IL2RB </td><td>NKG7  </td><td>CTSW     </td></tr>
-	<tr><th scope=row>28</th><td>CD5  </td><td>CD3E  </td><td>IFIT2 </td><td>TRAC     </td></tr>
-	<tr><th scope=row>29</th><td>CD5  </td><td>CD6   </td><td>PYHIN1</td><td>TBX21    </td></tr>
-	<tr><th scope=row>30</th><td>CD74 </td><td>CD79A </td><td>IGHD  </td><td>IGHM     </td></tr>
-	<tr><th scope=row>31</th><td>IGHM </td><td>IGHD  </td><td>CD79A </td><td>NIBAN3   </td></tr>
-	<tr><th scope=row>32</th><td>CD74 </td><td>CD3E  </td><td>CCL5  </td><td>CD79A    </td></tr>
-	<tr><th scope=row>33</th><td>CD74 </td><td>BLK   </td><td>CD79A </td><td>CD3E     </td></tr>
-	<tr><th scope=row>34</th><td>CD3E </td><td>ZAP70 </td><td>CSF3R </td><td>VCAN     </td></tr>
-	<tr><th scope=row>35</th><td>ZAP70</td><td>IL32  </td><td>CST7  </td><td>CD3E     </td></tr>
-	<tr><th scope=row>36</th><td>CD3E </td><td>IL32  </td><td>CST7  </td><td>CSF1R    </td></tr>
-	<tr><th scope=row>37</th><td>SPI1 </td><td>LYZ   </td><td>IFI30 </td><td>CST3     </td></tr>
-	<tr><th scope=row>38</th><td>CD3E </td><td>ZAP70 </td><td>BCL11B</td><td>ETS1     </td></tr>
-	<tr><th scope=row>39</th><td>CCL5 </td><td>CST7  </td><td>SAMD3 </td><td>TBX21    </td></tr>
-	<tr><th scope=row>40</th><td>B2M  </td><td>NKG7  </td><td>UBA52 </td><td>GNLY     </td></tr>
-	<tr><th scope=row>41</th><td>B2M  </td><td>LTB   </td><td>EEF1G </td><td>GNLY     </td></tr>
-	<tr><th scope=row>42</th><td>CCL5 </td><td>NKG7  </td><td>GNLY  </td><td>EFHD2    </td></tr>
-	<tr><th scope=row>43</th><td>NKG7 </td><td>GNLY  </td><td>HDLBP </td><td>TRAK1    </td></tr>
-	<tr><th scope=row>44</th><td>CD74 </td><td>CD79A </td><td>MS4A1 </td><td>TNFRSF13C</td></tr>
-	<tr><th scope=row>45</th><td>SPI1 </td><td>FTH1  </td><td>CLEC7A</td><td>IFI30    </td></tr>
-	<tr><th scope=row>46</th><td>CST7 </td><td>CD3E  </td><td>SAMD3 </td><td>SPI1     </td></tr>
+	<tr><th scope=row>1</th><td>MAL  </td><td>CCR7  </td><td>RCAN3 </td><td>LEF1   </td></tr>
+	<tr><th scope=row>2</th><td>MAL  </td><td>CCR4  </td><td>CCR7  </td><td>CD28   </td></tr>
+	<tr><th scope=row>3</th><td>CCR4 </td><td>MAL   </td><td>CCL5  </td><td>LTB    </td></tr>
+	<tr><th scope=row>4</th><td>MAL  </td><td>CCR6  </td><td>CR1   </td><td>NELL2  </td></tr>
+	<tr><th scope=row>5</th><td>CD4  </td><td>LTB   </td><td>NKG7  </td><td>RCAN3  </td></tr>
+	<tr><th scope=row>6</th><td>NKG7 </td><td>CCL5  </td><td>GNLY  </td><td>IL7R   </td></tr>
+	<tr><th scope=row>7</th><td>CCL5 </td><td>NKG7  </td><td>CD4   </td><td>EFHD2  </td></tr>
+	<tr><th scope=row>8</th><td>GNLY </td><td>FGFBP2</td><td>NKG7  </td><td>GZMH   </td></tr>
+	<tr><th scope=row>9</th><td>GNLY </td><td>IFIT2 </td><td>OASL  </td><td>CCL5   </td></tr>
+	<tr><th scope=row>10</th><td>CCL5 </td><td>NELL2 </td><td>NKG7  </td><td>CD8A   </td></tr>
+	<tr><th scope=row>11</th><td>NELL2</td><td>NKG7  </td><td>CD8A  </td><td>CCL5   </td></tr>
+	<tr><th scope=row>12</th><td>NKG7 </td><td>GNLY  </td><td>EFHD2 </td><td>CCL5   </td></tr>
+	<tr><th scope=row>13</th><td>GNLY </td><td>CCL5  </td><td>GZMK  </td><td>NKG7   </td></tr>
+	<tr><th scope=row>14</th><td>CCL5 </td><td>NKG7  </td><td>CST7  </td><td>GNLY   </td></tr>
+	<tr><th scope=row>15</th><td>CCL5 </td><td>PMAIP1</td><td>NFKBIZ</td><td>IFIT2  </td></tr>
+	<tr><th scope=row>16</th><td>NKG7 </td><td>GNLY  </td><td>CCL5  </td><td>CST7   </td></tr>
+	<tr><th scope=row>17</th><td>GNLY </td><td>EFHD2 </td><td>CTSW  </td><td>NKG7   </td></tr>
+	<tr><th scope=row>18</th><td>IFIT2</td><td>PMAIP1</td><td>RGS3  </td><td>CTSW   </td></tr>
+	<tr><th scope=row>19</th><td>GNLY </td><td>TRDC  </td><td>KLRC3 </td><td>NKG7   </td></tr>
+	<tr><th scope=row>20</th><td>GNLY </td><td>NKG7  </td><td>PRF1  </td><td>KLRD1  </td></tr>
+	<tr><th scope=row>21</th><td>NKG7 </td><td>CCL5  </td><td>CST7  </td><td>TRAC   </td></tr>
+	<tr><th scope=row>22</th><td>KLRB1</td><td>ENC1  </td><td>TSHZ1 </td><td>NKG7   </td></tr>
+	<tr><th scope=row>23</th><td>MYBL1</td><td>PDZD4 </td><td>COTL1 </td><td>PFN1   </td></tr>
+	<tr><th scope=row>24</th><td>GZMH </td><td>NKG7  </td><td>RCAN3 </td><td>GNLY   </td></tr>
+	<tr><th scope=row>25</th><td>GNLY </td><td>NKG7  </td><td>CCL5  </td><td>FGFBP2 </td></tr>
+	<tr><th scope=row>26</th><td>CCL5 </td><td>DUSP2 </td><td>SLC7A5</td><td>KLRB1  </td></tr>
+	<tr><th scope=row>27</th><td>GNLY </td><td>NKG7  </td><td>IL2RB </td><td>FCER1G </td></tr>
+	<tr><th scope=row>28</th><td>IL7R </td><td>CD5   </td><td>CD3E  </td><td>IFIT2  </td></tr>
+	<tr><th scope=row>29</th><td>CD6  </td><td>PYHIN1</td><td>ADGRG1</td><td>CD5    </td></tr>
+	<tr><th scope=row>30</th><td>CD74 </td><td>IGHD  </td><td>NIBAN3</td><td>CD79A  </td></tr>
+	<tr><th scope=row>31</th><td>IGHM </td><td>IGHD  </td><td>CD79A </td><td>IRF8   </td></tr>
+	<tr><th scope=row>32</th><td>CD74 </td><td>CCL5  </td><td>CD3E  </td><td>CST7   </td></tr>
+	<tr><th scope=row>33</th><td>CD74 </td><td>CCL5  </td><td>CD79A </td><td>NKG7   </td></tr>
+	<tr><th scope=row>34</th><td>ZAP70</td><td>CD3E  </td><td>HK3   </td><td>CSF3R  </td></tr>
+	<tr><th scope=row>35</th><td>CST7 </td><td>CSF1R </td><td>CD3E  </td><td>MARCKS </td></tr>
+	<tr><th scope=row>36</th><td>IL32 </td><td>CST7  </td><td>CSF1R </td><td>CCL5   </td></tr>
+	<tr><th scope=row>37</th><td>SPI1 </td><td>LYZ   </td><td>IFI30 </td><td>ZNF385A</td></tr>
+	<tr><th scope=row>38</th><td>CD3E </td><td>ZAP70 </td><td>BCL11B</td><td>IL2RB  </td></tr>
+	<tr><th scope=row>39</th><td>SYNE1</td><td>CCL5  </td><td>KLRD1 </td><td>CST7   </td></tr>
+	<tr><th scope=row>40</th><td>B2M  </td><td>NKG7  </td><td>GNLY  </td><td>UBA52  </td></tr>
+	<tr><th scope=row>41</th><td>B2M  </td><td>LTB   </td><td>NKG7  </td><td>EEF1G  </td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 70"
+    [1] "Number of genes to plot: 69"
 
 
 Alternatively, use genes identified from up- and downregulated `findMarkers` results.
@@ -3625,14 +3693,14 @@ Alternatively, use genes identified from up- and downregulated `findMarkers` res
 
 ```R
 p1 <- plotGroupedHeatmap(combined, features = geneNames, group = "label", clustering_method = "ward.D2", 
-                         border_color = "black", color = c_heatmap_col1, fontsize = 14, angle_col = 90, 
+                         border_color = "black", color = c_heatmap_col1, fontsize = 12, angle_col = 90, 
                          main = "Unscaled", silent = T)
 
 p2 <- plotGroupedHeatmap(combined, features = geneNames, group = "label", clustering_method = "ward.D2", 
-                         border_color = "black", color = c_heatmap_col2, fontsize = 14, angle_col = 90,
+                         border_color = "black", color = c_heatmap_col2, fontsize = 12, angle_col = 90,
                          center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
 
-fig(width = 16, height = 16)
+fig(width = 16, height = 18)
 plot(p1$gtable)
 plot(p2$gtable)
 reset.fig()
@@ -3640,19 +3708,19 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_202_0.png)
+![png](Integrated_files/Integrated_209_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_202_1.png)
+![png](Integrated_files/Integrated_209_1.png)
     
 
 
 
 ```R
-fig(width = 16, height = 18)
+fig(width = 16, height = 20)
 plotDots(combined, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3, 3), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     scale_y_discrete(limits = geneNames[p2$tree_row$order]) + # order genes based on heatmap p2 above
@@ -3672,7 +3740,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_203_1.png)
+![png](Integrated_files/Integrated_210_1.png)
     
 
 
@@ -3699,27 +3767,27 @@ print(paste("Number of genes to plot:", nrow(df)))
 	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>NELL2   </td><td>1,2                 </td><td> 1</td></tr>
-	<tr><td>TCF7    </td><td>3                   </td><td> 3</td></tr>
-	<tr><td>MAL     </td><td>4,6                 </td><td> 4</td></tr>
-	<tr><td>CCR4    </td><td>5                   </td><td> 5</td></tr>
-	<tr><td>IL7R    </td><td>7,13                </td><td> 7</td></tr>
-	<tr><td>LTB     </td><td>8                   </td><td> 8</td></tr>
-	<tr><td>TRAC    </td><td>9                   </td><td> 9</td></tr>
-	<tr><td>FGFBP2  </td><td>10                  </td><td>10</td></tr>
-	<tr><td>CCL5    </td><td>11,15,16,20,23      </td><td>11</td></tr>
-	<tr><td>GNLY    </td><td>12,18,19,22,27,41,42</td><td>12</td></tr>
-	<tr><td>CD8A    </td><td>14                  </td><td>14</td></tr>
-	<tr><td>NKG7    </td><td>17,21,24,28,43      </td><td>17</td></tr>
-	<tr><td>PFN1    </td><td>25                  </td><td>25</td></tr>
-	<tr><td>DUSP2   </td><td>26                  </td><td>26</td></tr>
-	<tr><td>KLRB1   </td><td>29                  </td><td>29</td></tr>
-	<tr><td>CD74    </td><td>30,32,33,38,44,46   </td><td>30</td></tr>
-	<tr><td>IGHM    </td><td>31                  </td><td>31</td></tr>
-	<tr><td>CSF3R   </td><td>34                  </td><td>34</td></tr>
-	<tr><td>SPI1    </td><td>35,36,37,45         </td><td>35</td></tr>
-	<tr><td>ITM2C   </td><td>39                  </td><td>39</td></tr>
-	<tr><td>TNFRSF25</td><td>40                  </td><td>40</td></tr>
+	<tr><td>TCF7  </td><td>1                      </td><td> 1</td></tr>
+	<tr><td>MAL   </td><td>2,4                    </td><td> 2</td></tr>
+	<tr><td>CCR4  </td><td>3                      </td><td> 3</td></tr>
+	<tr><td>LTB   </td><td>5,6,7                  </td><td> 5</td></tr>
+	<tr><td>FGFBP2</td><td>8                      </td><td> 8</td></tr>
+	<tr><td>GNLY  </td><td>9,17,19,25,27,41       </td><td> 9</td></tr>
+	<tr><td>NELL2 </td><td>10,11                  </td><td>10</td></tr>
+	<tr><td>IL7R  </td><td>12                     </td><td>12</td></tr>
+	<tr><td>CCL5  </td><td>13,14,15,16,18,21,24,26</td><td>13</td></tr>
+	<tr><td>IL32  </td><td>20                     </td><td>20</td></tr>
+	<tr><td>NKG7  </td><td>22,28                  </td><td>22</td></tr>
+	<tr><td>COTL1 </td><td>23                     </td><td>23</td></tr>
+	<tr><td>KLRB1 </td><td>29                     </td><td>29</td></tr>
+	<tr><td>CD74  </td><td>30,32,33,38            </td><td>30</td></tr>
+	<tr><td>IGHD  </td><td>31                     </td><td>31</td></tr>
+	<tr><td>CSF3R </td><td>34                     </td><td>34</td></tr>
+	<tr><td>PLXNB2</td><td>35                     </td><td>35</td></tr>
+	<tr><td>PSAP  </td><td>36                     </td><td>36</td></tr>
+	<tr><td>SPI1  </td><td>37                     </td><td>37</td></tr>
+	<tr><td>ITM2C </td><td>39                     </td><td>39</td></tr>
+	<tr><td>ZAP70 </td><td>40                     </td><td>40</td></tr>
 </tbody>
 </table>
 
@@ -3731,11 +3799,11 @@ print(paste("Number of genes to plot:", nrow(df)))
 
 ```R
 p1 <- plotGroupedHeatmap(combined, features = df$gene, group = "label", clustering_method = "ward.D2", 
-                         border_color = "black", color = c_heatmap_col1, fontsize = 14, angle_col = 90, 
+                         border_color = "black", color = c_heatmap_col1, fontsize = 12, angle_col = 90, 
                          main = "Unscaled", silent = T)
 
 p2 <- plotGroupedHeatmap(combined, features = df$gene, group = "label", clustering_method = "ward.D2", 
-                         border_color = "black", color = c_heatmap_col2, fontsize = 14, angle_col = 90,
+                         border_color = "black", color = c_heatmap_col2, fontsize = 12, angle_col = 90,
                          center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
 
 fig(width = 16, height = 7)
@@ -3746,13 +3814,13 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_206_0.png)
+![png](Integrated_files/Integrated_213_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_206_1.png)
+![png](Integrated_files/Integrated_213_1.png)
     
 
 
@@ -3778,7 +3846,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_207_1.png)
+![png](Integrated_files/Integrated_214_1.png)
     
 
 
@@ -3801,7 +3869,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_208_0.png)
+![png](Integrated_files/Integrated_215_0.png)
     
 
 
@@ -3813,7 +3881,9 @@ reset.fig()
 
 *Assuming excluding 'Other T', 'ILC', 'DC', 'Unknown' and 'Doublets'*
 
-- Cluster 25 DP T
+- Cluster 23 DP T
+- Cluster 24 Cytotoxic DP T
+- Cluster 25 Cytotoxic DP T
 - Cluster 26 Activated DN T
 - Cluster 29 ILC2
 - Cluster 38 CD1C+ DCs
@@ -3830,17 +3900,17 @@ table(combined$CellType_1, combined$Sample)
 
                
                 Control1 KidneyCancer LungCancer
-      CD8+ T        3507         2509       2041
-      CD4+ T        5826        10231       6039
-      gdT             23          918        205
-      Other T        323           89        404
-      NK            1997          280       1254
-      ILC             28           16          8
-      B             1563          631       1997
-      Monocytes     3107          609        802
-      DCs            366           48         15
-      Unknown        163          584        476
-      Doublets      1135          861        439
+      CD4 T         5829         9827       5815
+      CD8 T         3543         2485       1903
+      gdT             16          890         93
+      Other T        348          546        888
+      NK            1989          275       1245
+      ILC             37           21         18
+      B             1558          629       1995
+      Monocytes     3100          610        804
+      DCs            378           45         15
+      Unknown        163          592        472
+      Doublets      1132          881        442
 
 
 
@@ -3850,8 +3920,8 @@ table("Cells kept" = !combined$CellType_1 %in% c("Other T","ILC","DC","Unknown",
 kept <- combined[,!combined$CellType_1 %in% c("Other T","ILC","DC","Unknown","Doublets")]
 colData(kept) <- droplevels(colData(kept))
 
-# remove whitespaces and '+' sign from CellType_1, which we'll use later
-levels(kept$CellType_1) <- gsub("\\s*|\\+","", levels(kept$CellType_1))
+# remove whitespaces from CellType_1, which we'll use later
+levels(kept$CellType_1) <- gsub("\\s*","", levels(kept$CellType_1))
 
 # Remove genes not expressed at all
 is.exp <- rowSums(counts(kept) > 0) > 1
@@ -3864,25 +3934,25 @@ kept
 
     Cells kept
     FALSE  TRUE 
-     4526 43968 
+     5540 43044 
 
 
 
     Is expressed
     FALSE  TRUE 
-     2201 15928 
+     2210 15919 
 
 
 
     class: SingleCellExperiment 
-    dim: 15928 43968 
+    dim: 15919 43044 
     metadata(27): Control1_Samples Control1_cyclone ... findMarkers_Cluster_up findMarkers_Cluster_dn
     assays(2): counts logcounts
-    rownames(15928): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
-    colnames(43968): Control1_AAACAAGCAACTAGTGACTTTAGG-1 Control1_AAACAAGCAGTTATCCACTTTAGG-1 ...
+    rownames(15919): SAMD11 NOC2L ... MT-ND6 MT-CYB
+    rowData names(6): ID Symbol ... is_mito is_hvg
+    colnames(43044): Control1_AAACAAGCAACTAGTGACTTTAGG-1 Control1_AAACAAGCAGTTATCCACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(20): Sample Barcode ... ClusterCellType CellType_2
+    colData names(17): Sample Barcode ... ClusterCellType CellType_2
     reducedDimNames(6): PCA TSNE ... MNN-TSNE MNN-UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -3892,8 +3962,7 @@ Create a `dgCMatrix` counts matrix for faster computation in some steps.
 
 
 ```R
-kept_c <- as(counts(kept, withDimnames = FALSE), "dgCMatrix")
-rownames(kept_c) <- rownames(kept)
+kept_c <- as(counts(kept, withDimnames = TRUE), "dgCMatrix")
 ```
 
 ## Creating pseudo-bulk samples
@@ -3915,13 +3984,13 @@ summed
 
 
     class: SingleCellExperiment 
-    dim: 15928 21 
+    dim: 15919 21 
     metadata(27): Control1_Samples Control1_cyclone ... findMarkers_Cluster_up findMarkers_Cluster_dn
     assays(2): counts logcounts
-    rownames(15928): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
+    rownames(15919): SAMD11 NOC2L ... MT-ND6 MT-CYB
+    rowData names(6): ID Symbol ... is_mito is_hvg
     colnames: NULL
-    colData names(24): Sample Barcode ... ncells sizeFactor
+    colData names(21): Sample Barcode ... ncells sizeFactor
     reducedDimNames(6): PCA TSNE ... MNN-TSNE MNN-UMAP
     mainExpName: Gene Expression
     altExpNames(0):
@@ -3954,7 +4023,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_218_0.png)
+![png](Integrated_files/Integrated_225_0.png)
     
 
 
@@ -4009,7 +4078,7 @@ data.frame(coef = 1:ncol(my.design), term = colnames(my.design))
 <tbody>
 	<tr><td>1</td><td>conditionControl   </td></tr>
 	<tr><td>2</td><td>conditionCancer    </td></tr>
-	<tr><td>3</td><td>CellType_1CD4T     </td></tr>
+	<tr><td>3</td><td>CellType_1CD8T     </td></tr>
 	<tr><td>4</td><td>CellType_1gdT      </td></tr>
 	<tr><td>5</td><td>CellType_1NK       </td></tr>
 	<tr><td>6</td><td>CellType_1B        </td></tr>
@@ -4046,24 +4115,24 @@ DataFrame(y$samples)
 
 
        Mode   FALSE    TRUE 
-    logical    3299   12629 
+    logical    3292   12627 
 
 
 
     DataFrame with 21 rows and 7 columns
                             group  lib.size norm.factors         PseudoSample    ncells condition CellType_1
                          <factor> <numeric>    <numeric>             <factor> <integer>  <factor>   <factor>
-    Control1_CD8T               1  15189582      1.22579        Control1_CD8T      3507   Control       CD8T
-    Control1_CD4T               1  24092369      1.21040        Control1_CD4T      5826   Control       CD4T
-    Control1_gdT                1     91934      1.33602        Control1_gdT         23   Control       gdT 
-    Control1_NK                 1   9944841      1.12732        Control1_NK        1997   Control       NK  
-    Control1_B                  1   6331726      1.14387        Control1_B         1563   Control       B   
+    Control1_CD4T               1  24091085      1.21448        Control1_CD4T      5829   Control       CD4T
+    Control1_CD8T               1  15459867      1.22265        Control1_CD8T      3543   Control       CD8T
+    Control1_gdT                1     65303      1.27769        Control1_gdT         16   Control       gdT 
+    Control1_NK                 1   9923859      1.15261        Control1_NK        1989   Control       NK  
+    Control1_B                  1   6294215      1.12002        Control1_B         1558   Control       B   
     ...                       ...       ...          ...                  ...       ...       ...        ...
-    LungCancer_gdT              1   1217279     1.113303 LungCancer_gdT             205    Cancer  gdT      
-    LungCancer_NK               1   7880633     0.992904 LungCancer_NK             1254    Cancer  NK       
-    LungCancer_B                1  10328638     0.890531 LungCancer_B              1997    Cancer  B        
-    LungCancer_Monocytes        1   6996744     0.641612 LungCancer_Monocytes       802    Cancer  Monocytes
-    LungCancer_DCs              1    168084     1.110995 LungCancer_DCs              15    Cancer  DCs      
+    LungCancer_gdT              1    572428     1.036575 LungCancer_gdT              93    Cancer  gdT      
+    LungCancer_NK               1   7837127     1.007650 LungCancer_NK             1245    Cancer  NK       
+    LungCancer_B                1  10311340     0.932968 LungCancer_B              1995    Cancer  B        
+    LungCancer_Monocytes        1   7017952     0.643046 LungCancer_Monocytes       804    Cancer  Monocytes
+    LungCancer_DCs              1    168067     1.092225 LungCancer_DCs              15    Cancer  DCs      
 
 
 ### Create multi-dimensional scaling (MDS) plot
@@ -4078,7 +4147,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_228_0.png)
+![png](Integrated_files/Integrated_235_0.png)
     
 
 
@@ -4097,12 +4166,12 @@ reset.fig()
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    0.08356 0.08728 0.10067 0.14687 0.18655 0.34303 
+    0.08281 0.08666 0.09972 0.14634 0.18663 0.34159 
 
 
 
     
-![png](Integrated_files/Integrated_230_1.png)
+![png](Integrated_files/Integrated_237_1.png)
     
 
 
@@ -4121,7 +4190,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_232_0.png)
+![png](Integrated_files/Integrated_239_0.png)
     
 
 
@@ -4148,9 +4217,9 @@ write.table(topTags(res, n = nrow(res), sort.by = "PValue", adjust.method = "BH"
 
 
            -1*conditionControl 1*conditionCancer
-    Down                                    3707
-    NotSig                                  5414
-    Up                                      3508
+    Down                                    3898
+    NotSig                                  5371
+    Up                                      3358
 
 
 
@@ -4163,16 +4232,16 @@ write.table(topTags(res, n = nrow(res), sort.by = "PValue", adjust.method = "BH"
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>ETF1</th><td>ENSG00000120705</td><td>ETF1     </td><td> 2.541868</td><td>6.252779</td><td>393.2064</td><td>2.811069e-14</td><td>2.762753e-10</td></tr>
-	<tr><th scope=row>MRM1</th><td>ENSG00000278619</td><td>MRM1     </td><td>-3.221633</td><td>2.967170</td><td>297.1798</td><td>8.377542e-14</td><td>2.762753e-10</td></tr>
-	<tr><th scope=row>TNFAIP8L2</th><td>ENSG00000163154</td><td>TNFAIP8L2</td><td>-3.753401</td><td>4.225871</td><td>276.5543</td><td>8.654676e-14</td><td>2.762753e-10</td></tr>
-	<tr><th scope=row>ZNF644</th><td>ENSG00000122482</td><td>ZNF644   </td><td> 2.103136</td><td>9.074763</td><td>391.4011</td><td>9.598485e-14</td><td>2.762753e-10</td></tr>
-	<tr><th scope=row>ATP5PO</th><td>ENSG00000241837</td><td>ATP5PO   </td><td> 7.191873</td><td>4.490992</td><td>292.1230</td><td>1.093813e-13</td><td>2.762753e-10</td></tr>
-	<tr><th scope=row>YTHDF3</th><td>ENSG00000185728</td><td>YTHDF3   </td><td> 2.313850</td><td>7.910533</td><td>367.1672</td><td>1.691840e-13</td><td>3.561041e-10</td></tr>
-	<tr><th scope=row>BTG3</th><td>ENSG00000154640</td><td>BTG3     </td><td> 3.289743</td><td>6.314007</td><td>316.3214</td><td>2.145984e-13</td><td>3.871662e-10</td></tr>
-	<tr><th scope=row>GBP1</th><td>ENSG00000117228</td><td>GBP1     </td><td>-3.875099</td><td>6.764013</td><td>334.6406</td><td>2.710475e-13</td><td>4.278823e-10</td></tr>
-	<tr><th scope=row>RLF</th><td>ENSG00000117000</td><td>RLF      </td><td> 2.485302</td><td>6.924447</td><td>335.4624</td><td>3.100979e-13</td><td>4.351363e-10</td></tr>
-	<tr><th scope=row>GIMAP6</th><td>ENSG00000133561</td><td>GIMAP6   </td><td>-3.317655</td><td>6.081295</td><td>227.1101</td><td>6.545696e-13</td><td>8.266560e-10</td></tr>
+	<tr><th scope=row>TNFAIP8L2</th><td>ENSG00000163154</td><td>TNFAIP8L2</td><td>-3.875065</td><td>4.265593</td><td>353.3979</td><td>2.096401e-15</td><td>2.647126e-11</td></tr>
+	<tr><th scope=row>BTG3</th><td>ENSG00000154640</td><td>BTG3     </td><td> 3.290727</td><td>6.293525</td><td>389.3199</td><td>1.683527e-14</td><td>1.062895e-10</td></tr>
+	<tr><th scope=row>ZNF644</th><td>ENSG00000122482</td><td>ZNF644   </td><td> 2.034083</td><td>9.063911</td><td>423.3502</td><td>4.750163e-14</td><td>1.999343e-10</td></tr>
+	<tr><th scope=row>ATP5PO</th><td>ENSG00000241837</td><td>ATP5PO   </td><td> 7.146726</td><td>4.449535</td><td>294.8941</td><td>8.335831e-14</td><td>2.214420e-10</td></tr>
+	<tr><th scope=row>MRM1</th><td>ENSG00000278619</td><td>MRM1     </td><td>-3.243436</td><td>2.986899</td><td>270.5670</td><td>8.768589e-14</td><td>2.214420e-10</td></tr>
+	<tr><th scope=row>RLF</th><td>ENSG00000117000</td><td>RLF      </td><td> 2.428312</td><td>6.920502</td><td>345.5965</td><td>1.917155e-13</td><td>4.034653e-10</td></tr>
+	<tr><th scope=row>MED11</th><td>ENSG00000161920</td><td>MED11    </td><td>-2.332308</td><td>4.365296</td><td>267.1529</td><td>3.429273e-13</td><td>6.185918e-10</td></tr>
+	<tr><th scope=row>PSMB10</th><td>ENSG00000205220</td><td>PSMB10   </td><td>-1.837798</td><td>7.826486</td><td>330.3213</td><td>4.084933e-13</td><td>6.447556e-10</td></tr>
+	<tr><th scope=row>RPRD1B</th><td>ENSG00000101413</td><td>RPRD1B   </td><td> 2.127628</td><td>6.279685</td><td>283.0511</td><td>5.006839e-13</td><td>6.709886e-10</td></tr>
+	<tr><th scope=row>GNA13</th><td>ENSG00000120063</td><td>GNA13    </td><td> 2.209885</td><td>8.725422</td><td>320.9183</td><td>5.313919e-13</td><td>6.709886e-10</td></tr>
 </tbody>
 </table>
 </dd>
@@ -4230,7 +4299,7 @@ geneNames
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>'ETF1'</li><li>'MRM1'</li><li>'TNFAIP8L2'</li><li>'ZNF644'</li><li>'ATP5PO'</li><li>'YTHDF3'</li><li>'BTG3'</li><li>'GBP1'</li><li>'RLF'</li><li>'GIMAP6'</li><li>'GNA13'</li><li>'RPRD1B'</li><li>'PYCR2'</li><li>'CDK17'</li><li>'SUCO'</li><li>'PSMB10'</li><li>'NAP1L2'</li><li>'LRRC61'</li><li>'CENPC'</li><li>'MED11'</li><li>'GIMAP4'</li><li>'DNAJC2'</li><li>'SOCS5'</li><li>'GIMAP5'</li><li>'UBXN2A'</li><li>'METTL13'</li><li>'RSL24D1'</li><li>'ARL11'</li><li>'ELL2'</li><li>'DCP1A'</li><li>'GIMAP8'</li><li>'MAPK6'</li><li>'MYOF'</li><li>'RNF139'</li><li>'RAB1A'</li><li>'RAB2A'</li><li>'CSF1R'</li><li>'PARS2'</li><li>'ADNP2'</li><li>'PLA2G4C'</li><li>'SNIP1'</li><li>'ZNF14'</li><li>'HNRNPK'</li><li>'ZNF639'</li><li>'THNSL2'</li><li>'WDR48'</li><li>'AARS1'</li><li>'UBQLN1'</li><li>'MFSD14A'</li><li>'ZNF331'</li></ol>
+<ol class=list-inline><li>'TNFAIP8L2'</li><li>'BTG3'</li><li>'ZNF644'</li><li>'ATP5PO'</li><li>'MRM1'</li><li>'RLF'</li><li>'MED11'</li><li>'PSMB10'</li><li>'RPRD1B'</li><li>'GNA13'</li><li>'GBP1'</li><li>'YTHDF3'</li><li>'SUCO'</li><li>'PYCR2'</li><li>'ETF1'</li><li>'NAP1L2'</li><li>'UBXN2A'</li><li>'DCP1A'</li><li>'GIMAP6'</li><li>'CENPC'</li><li>'GIMAP4'</li><li>'METTL13'</li><li>'GIMAP8'</li><li>'GIMAP5'</li><li>'DNAJC2'</li><li>'MAPK6'</li><li>'SNIP1'</li><li>'COQ10B'</li><li>'ELL2'</li><li>'SIT1'</li><li>'CDK17'</li><li>'RAB1A'</li><li>'KRR1'</li><li>'TRIM5'</li><li>'HNRNPK'</li><li>'UAP1'</li><li>'PPP4R3A'</li><li>'ADNP2'</li><li>'DHX9'</li><li>'AARS1'</li><li>'ZNF639'</li><li>'RAB2A'</li><li>'ARL11'</li><li>'USP16'</li><li>'PARS2'</li><li>'MYOF'</li><li>'GINM1'</li><li>'ZNF691'</li><li>'RNASEL'</li><li>'NDUFAF1'</li></ol>
 
 
 
@@ -4258,7 +4327,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_241_0.png)
+![png](Integrated_files/Integrated_248_0.png)
     
 
 
@@ -4269,7 +4338,7 @@ Using `kept` filtered single cells.
 fig(width = 12, height = 16)
 plotDots(kept, features = geneNames[p$tree_row$order], group = "Group", 
          center = TRUE, scale = TRUE, zlim = c(-3, 3)) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
-    scale_x_discrete(limits = p$tree_col$labels) + # order groups based on heatmap p above
+    scale_x_discrete(limits = p$tree_col$labels[p$tree_col$order]) + # order groups based on heatmap p above
     scale_y_discrete(limits = geneNames[p$tree_row$order]) + # order genes based on heatmap p above
     guides(colour = guide_colourbar(title = "Row (Gene) Z-Score", barwidth = 10), 
            size = guide_legend(title = "Proportion Detected")) + theme_cowplot(16) + #coord_flip() + 
@@ -4286,7 +4355,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_243_1.png)
+![png](Integrated_files/Integrated_250_1.png)
     
 
 
@@ -4308,13 +4377,13 @@ table(kept$CellType_1, kept$Sample)
 
                
                 Control1 KidneyCancer LungCancer
-      CD8T          3507         2509       2041
-      CD4T          5826        10231       6039
-      gdT             23          918        205
-      NK            1997          280       1254
-      B             1563          631       1997
-      Monocytes     3107          609        802
-      DCs            366           48         15
+      CD4T          5829         9827       5815
+      CD8T          3543         2485       1903
+      gdT             16          890         93
+      NK            1989          275       1245
+      B             1558          629       1995
+      Monocytes     3100          610        804
+      DCs            378           45         15
 
 
 ## Performs likelihood ratio test (LRT) using `DESeq2`
@@ -4427,40 +4496,8 @@ for(i in levels(kept$CellType_1)) {
 }
 ```
 
-    converting counts to integer mode
-    
-    Cancer vs. Control in Cluster CD8T
-    
-
-
-    
-    out of 15003 with nonzero total read count
-    adjusted p-value < 0.05
-    LFC > 0 (up)       : 3602, 24%
-    LFC < 0 (down)     : 6974, 46%
-    outliers [1]       : 0, 0%
-    low counts [2]     : 290, 1.9%
-    (mean count < 0)
-    [1] see 'cooksCutoff' argument of ?results
-    [2] see 'independentFiltering' argument of ?results
-    
-    NULL
-                         ID  Symbol  baseMean log2FoldChange lfcSE     stat pvalue padj
-    SKI     ENSG00000157933     SKI 3.4592466       2.160663    NA 4168.760      0    0
-    KCNAB2  ENSG00000069424  KCNAB2 1.9573693      -1.315292    NA 1982.481      0    0
-    PIK3CD  ENSG00000171608  PIK3CD 2.7159255      -1.287634    NA 2387.496      0    0
-    PRDM2   ENSG00000116731   PRDM2 1.6966803       1.247248    NA 1798.102      0    0
-    CAPZB   ENSG00000077549   CAPZB 1.9914869      -1.357994    NA 2566.519      0    0
-    RUNX3   ENSG00000020633   RUNX3 2.3073798       1.589740    NA 2292.349      0    0
-    LDLRAP1 ENSG00000157978 LDLRAP1 0.9145429      -1.964889    NA 2115.266      0    0
-    SYTL1   ENSG00000142765   SYTL1 1.6139938      -1.473589    NA 2166.530      0    0
-    LCK     ENSG00000182866     LCK 1.6376228      -1.941380    NA 4723.661      0    0
-    ZC3H12A ENSG00000163874 ZC3H12A 1.1459845       2.760562    NA 2348.123      0    0
-    [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_CD8T.tsv"
-
-
     Warning message in asMethod(object):
-    “sparse->dense coercion: allocating vector of size 2.6 GiB”
+    “sparse->dense coercion: allocating vector of size 2.5 GiB”
     converting counts to integer mode
     
     Cancer vs. Control in Cluster CD4T
@@ -4468,10 +4505,10 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 15576 with nonzero total read count
+    out of 15549 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 3859, 25%
-    LFC < 0 (down)     : 7516, 48%
+    LFC > 0 (up)       : 3857, 25%
+    LFC < 0 (down)     : 7475, 48%
     outliers [1]       : 0, 0%
     low counts [2]     : 0, 0%
     (mean count < 0)
@@ -4480,17 +4517,49 @@ for(i in levels(kept$CellType_1)) {
     
     NULL
                           ID   Symbol  baseMean log2FoldChange lfcSE     stat pvalue padj
-    SKI      ENSG00000157933      SKI 3.7293479       1.506668    NA 4835.401      0    0
-    TNFRSF14 ENSG00000157873 TNFRSF14 0.8062638      -1.210239    NA 2362.961      0    0
-    ENO1     ENSG00000074800     ENO1 0.3854514      -1.650642    NA 2407.095      0    0
-    PIK3CD   ENSG00000171608   PIK3CD 2.2587332      -1.113516    NA 4244.321      0    0
-    PRDM2    ENSG00000116731    PRDM2 1.6696914       1.113826    NA 2665.380      0    0
-    CAPZB    ENSG00000077549    CAPZB 1.6121652      -1.205107    NA 3981.370      0    0
-    NIPAL3   ENSG00000001461   NIPAL3 0.2300899      -1.858950    NA 1539.109      0    0
-    RUNX3    ENSG00000020633    RUNX3 1.7586888       2.065901    NA 4311.249      0    0
-    LDLRAP1  ENSG00000157978  LDLRAP1 0.7523601      -1.838951    NA 4581.246      0    0
-    MAN1C1   ENSG00000117643   MAN1C1 0.2849186      -2.194859    NA 2387.884      0    0
+    SKI      ENSG00000157933      SKI 3.6578339       1.481754    NA 4634.773      0    0
+    TNFRSF14 ENSG00000157873 TNFRSF14 0.8154704      -1.200721    NA 2322.237      0    0
+    ENO1     ENSG00000074800     ENO1 0.3884106      -1.648908    NA 2373.927      0    0
+    PIK3CD   ENSG00000171608   PIK3CD 2.2911608      -1.101387    NA 4152.982      0    0
+    PRDM2    ENSG00000116731    PRDM2 1.6666134       1.120472    NA 2685.705      0    0
+    CAPZB    ENSG00000077549    CAPZB 1.6221549      -1.214784    NA 4028.306      0    0
+    RUNX3    ENSG00000020633    RUNX3 1.7075124       2.042578    NA 4126.565      0    0
+    LDLRAP1  ENSG00000157978  LDLRAP1 0.7686922      -1.812722    NA 4458.242      0    0
+    MAN1C1   ENSG00000117643   MAN1C1 0.2937980      -2.159869    NA 2326.142      0    0
+    SYTL1    ENSG00000142765    SYTL1 1.4346146      -1.377503    NA 4284.825      0    0
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_CD4T.tsv"
+
+
+    converting counts to integer mode
+    
+    Cancer vs. Control in Cluster CD8T
+    
+
+
+    
+    out of 14997 with nonzero total read count
+    adjusted p-value < 0.05
+    LFC > 0 (up)       : 3570, 24%
+    LFC < 0 (down)     : 6971, 46%
+    outliers [1]       : 0, 0%
+    low counts [2]     : 0, 0%
+    (mean count < 0)
+    [1] see 'cooksCutoff' argument of ?results
+    [2] see 'independentFiltering' argument of ?results
+    
+    NULL
+                         ID  Symbol  baseMean log2FoldChange lfcSE     stat pvalue padj
+    SKI     ENSG00000157933     SKI 3.2772018       2.087385    NA 3825.182      0    0
+    KCNAB2  ENSG00000069424  KCNAB2 1.9758829      -1.290421    NA 1913.966      0    0
+    PIK3CD  ENSG00000171608  PIK3CD 2.7585789      -1.270952    NA 2314.535      0    0
+    PRDM2   ENSG00000116731   PRDM2 1.6802732       1.249519    NA 1779.624      0    0
+    CAPZB   ENSG00000077549   CAPZB 2.0166061      -1.337723    NA 2469.661      0    0
+    RUNX3   ENSG00000020633   RUNX3 2.2474651       1.566233    NA 2170.636      0    0
+    LDLRAP1 ENSG00000157978 LDLRAP1 0.9317731      -1.961799    NA 2123.762      0    0
+    SYTL1   ENSG00000142765   SYTL1 1.6278151      -1.478110    NA 2199.213      0    0
+    LCK     ENSG00000182866     LCK 1.6557704      -1.952802    NA 4715.943      0    0
+    ZC3H12A ENSG00000163874 ZC3H12A 1.1047225       2.692349    NA 2257.432      0    0
+    [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_CD8T.tsv"
 
 
     converting counts to integer mode
@@ -4500,28 +4569,28 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 12961 with nonzero total read count
+    out of 12800 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 379, 2.9%
-    LFC < 0 (down)     : 880, 6.8%
+    LFC > 0 (up)       : 279, 2.2%
+    LFC < 0 (down)     : 636, 5%
     outliers [1]       : 0, 0%
-    low counts [2]     : 1986, 15%
+    low counts [2]     : 3185, 25%
     (mean count < 0)
     [1] see 'cooksCutoff' argument of ?results
     [2] see 'independentFiltering' argument of ?results
     
     NULL
-                        ID Symbol   baseMean log2FoldChange lfcSE     stat       pvalue         padj
-    STAT1  ENSG00000115415  STAT1  0.4494064      -3.868866    NA 224.8718 9.702889e-47 1.064892e-42
-    IL32   ENSG00000008517   IL32  4.1113872      -2.361776    NA 190.5925 2.329404e-40 1.278260e-36
-    CD300A ENSG00000167851 CD300A  0.6893034      -3.457464    NA 171.6694 9.104694e-37 3.330801e-33
-    GBP5   ENSG00000154451   GBP5  0.8341454      -2.713382    NA 125.0078 1.104422e-27 3.030258e-24
-    CORO1A ENSG00000102879 CORO1A  2.6483719      -1.855612    NA 122.0071 4.354021e-27 9.557075e-24
-    GIMAP4 ENSG00000133574 GIMAP4  0.5301034      -3.278169    NA 121.3703 5.827676e-27 1.065979e-23
-    MT-ND3 ENSG00000198840 MT-ND3 11.2251075       2.195788    NA 115.2769 9.559431e-26 1.498782e-22
-    NLRC5  ENSG00000140853  NLRC5  2.0013631      -1.969602    NA 114.7273 1.231158e-25 1.559191e-22
-    MT-CO3 ENSG00000198938 MT-CO3 23.0284929       2.015318    NA 114.6452 1.278608e-25 1.559191e-22
-    RIPOR2 ENSG00000111913 RIPOR2  0.7834515      -2.878145    NA 114.0462 1.684886e-25 1.849163e-22
+                         ID  Symbol   baseMean log2FoldChange lfcSE      stat       pvalue         padj
+    CD300A  ENSG00000167851  CD300A  0.6725189      -3.542010    NA 136.17926 1.099400e-29 1.057073e-25
+    CX3CR1  ENSG00000168329  CX3CR1  0.1712235      -4.870569    NA 124.83400 1.781439e-27 8.564270e-24
+    MT-CO3  ENSG00000198938  MT-CO3 24.3912291       2.179995    NA 107.09051 5.657709e-24 1.813296e-20
+    MT-ND3  ENSG00000198840  MT-ND3 11.7758786       2.354016    NA 102.40107 4.873885e-23 1.171560e-19
+    STAT1   ENSG00000115415   STAT1  0.3921616      -3.391686    NA 100.88091 9.816166e-23 1.887649e-19
+    IL32    ENSG00000008517    IL32  3.7631753      -2.126703    NA  97.60771 4.447971e-22 7.127874e-19
+    NLRC5   ENSG00000140853   NLRC5  1.8839449      -2.072497    NA  94.13875 2.217668e-21 3.046126e-18
+    RAC2    ENSG00000128340    RAC2  0.8787904      -2.769749    NA  93.73296 2.677126e-21 3.217571e-18
+    MT-ATP6 ENSG00000198899 MT-ATP6 22.6635222       1.776575    NA  86.20793 8.912722e-20 9.521758e-17
+    GIMAP4  ENSG00000133574  GIMAP4  0.5076898      -3.298992    NA  84.08164 2.411211e-19 2.318380e-16
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_gdT.tsv"
 
 
@@ -4532,10 +4601,10 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 14397 with nonzero total read count
+    out of 14366 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 2803, 19%
-    LFC < 0 (down)     : 6112, 42%
+    LFC > 0 (up)       : 2805, 20%
+    LFC < 0 (down)     : 6096, 42%
     outliers [1]       : 0, 0%
     low counts [2]     : 0, 0%
     (mean count < 0)
@@ -4544,16 +4613,16 @@ for(i in levels(kept$CellType_1)) {
     
     NULL
                           ID   Symbol baseMean log2FoldChange lfcSE     stat pvalue padj
-    KCNAB2   ENSG00000069424   KCNAB2 3.991316      -1.765893    NA 2204.794      0    0
-    FGR      ENSG00000000938      FGR 3.746266      -1.988989    NA 2650.883      0    0
-    ZC3H12A  ENSG00000163874  ZC3H12A 1.334464       3.030274    NA 2440.874      0    0
-    DENND2D  ENSG00000162777  DENND2D 1.939116      -2.309743    NA 2257.058      0    0
-    TENT5C   ENSG00000183508   TENT5C 1.013045       3.223403    NA 1976.294      0    0
-    ARHGAP30 ENSG00000186517 ARHGAP30 2.595008      -1.581996    NA 1963.546      0    0
-    IER5     ENSG00000162783     IER5 3.698717       2.914985    NA 3354.113      0    0
-    RGS2     ENSG00000116741     RGS2 1.193566       3.379973    NA 2010.045      0    0
-    YPEL5    ENSG00000119801    YPEL5 2.962236       1.892579    NA 2036.240      0    0
-    PLEK     ENSG00000115956     PLEK 2.628495      -2.013504    NA 2293.591      0    0
+    KCNAB2   ENSG00000069424   KCNAB2 4.011471      -1.756004    NA 2181.286      0    0
+    FGR      ENSG00000000938      FGR 3.771334      -1.986139    NA 2649.104      0    0
+    ZC3H12A  ENSG00000163874  ZC3H12A 1.332116       3.027799    NA 2423.268      0    0
+    DENND2D  ENSG00000162777  DENND2D 1.950750      -2.304177    NA 2255.718      0    0
+    TENT5C   ENSG00000183508   TENT5C 1.011239       3.231649    NA 1971.192      0    0
+    ARHGAP30 ENSG00000186517 ARHGAP30 2.602174      -1.568652    NA 1925.802      0    0
+    IER5     ENSG00000162783     IER5 3.698989       2.921523    NA 3372.414      0    0
+    RGS2     ENSG00000116741     RGS2 1.195184       3.362599    NA 1986.548      0    0
+    YPEL5    ENSG00000119801    YPEL5 2.952487       1.896043    NA 2040.038      0    0
+    PLEK     ENSG00000115956     PLEK 2.646895      -2.008077    NA 2291.562      0    0
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_NK.tsv"
 
 
@@ -4564,10 +4633,10 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 14591 with nonzero total read count
+    out of 14587 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 3092, 21%
-    LFC < 0 (down)     : 6209, 43%
+    LFC > 0 (up)       : 3094, 21%
+    LFC < 0 (down)     : 6184, 42%
     outliers [1]       : 0, 0%
     low counts [2]     : 282, 1.9%
     (mean count < 0)
@@ -4576,16 +4645,16 @@ for(i in levels(kept$CellType_1)) {
     
     NULL
                           ID   Symbol   baseMean log2FoldChange lfcSE     stat pvalue padj
-    CASZ1    ENSG00000130940    CASZ1  1.3347142       3.245481    NA 1866.982      0    0
-    PRDM2    ENSG00000116731    PRDM2  4.4159749       1.722118    NA 2561.127      0    0
-    LAPTM5   ENSG00000162511   LAPTM5 38.9600479       1.659145    NA 4725.619      0    0
-    SMAP2    ENSG00000084070    SMAP2  7.1755398       1.597823    NA 2115.373      0    0
-    ZNF644   ENSG00000122482   ZNF644  3.5515181       1.878388    NA 2248.015      0    0
-    CD53     ENSG00000143119     CD53  1.9004307      -1.783876    NA 2049.031      0    0
-    IFI16    ENSG00000163565    IFI16  1.4631673      -2.107295    NA 1813.024      0    0
-    SLAMF6   ENSG00000162739   SLAMF6  0.8808965      -3.064470    NA 2311.689      0    0
-    ARHGAP30 ENSG00000186517 ARHGAP30  1.0749031      -2.243309    NA 1953.135      0    0
-    SELL     ENSG00000188404     SELL  2.3867811      -2.758018    NA 2638.676      0    0
+    CASZ1    ENSG00000130940    CASZ1  1.3357766       3.236870    NA 1848.492      0    0
+    PRDM2    ENSG00000116731    PRDM2  4.4169554       1.717449    NA 2547.851      0    0
+    LAPTM5   ENSG00000162511   LAPTM5 38.9792077       1.655305    NA 4718.302      0    0
+    SMAP2    ENSG00000084070    SMAP2  7.1902122       1.594150    NA 2109.575      0    0
+    ZNF644   ENSG00000122482   ZNF644  3.5578419       1.876338    NA 2244.714      0    0
+    CD53     ENSG00000143119     CD53  1.8992477      -1.788556    NA 2058.190      0    0
+    IFI16    ENSG00000163565    IFI16  1.4623801      -2.109450    NA 1813.287      0    0
+    SLAMF6   ENSG00000162739   SLAMF6  0.8797593      -3.063343    NA 2297.223      0    0
+    ARHGAP30 ENSG00000186517 ARHGAP30  1.0756545      -2.231990    NA 1927.033      0    0
+    SELL     ENSG00000188404     SELL  2.3868086      -2.778233    NA 2681.988      0    0
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_B.tsv"
 
 
@@ -4596,10 +4665,10 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 14692 with nonzero total read count
+    out of 14696 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 3578, 24%
-    LFC < 0 (down)     : 6167, 42%
+    LFC > 0 (up)       : 3593, 24%
+    LFC < 0 (down)     : 6175, 42%
     outliers [1]       : 0, 0%
     low counts [2]     : 0, 0%
     (mean count < 0)
@@ -4608,16 +4677,16 @@ for(i in levels(kept$CellType_1)) {
     
     NULL
                          ID  Symbol   baseMean log2FoldChange lfcSE     stat pvalue padj
-    NADK    ENSG00000008130    NADK  2.3882142      -2.506941    NA 3366.123      0    0
-    DHRS3   ENSG00000162496   DHRS3  0.5079112       5.595458    NA 2984.811      0    0
-    PLEKHM2 ENSG00000116786 PLEKHM2  2.0904786       1.676018    NA 2379.320      0    0
-    RSRP1   ENSG00000117616   RSRP1  6.7344313      -1.185579    NA 1830.319      0    0
-    LAPTM5  ENSG00000162511  LAPTM5 19.3224569       1.561981    NA 8324.010      0    0
-    GBP1    ENSG00000117228    GBP1  2.7424973      -5.586310    NA 3732.804      0    0
-    GBP5    ENSG00000154451    GBP5  2.4623455      -4.919611    NA 2880.421      0    0
-    ZNF644  ENSG00000122482  ZNF644  1.2415164       1.918292    NA 1937.897      0    0
-    PLEKHO1 ENSG00000023902 PLEKHO1  7.1295468      -1.172884    NA 1911.966      0    0
-    S100A10 ENSG00000197747 S100A10  6.3500356       1.493481    NA 2361.434      0    0
+    NADK    ENSG00000008130    NADK  2.3888815      -2.508591    NA 3375.116      0    0
+    DHRS3   ENSG00000162496   DHRS3  0.5091996       5.636039    NA 2996.823      0    0
+    PLEKHM2 ENSG00000116786 PLEKHM2  2.0936364       1.678828    NA 2401.590      0    0
+    RSRP1   ENSG00000117616   RSRP1  6.7362293      -1.182919    NA 1823.685      0    0
+    LAPTM5  ENSG00000162511  LAPTM5 19.3474311       1.562172    NA 8318.798      0    0
+    GBP1    ENSG00000117228    GBP1  2.7417508      -5.590928    NA 3748.785      0    0
+    GBP5    ENSG00000154451    GBP5  2.4640956      -4.894452    NA 2880.714      0    0
+    ZNF644  ENSG00000122482  ZNF644  1.2437134       1.922351    NA 1947.118      0    0
+    PLEKHO1 ENSG00000023902 PLEKHO1  7.1228938      -1.173874    NA 1913.439      0    0
+    S100A10 ENSG00000197747 S100A10  6.3528173       1.497571    NA 2374.391      0    0
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_Monocytes.tsv"
 
 
@@ -4628,28 +4697,28 @@ for(i in levels(kept$CellType_1)) {
 
 
     
-    out of 13627 with nonzero total read count
+    out of 13636 with nonzero total read count
     adjusted p-value < 0.05
-    LFC > 0 (up)       : 1691, 12%
-    LFC < 0 (down)     : 3155, 23%
+    LFC > 0 (up)       : 1658, 12%
+    LFC < 0 (down)     : 3061, 22%
     outliers [1]       : 0, 0%
-    low counts [2]     : 1833, 13%
+    low counts [2]     : 1835, 13%
     (mean count < 0)
     [1] see 'cooksCutoff' argument of ?results
     [2] see 'independentFiltering' argument of ?results
     
     NULL
-                         ID  Symbol  baseMean log2FoldChange lfcSE     stat       pvalue         padj
-    MT-CYB  ENSG00000198727  MT-CYB  3.422211       1.914089    NA 349.6834 1.423456e-58 1.678824e-54
-    MT-CO3  ENSG00000198938  MT-CO3 12.952293       1.383054    NA 290.0922 6.937726e-51 4.091177e-47
-    NAGK    ENSG00000124357    NAGK  3.277954      -3.037566    NA 251.7807 1.301644e-45 5.117196e-42
-    PSMB9   ENSG00000240065   PSMB9  2.058332      -3.526640    NA 246.7615 6.704739e-45 1.976892e-41
-    MT-ATP6 ENSG00000198899 MT-ATP6 13.032460       1.244259    NA 243.8406 1.749934e-44 3.834807e-41
-    MT-ND3  ENSG00000198840  MT-ND3  6.242289       1.331496    NA 243.5103 1.950894e-44 3.834807e-41
-    JAML    ENSG00000160593    JAML  6.382330      -2.811850    NA 242.0323 3.175517e-44 5.350293e-41
-    YTHDF3  ENSG00000185728  YTHDF3  0.587758       2.522687    NA 235.9006 2.423251e-43 3.572478e-40
-    FGD2    ENSG00000146192    FGD2  3.833157      -2.935036    NA 234.9986 3.272532e-43 4.288472e-40
-    MT-ND1  ENSG00000198888  MT-ND1  2.572526       1.614478    NA 211.8737 8.315503e-40 9.807304e-37
+                         ID  Symbol   baseMean log2FoldChange lfcSE     stat       pvalue         padj
+    MT-CYB  ENSG00000198727  MT-CYB  3.3127956       1.853761    NA 316.9327 1.211076e-54 1.429190e-50
+    MT-CO3  ENSG00000198938  MT-CO3 12.6907060       1.334212    NA 263.4307 2.050288e-47 1.209773e-43
+    NAGK    ENSG00000124357    NAGK  3.3345689      -3.127603    NA 247.8081 3.333132e-45 1.311143e-41
+    PSMB9   ENSG00000240065   PSMB9  2.0866981      -3.617858    NA 243.4225 1.419892e-44 4.189036e-41
+    MT-ND3  ENSG00000198840  MT-ND3  6.1476940       1.334336    NA 234.7535 2.558233e-43 6.037941e-40
+    JAML    ENSG00000160593    JAML  6.4538690      -2.808721    NA 232.4340 5.578998e-43 1.097296e-39
+    FGD2    ENSG00000146192    FGD2  3.8817924      -2.985218    NA 228.4514 2.140899e-42 3.181260e-39
+    YTHDF3  ENSG00000185728  YTHDF3  0.5702463       2.517959    NA 228.4298 2.156604e-42 3.181260e-39
+    MT-ATP6 ENSG00000198899 MT-ATP6 12.8414505       1.209858    NA 221.3534 2.398234e-41 3.144618e-38
+    TAP1    ENSG00000168394    TAP1  2.6525793      -2.705306    NA 213.4829 3.598831e-40 4.246980e-37
     [1] "Write to file: 160k_All_DESeq2_DE_results_Cancer_vs_Control_DCs.tsv"
 
 
@@ -4671,7 +4740,7 @@ names(res)
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>'CD8T'</li><li>'CD4T'</li><li>'gdT'</li><li>'NK'</li><li>'B'</li><li>'Monocytes'</li><li>'DCs'</li></ol>
+<ol class=list-inline><li>'CD4T'</li><li>'CD8T'</li><li>'gdT'</li><li>'NK'</li><li>'B'</li><li>'Monocytes'</li><li>'DCs'</li></ol>
 
 
 
@@ -4716,7 +4785,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_256_0.png)
+![png](Integrated_files/Integrated_263_0.png)
     
 
 
@@ -4762,43 +4831,43 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_258_0.png)
+![png](Integrated_files/Integrated_265_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_1.png)
+![png](Integrated_files/Integrated_265_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_2.png)
+![png](Integrated_files/Integrated_265_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_3.png)
+![png](Integrated_files/Integrated_265_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_4.png)
+![png](Integrated_files/Integrated_265_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_5.png)
+![png](Integrated_files/Integrated_265_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_258_6.png)
+![png](Integrated_files/Integrated_265_6.png)
     
 
 
@@ -4820,7 +4889,7 @@ print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
 ```
 
-    [1] "Number of available databases from Enrichr: 240"
+    [1] "Number of available databases from Enrichr: 247"
 
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
@@ -4828,17 +4897,17 @@ Change `dbsSel` to remove or include more gene-set libraries in the enrichment a
 
 ```R
 # Human
-dbsSel <- c("GO_Biological_Process_2023", # Ontologies
-#            "GO_Molecular_Function_2023", # Ontologies
-#            "GO_Cellular_Component_2023", # Ontologies
+dbsSel <- c("GO_Biological_Process_2025", # Ontologies
+#            "GO_Molecular_Function_2025", # Ontologies
+#            "GO_Cellular_Component_2025", # Ontologies
             "Reactome_Pathways_2024",     # Pathways
             "WikiPathways_2024_Human",    # Pathways
             "CellMarker_2024")            # Cell types
 
 # Mouse
-#dbsSel <- c("GO_Biological_Process_2023", # Ontologies
-#            "GO_Molecular_Function_2023", # Ontologies
-#            "GO_Cellular_Component_2023", # Ontologies
+#dbsSel <- c("GO_Biological_Process_2025", # Ontologies
+#            "GO_Molecular_Function_2025", # Ontologies
+#            "GO_Cellular_Component_2025", # Ontologies
 #            "Reactome_Pathways_2024",     # Pathways
 #            "WikiPathways_2024_Mouse",    # Pathways
 #            "CellMarker_2024")            # Cell types
@@ -4860,506 +4929,451 @@ metadata(combined)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs 
     
     Connection is Live!
     
-    Running enrichR on 'Cluster1' with 262 up-regulated genes.
+    Running enrichR on 'Cluster1' with 254 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster2' with 251 up-regulated genes.
+    Running enrichR on 'Cluster2' with 252 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster3' with 250 up-regulated genes.
+    Running enrichR on 'Cluster3' with 278 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster4' with 241 up-regulated genes.
+    Running enrichR on 'Cluster4' with 248 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster5' with 269 up-regulated genes.
+    Running enrichR on 'Cluster5' with 263 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster6' with 255 up-regulated genes.
+    Running enrichR on 'Cluster6' with 248 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster7' with 254 up-regulated genes.
+    Running enrichR on 'Cluster7' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster8' with 238 up-regulated genes.
+    Running enrichR on 'Cluster8' with 252 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster9' with 247 up-regulated genes.
+    Running enrichR on 'Cluster9' with 265 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster10' with 250 up-regulated genes.
+    Running enrichR on 'Cluster10' with 274 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster11' with 253 up-regulated genes.
+    Running enrichR on 'Cluster11' with 261 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster12' with 257 up-regulated genes.
+    Running enrichR on 'Cluster12' with 246 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster13' with 243 up-regulated genes.
+    Running enrichR on 'Cluster13' with 255 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster14' with 254 up-regulated genes.
+    Running enrichR on 'Cluster14' with 255 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster15' with 252 up-regulated genes.
+    Running enrichR on 'Cluster15' with 268 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster16' with 256 up-regulated genes.
+    Running enrichR on 'Cluster16' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster17' with 239 up-regulated genes.
+    Running enrichR on 'Cluster17' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster18' with 260 up-regulated genes.
+    Running enrichR on 'Cluster18' with 266 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster19' with 254 up-regulated genes.
+    Running enrichR on 'Cluster19' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster20' with 257 up-regulated genes.
+    Running enrichR on 'Cluster20' with 262 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster21' with 248 up-regulated genes.
+    Running enrichR on 'Cluster21' with 260 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster22' with 249 up-regulated genes.
+    Running enrichR on 'Cluster22' with 250 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster23' with 249 up-regulated genes.
+    Running enrichR on 'Cluster23' with 254 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster24' with 247 up-regulated genes.
+    Running enrichR on 'Cluster24' with 266 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster25' with 247 up-regulated genes.
+    Running enrichR on 'Cluster25' with 263 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster26' with 264 up-regulated genes.
+    Running enrichR on 'Cluster26' with 270 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster27' with 239 up-regulated genes.
+    Running enrichR on 'Cluster27' with 241 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster28' with 249 up-regulated genes.
+    Running enrichR on 'Cluster28' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster29' with 232 up-regulated genes.
+    Running enrichR on 'Cluster29' with 245 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster30' with 242 up-regulated genes.
+    Running enrichR on 'Cluster30' with 245 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster31' with 228 up-regulated genes.
+    Running enrichR on 'Cluster31' with 232 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster32' with 243 up-regulated genes.
+    Running enrichR on 'Cluster32' with 252 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster33' with 237 up-regulated genes.
+    Running enrichR on 'Cluster33' with 243 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster34' with 241 up-regulated genes.
+    Running enrichR on 'Cluster34' with 246 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster35' with 267 up-regulated genes.
+    Running enrichR on 'Cluster35' with 265 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster36' with 253 up-regulated genes.
+    Running enrichR on 'Cluster36' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster37' with 246 up-regulated genes.
+    Running enrichR on 'Cluster37' with 248 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster38' with 248 up-regulated genes.
+    Running enrichR on 'Cluster38' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster39' with 244 up-regulated genes.
+    Running enrichR on 'Cluster39' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster40' with 249 up-regulated genes.
+    Running enrichR on 'Cluster40' with 262 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster41' with 247 up-regulated genes.
+    Running enrichR on 'Cluster41' with 261 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
-    Running enrichR on 'Cluster42' with 215 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
-    Running enrichR on 'Cluster43' with 232 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
-    Running enrichR on 'Cluster44' with 213 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
-    Running enrichR on 'Cluster45' with 237 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
-    Running enrichR on 'Cluster46' with 247 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5384,7 +5398,7 @@ metadata(combined)[['enrichR_edgeR_Cancer_Control_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5407,7 +5421,7 @@ metadata(combined)[['enrichR_edgeR_Cancer_Control_dn']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5428,33 +5442,33 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']] <- runEnrichR(input, db
     
     Connection is Live!
     
-    Running enrichR on 'CD8T' with 1000 up-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
     Running enrichR on 'CD4T' with 1000 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'gdT' with 379 up-regulated genes.
+    Running enrichR on 'CD8T' with 1000 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
+      Querying Reactome_Pathways_2024... Done.
+      Querying WikiPathways_2024_Human... Done.
+      Querying CellMarker_2024... Done.
+    Parsing results... Done.
+
+
+    Running enrichR on 'gdT' with 279 up-regulated genes.
+
+
+    Uploading data to Enrichr... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5465,7 +5479,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5476,7 +5490,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5487,7 +5501,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5498,7 +5512,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5517,33 +5531,33 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
     
     Connection is Live!
     
-    Running enrichR on 'CD8T' with 1000 down-regulated genes.
-
-
-    Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
-      Querying CellMarker_2024... Done.
-    Parsing results... Done.
-
-
     Running enrichR on 'CD4T' with 1000 down-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'gdT' with 880 down-regulated genes.
+    Running enrichR on 'CD8T' with 1000 down-regulated genes.
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
+      Querying Reactome_Pathways_2024... Done.
+      Querying WikiPathways_2024_Human... Done.
+      Querying CellMarker_2024... Done.
+    Parsing results... Done.
+
+
+    Running enrichR on 'gdT' with 636 down-regulated genes.
+
+
+    Uploading data to Enrichr... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5554,7 +5568,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5565,7 +5579,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5576,7 +5590,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5587,7 +5601,7 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -5596,146 +5610,98 @@ metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']] <- runEnrichR(input, db
 
 ### Plot enrichR results
 
-Using `GO_Biological_Process_2023` as example.
+Using `GO_Biological_Process_2025` as example.
 
 **On upregulated 'Cluster' marker genes**
 
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_findMarkers_Cluster_up']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(combined)[['enrichR_findMarkers_Cluster_up']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_272_0.png)
+![png](Integrated_files/Integrated_279_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_1.png)
+![png](Integrated_files/Integrated_279_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_2.png)
+![png](Integrated_files/Integrated_279_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_3.png)
+![png](Integrated_files/Integrated_279_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_4.png)
+![png](Integrated_files/Integrated_279_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_5.png)
+![png](Integrated_files/Integrated_279_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_6.png)
+![png](Integrated_files/Integrated_279_6.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_7.png)
+![png](Integrated_files/Integrated_279_7.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_8.png)
+![png](Integrated_files/Integrated_279_8.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_9.png)
+![png](Integrated_files/Integrated_279_9.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_10.png)
+![png](Integrated_files/Integrated_279_10.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_11.png)
+![png](Integrated_files/Integrated_279_11.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_12.png)
+![png](Integrated_files/Integrated_279_12.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_13.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_14.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_15.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_16.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_17.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_18.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_19.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_20.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_21.png)
+![png](Integrated_files/Integrated_279_13.png)
     
 
 
@@ -5745,103 +5711,25 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_272_23.png)
+![png](Integrated_files/Integrated_279_15.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_24.png)
+![png](Integrated_files/Integrated_279_16.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_25.png)
+![png](Integrated_files/Integrated_279_17.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_26.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_27.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_28.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_29.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_30.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_31.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_32.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_33.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_34.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_35.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_36.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_37.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_38.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_272_39.png)
+![png](Integrated_files/Integrated_279_18.png)
     
 
 
@@ -5851,43 +5739,143 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_272_41.png)
+![png](Integrated_files/Integrated_279_20.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_42.png)
+![png](Integrated_files/Integrated_279_21.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_43.png)
+![png](Integrated_files/Integrated_279_22.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_44.png)
+![png](Integrated_files/Integrated_279_23.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_45.png)
+![png](Integrated_files/Integrated_279_24.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_46.png)
+![png](Integrated_files/Integrated_279_25.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_272_47.png)
+![png](Integrated_files/Integrated_279_26.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_27.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_28.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_29.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_30.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_31.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_32.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_33.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_34.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_35.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_36.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_37.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_38.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_39.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_40.png)
+    
+
+
+    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
+    “There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting.”
+
+
+
+    
+![png](Integrated_files/Integrated_279_42.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_279_43.png)
     
 
 
@@ -5896,7 +5884,7 @@ reset.fig()
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_edgeR_Cancer_Control_up']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(combined)[['enrichR_edgeR_Cancer_Control_up']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
@@ -5906,7 +5894,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_274_1.png)
+![png](Integrated_files/Integrated_281_1.png)
     
 
 
@@ -5915,13 +5903,13 @@ reset.fig()
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_edgeR_Cancer_Control_dn']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(combined)[['enrichR_edgeR_Cancer_Control_dn']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_276_0.png)
+![png](Integrated_files/Integrated_283_0.png)
     
 
 
@@ -5930,49 +5918,49 @@ reset.fig()
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_278_0.png)
+![png](Integrated_files/Integrated_285_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_1.png)
+![png](Integrated_files/Integrated_285_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_2.png)
+![png](Integrated_files/Integrated_285_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_3.png)
+![png](Integrated_files/Integrated_285_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_4.png)
+![png](Integrated_files/Integrated_285_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_5.png)
+![png](Integrated_files/Integrated_285_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_278_6.png)
+![png](Integrated_files/Integrated_285_6.png)
     
 
 
@@ -5981,49 +5969,49 @@ reset.fig()
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_280_0.png)
+![png](Integrated_files/Integrated_287_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_1.png)
+![png](Integrated_files/Integrated_287_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_2.png)
+![png](Integrated_files/Integrated_287_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_3.png)
+![png](Integrated_files/Integrated_287_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_4.png)
+![png](Integrated_files/Integrated_287_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_5.png)
+![png](Integrated_files/Integrated_287_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_280_6.png)
+![png](Integrated_files/Integrated_287_6.png)
     
 
 
@@ -6044,194 +6032,172 @@ printEnrichR(metadata(combined)[["enrichR_findMarkers_Cluster_up"]],
              prefix = file.path("Enrichr", paste0(file_id, "_findMarkers_upregulated")))
 ```
 
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster1_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster1_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster1_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster1_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster1_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster2_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster2_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster2_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster2_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster2_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster3_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster3_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster3_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster3_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster3_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster4_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster4_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster4_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster4_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster4_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster5_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster5_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster5_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster5_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster5_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster6_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster6_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster6_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster6_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster6_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster7_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster7_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster7_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster7_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster7_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster8_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster8_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster8_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster8_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster8_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster9_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster9_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster9_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster9_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster9_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster10_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster10_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster10_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster10_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster10_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster11_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster11_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster11_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster11_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster11_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster12_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster12_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster12_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster12_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster12_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster13_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster13_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster13_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster13_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster13_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster14_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster14_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster14_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster14_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster14_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster15_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster15_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster15_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster15_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster15_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster16_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster16_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster16_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster16_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster16_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster17_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster17_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster17_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster17_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster17_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster18_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster18_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster18_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster18_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster18_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster19_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster19_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster19_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster19_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster19_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster20_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster20_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster20_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster20_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster20_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster21_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster21_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster21_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster21_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster21_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster22_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster22_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster22_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster22_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster22_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster23_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster23_GO_Biological_Process_2025.tsv
 
 
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster23_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster23_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster23_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster24_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster24_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster24_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster24_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster24_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster25_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster25_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster25_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster25_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster25_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster26_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster26_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster26_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster26_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster26_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster27_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster27_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster27_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster27_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster27_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster28_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster28_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster28_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster28_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster28_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster29_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster29_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster29_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster29_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster29_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster30_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster30_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster30_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster30_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster30_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster31_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster31_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster31_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster31_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster31_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster32_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster32_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster32_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster32_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster32_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster33_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster33_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster33_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster33_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster33_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster34_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster34_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster34_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster34_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster34_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster35_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster35_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster35_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster35_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster35_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster36_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster36_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster36_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster36_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster36_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster37_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster37_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster37_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster37_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster37_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster38_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster38_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster38_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster38_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster38_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster39_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster39_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster39_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster39_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster39_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster40_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster40_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster40_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster40_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster40_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster41_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster41_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster41_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster41_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster41_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster42_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster42_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster42_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster42_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster43_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster43_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster43_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster43_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster44_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster44_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster44_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster44_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster45_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster45_Reactome_Pathways_2024.tsv
-
-
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster45_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster45_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster46_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster46_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster46_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_findMarkers_upregulated_Cluster46_CellMarker_2024.tsv
 
 
 **On upregulated and downregulated 'Cancer vs. Control' DE genes (from `edgeR`)**
@@ -6239,25 +6205,25 @@ printEnrichR(metadata(combined)[["enrichR_findMarkers_Cluster_up"]],
 
 ```R
 printEnrichR(metadata(combined)[["enrichR_edgeR_Cancer_Control_up"]], 
-             prefix = file.path("Enrichr", paste0(file_id, "_Cancer_Control_edgeR_upregulated")))
+             prefix = file.path("Enrichr", paste0(file_id, "_edgeR_upregulated")))
 ```
 
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_upregulated_Cancer_Control_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_upregulated_Cancer_Control_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_upregulated_Cancer_Control_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_upregulated_Cancer_Control_CellMarker_2024.tsv
+    Creating file: Enrichr/160k_All_edgeR_upregulated_Cancer_Control_GO_Biological_Process_2025.tsv
+    Creating file: Enrichr/160k_All_edgeR_upregulated_Cancer_Control_Reactome_Pathways_2024.tsv
+    Creating file: Enrichr/160k_All_edgeR_upregulated_Cancer_Control_WikiPathways_2024_Human.tsv
+    Creating file: Enrichr/160k_All_edgeR_upregulated_Cancer_Control_CellMarker_2024.tsv
 
 
 
 ```R
 printEnrichR(metadata(combined)[["enrichR_edgeR_Cancer_Control_dn"]], 
-             prefix = file.path("Enrichr", paste0(file_id, "_Cancer_Control_edgeR_downregulated")))
+             prefix = file.path("Enrichr", paste0(file_id, "_edgeR_downregulated")))
 ```
 
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_downregulated_Cancer_Control_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_downregulated_Cancer_Control_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_downregulated_Cancer_Control_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_edgeR_downregulated_Cancer_Control_CellMarker_2024.tsv
+    Creating file: Enrichr/160k_All_edgeR_downregulated_Cancer_Control_GO_Biological_Process_2025.tsv
+    Creating file: Enrichr/160k_All_edgeR_downregulated_Cancer_Control_Reactome_Pathways_2024.tsv
+    Creating file: Enrichr/160k_All_edgeR_downregulated_Cancer_Control_WikiPathways_2024_Human.tsv
+    Creating file: Enrichr/160k_All_edgeR_downregulated_Cancer_Control_CellMarker_2024.tsv
 
 
 **On upregulated and downregulated 'Cancer vs. Control' DE genes (from `DESeq2`)**
@@ -6268,31 +6234,31 @@ printEnrichR(metadata(combined)[["enrichR_DESeq2_Cancer_Control_up"]],
              prefix = file.path("Enrichr", paste0(file_id, "_Cancer_Control_DESeq2_upregulated")))
 ```
 
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD4T_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD4T_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD4T_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD4T_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD4T_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_gdT_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_GO_Biological_Process_2025.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_Reactome_Pathways_2024.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_WikiPathways_2024_Human.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_CD8T_CellMarker_2024.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_gdT_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_gdT_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_gdT_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_gdT_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_NK_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_NK_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_NK_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_NK_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_NK_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_B_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_B_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_B_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_B_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_B_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_Monocytes_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_Monocytes_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_Monocytes_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_Monocytes_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_Monocytes_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_DCs_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_DCs_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_DCs_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_DCs_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_upregulated_DCs_CellMarker_2024.tsv
@@ -6304,31 +6270,31 @@ printEnrichR(metadata(combined)[["enrichR_DESeq2_Cancer_Control_dn"]],
              prefix = file.path("Enrichr", paste0(file_id, "_Cancer_Control_DESeq2_downregulated")))
 ```
 
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_GO_Biological_Process_2023.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_WikiPathways_2024_Human.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD4T_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD4T_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD4T_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD4T_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD4T_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_gdT_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_GO_Biological_Process_2025.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_Reactome_Pathways_2024.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_WikiPathways_2024_Human.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_CD8T_CellMarker_2024.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_gdT_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_gdT_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_gdT_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_gdT_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_NK_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_NK_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_NK_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_NK_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_NK_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_B_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_B_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_B_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_B_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_B_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_Monocytes_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_Monocytes_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_Monocytes_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_Monocytes_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_Monocytes_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_DCs_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_DCs_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_DCs_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_DCs_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_All_Cancer_Control_DESeq2_downregulated_DCs_CellMarker_2024.tsv
@@ -6388,14 +6354,14 @@ combined
 
 
     class: SingleCellExperiment 
-    dim: 18129 48494 
+    dim: 18129 48584 
     metadata(35): Control1_Samples Control1_cyclone ... enrichR_DESeq2_Cancer_Control_dn runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
-    rowData names(5): ID Symbol Type SEQNAME is_mito
-    colnames(48494): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
+    rowData names(6): ID Symbol ... is_mito is_hvg
+    colnames(48584): Control1_AAACAAGCAACAAGTTACTTTAGG-1 Control1_AAACAAGCAACTAGTGACTTTAGG-1 ...
       LungCancer_TTTGTGAGTTGAGTCTAGCTGTGA-1 LungCancer_TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(20): Sample Barcode ... ClusterCellType CellType_2
+    colData names(17): Sample Barcode ... ClusterCellType CellType_2
     reducedDimNames(6): PCA TSNE ... MNN-TSNE MNN-UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -6430,7 +6396,7 @@ paste("Size:", utils:::format.object_size(file.info("combined_h5_sce/assays.h5")
 
 
 
-'Size: 2.4 Gb'
+'Size: 2.2 Gb'
 
 
 # Session Info
@@ -6467,7 +6433,7 @@ sessionInfo()
      [7] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
     [10] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
     [13] viridisLite_0.4.2           scran_1.34.0                scater_1.34.1              
-    [16] scuttle_1.16.0              scales_1.3.0                pheatmap_1.0.12            
+    [16] scuttle_1.16.0              scales_1.4.0                pheatmap_1.0.12            
     [19] ggforce_0.4.2               ggplot2_3.5.2               enrichR_3.4                
     [22] edgeR_4.4.2                 limma_3.62.2                DESeq2_1.46.0              
     [25] cowplot_1.1.3               bluster_1.16.0              BiocParallel_1.40.2        
@@ -6481,28 +6447,28 @@ sessionInfo()
       [5] magrittr_2.0.3            ggbeeswarm_0.7.2          rmarkdown_2.29            farver_2.1.2             
       [9] fs_1.6.6                  GlobalOptions_0.1.2       zlibbioc_1.52.0           vctrs_0.6.5              
      [13] Cairo_1.6-2               DelayedMatrixStats_1.28.1 base64enc_0.1-3           htmltools_0.5.8.1        
-     [17] S4Arrays_1.6.0            curl_6.2.2                Rhdf5lib_1.28.0           gridGraphics_0.5-1       
+     [17] S4Arrays_1.6.0            curl_6.2.3                Rhdf5lib_1.28.0           gridGraphics_0.5-1       
      [21] rhdf5_2.50.2              SparseArray_1.6.2         ResidualMatrix_1.16.0     uuid_1.2-1               
      [25] igraph_2.1.4              lifecycle_1.0.4           iterators_1.0.14          pkgconfig_2.0.3          
      [29] rsvd_1.0.5                Matrix_1.7-3              R6_2.6.1                  fastmap_1.2.0            
      [33] GenomeInfoDbData_1.2.13   clue_0.3-66               digest_0.6.37             colorspace_2.1-1         
-     [37] ggnewscale_0.5.1          dqrng_0.4.1               irlba_2.3.5.1             beachmat_2.22.0          
-     [41] labeling_0.4.3            WriteXLS_6.7.0            timechange_0.3.0          httr_1.4.7               
-     [45] polyclip_1.10-7           abind_1.4-8               compiler_4.4.3            withr_3.0.2              
-     [49] doParallel_1.0.17         maps_3.4.2.1              HDF5Array_1.34.0          MASS_7.3-65              
-     [53] DelayedArray_0.32.0       rjson_0.2.23              gtools_3.9.5              tools_4.4.3              
-     [57] vipor_0.4.7               beeswarm_0.4.0            glmGamPoi_1.18.0          glue_1.8.0               
-     [61] rhdf5filters_1.18.1       Rtsne_0.17                pbdZMQ_0.3-14             cluster_2.1.8.1          
-     [65] generics_0.1.3            gtable_0.3.6              tzdb_0.5.0                hms_1.1.3                
-     [69] xml2_1.3.8                BiocSingular_1.22.0       ScaledMatrix_1.14.0       metapod_1.14.0           
-     [73] XVector_0.46.0            RcppAnnoy_0.0.22          ggrepel_0.9.6             foreach_1.5.2            
-     [77] pillar_1.10.2             yulab.utils_0.2.0         pals_1.10                 IRdisplay_1.1            
-     [81] circlize_0.4.16           tweenr_2.0.3              lattice_0.22-7            tidyselect_1.2.1         
-     [85] ComplexHeatmap_2.22.0     locfit_1.5-9.12           knitr_1.50                gridExtra_2.3            
-     [89] svglite_2.1.3             xfun_0.52                 statmod_1.5.0             stringi_1.8.7            
-     [93] UCSC.utils_1.2.0          evaluate_1.0.3            codetools_0.2-20          ggplotify_0.1.2          
-     [97] cli_3.6.4                 uwot_0.2.3                IRkernel_1.3.2            systemfonts_1.2.2        
-    [101] repr_1.1.7                munsell_0.5.1             dichromat_2.0-0.1         Rcpp_1.0.14              
-    [105] mapproj_1.2.11            png_0.1-8                 parallel_4.4.3            sparseMatrixStats_1.18.0 
+     [37] ggnewscale_0.5.1          dqrng_0.4.1               irlba_2.3.5.1             textshaping_1.0.1        
+     [41] beachmat_2.22.0           labeling_0.4.3            WriteXLS_6.8.0            timechange_0.3.0         
+     [45] httr_1.4.7                polyclip_1.10-7           abind_1.4-8               compiler_4.4.3           
+     [49] withr_3.0.2               doParallel_1.0.17         maps_3.4.3                HDF5Array_1.34.0         
+     [53] MASS_7.3-65               DelayedArray_0.32.0       rjson_0.2.23              gtools_3.9.5             
+     [57] tools_4.4.3               vipor_0.4.7               beeswarm_0.4.0            glmGamPoi_1.18.0         
+     [61] glue_1.8.0                rhdf5filters_1.18.1       Rtsne_0.17                pbdZMQ_0.3-14            
+     [65] cluster_2.1.8.1           generics_0.1.4            gtable_0.3.6              tzdb_0.5.0               
+     [69] hms_1.1.3                 xml2_1.3.8                BiocSingular_1.22.0       ScaledMatrix_1.14.0      
+     [73] metapod_1.14.0            XVector_0.46.0            RcppAnnoy_0.0.22          ggrepel_0.9.6            
+     [77] foreach_1.5.2             pillar_1.10.2             yulab.utils_0.2.0         pals_1.10                
+     [81] IRdisplay_1.1             circlize_0.4.16           tweenr_2.0.3              lattice_0.22-7           
+     [85] tidyselect_1.2.1          ComplexHeatmap_2.22.0     locfit_1.5-9.12           knitr_1.50               
+     [89] gridExtra_2.3             svglite_2.2.1             xfun_0.52                 statmod_1.5.0            
+     [93] stringi_1.8.7             UCSC.utils_1.2.0          evaluate_1.0.3            codetools_0.2-20         
+     [97] ggplotify_0.1.2           cli_3.6.5                 uwot_0.2.3                IRkernel_1.3.2           
+    [101] systemfonts_1.2.3         repr_1.1.7                dichromat_2.0-0.1         Rcpp_1.0.14              
+    [105] mapproj_1.2.12            png_0.1-8                 parallel_4.4.3            sparseMatrixStats_1.18.0 
     [109] crayon_1.5.3              GetoptLong_1.0.5          rlang_1.1.6              
 

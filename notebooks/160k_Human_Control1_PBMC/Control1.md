@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.1</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.2</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -219,7 +219,7 @@ data.frame(ID = c(rep(sample_name, 2)), Type = c("filtered", rep("raw", length(s
 
 ## Load libraries
 
-The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).  
+The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).
 
 Commented line below are packages that are required but we are not loading and attaching them.
 
@@ -4208,17 +4208,17 @@ Change `dbsSel` to remove or include more gene-set libraries in the enrichment a
 
 ```R
 # Human
-dbsSel <- c("GO_Biological_Process_2023", # Ontologies
-#            "GO_Molecular_Function_2023", # Ontologies
-#            "GO_Cellular_Component_2023", # Ontologies
+dbsSel <- c("GO_Biological_Process_2025", # Ontologies
+#            "GO_Molecular_Function_2025", # Ontologies
+#            "GO_Cellular_Component_2025", # Ontologies
             "Reactome_Pathways_2024",     # Pathways
             "WikiPathways_2024_Human",    # Pathways
             "CellMarker_2024")            # Cell types
 
 # Mouse
-#dbsSel <- c("GO_Biological_Process_2023", # Ontologies
-#            "GO_Molecular_Function_2023", # Ontologies
-#            "GO_Cellular_Component_2023", # Ontologies
+#dbsSel <- c("GO_Biological_Process_2025", # Ontologies
+#            "GO_Molecular_Function_2025", # Ontologies
+#            "GO_Cellular_Component_2025", # Ontologies
 #            "Reactome_Pathways_2024",     # Pathways
 #            "WikiPathways_2024_Mouse",    # Pathways
 #            "CellMarker_2024")            # Cell types
@@ -4244,7 +4244,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4255,7 +4255,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4266,7 +4266,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4277,7 +4277,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4288,7 +4288,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4299,7 +4299,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4310,7 +4310,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4321,7 +4321,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4332,7 +4332,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4343,7 +4343,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4354,7 +4354,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4365,7 +4365,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4376,7 +4376,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4387,7 +4387,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4398,7 +4398,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4409,7 +4409,7 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 
     Uploading data to Enrichr... Done.
-      Querying GO_Biological_Process_2023... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying Reactome_Pathways_2024... Done.
       Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
@@ -4418,14 +4418,14 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
 ### Plot enrichR results
 
-Using `GO_Biological_Process_2023` as example.
+Using `GO_Biological_Process_2025` as example.
 
 **On upregulated 'Cluster' marker genes**
 
 
 ```R
 fig(width = 16, height = 5)
-plotEnrichR(metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']], db = "GO_Biological_Process_2023")
+plotEnrichR(metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
@@ -4554,67 +4554,67 @@ printEnrichR(metadata(cdScAnnot)[["enrichR_findMarkers_Cluster_up"]],
              prefix = file.path("Enrichr", paste0(file_id, "_findMarkers_upregulated")))
 ```
 
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_CellMarker_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_GO_Biological_Process_2023.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_GO_Biological_Process_2025.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_Reactome_Pathways_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_CellMarker_2024.tsv
@@ -4795,7 +4795,7 @@ paste("Size:", utils:::format.object_size(file.info(paste0(sample_name, "_h5_sce
 
 
 
-'Size: 613.9 Mb'
+'Size: 613.8 Mb'
 
 
 # Session Info
@@ -4833,7 +4833,7 @@ sessionInfo()
     [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
     [13] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
     [16] viridisLite_0.4.2           SingleR_2.8.0               scran_1.34.0               
-    [19] scater_1.34.1               scuttle_1.16.0              scales_1.3.0               
+    [19] scater_1.34.1               scuttle_1.16.0              scales_1.4.0               
     [22] ggforce_0.4.2               ggplot2_3.5.2               enrichR_3.4                
     [25] DropletUtils_1.26.0         SingleCellExperiment_1.28.1 SummarizedExperiment_1.36.0
     [28] Biobase_2.66.0              GenomicRanges_1.58.0        GenomeInfoDb_1.42.3        
@@ -4845,42 +4845,42 @@ sessionInfo()
     
     loaded via a namespace (and not attached):
       [1] RcppAnnoy_0.0.22          BiocIO_1.16.0             pbdZMQ_0.3-14             bitops_1.0-9             
-      [5] filelock_1.0.3            R.oo_1.27.0               polyclip_1.10-7           XML_3.99-0.18            
+      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.18            
       [9] httr2_1.1.2               lifecycle_1.0.4           scDblFinder_1.20.2        edgeR_4.4.2              
      [13] doParallel_1.0.17         lattice_0.22-7            MASS_7.3-65               alabaster.base_1.6.1     
      [17] magrittr_2.0.3            limma_3.62.2              rmarkdown_2.29            yaml_2.3.10              
      [21] metapod_1.14.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
      [25] zlibbioc_1.52.0           Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17          
-     [29] WriteXLS_6.7.0            tweenr_2.0.3              rappdirs_0.3.3            circlize_0.4.16          
+     [29] WriteXLS_6.8.0            tweenr_2.0.3              rappdirs_0.3.3            circlize_0.4.16          
      [33] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             pheatmap_1.0.12          
-     [37] dqrng_0.4.1               svglite_2.1.3             DelayedMatrixStats_1.28.1 codetools_0.2-20         
+     [37] dqrng_0.4.1               svglite_2.2.1             DelayedMatrixStats_1.28.1 codetools_0.2-20         
      [41] DelayedArray_0.32.0       xml2_1.3.8                tidyselect_1.2.1          shape_1.4.6.1            
      [45] UCSC.utils_1.2.0          farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3          
      [49] GenomicAlignments_1.42.0  jsonlite_2.0.0            GetoptLong_1.0.5          iterators_1.0.14         
-     [53] systemfonts_1.2.2         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.1         
+     [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.1         
      [57] Rcpp_1.0.14               glue_1.8.0                gridExtra_2.3             SparseArray_1.6.2        
      [61] xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0              HDF5Array_1.34.0         
      [65] withr_3.0.2               BiocManager_1.30.25       fastmap_1.2.0             rhdf5filters_1.18.1      
      [69] digest_0.6.37             rsvd_1.0.5                timechange_0.3.0          R6_2.6.1                 
-     [73] mime_0.13                 colorspace_2.1-1          Cairo_1.6-2               gtools_3.9.5             
-     [77] RSQLite_2.3.9             R.methodsS3_1.8.2         celldex_1.16.0            utf8_1.2.4               
-     [81] generics_0.1.3            data.table_1.17.0         rtracklayer_1.66.0        httr_1.4.7               
-     [85] S4Arrays_1.6.0            uwot_0.2.3                pkgconfig_2.0.3           gtable_0.3.6             
-     [89] blob_1.2.4                ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1        
-     [93] ProtGenerics_1.38.0       clue_0.3-66               alabaster.matrix_1.6.1    png_0.1-8                
-     [97] knitr_1.50                rstudioapi_0.17.1         tzdb_0.5.0                rjson_0.2.23             
-    [101] uuid_1.2-1                curl_6.2.2                repr_1.1.7                cachem_1.1.0             
-    [105] rhdf5_2.50.2              GlobalOptions_0.1.2       BiocVersion_3.20.0        parallel_4.4.3           
-    [109] vipor_0.4.7               restfulr_0.0.15           alabaster.schemas_1.6.0   pillar_1.10.2            
-    [113] vctrs_0.6.5               BiocSingular_1.22.0       beachmat_2.22.0           cluster_2.1.8.1          
-    [117] beeswarm_0.4.0            evaluate_1.0.3            Rsamtools_2.22.0          cli_3.6.4                
-    [121] locfit_1.5-9.12           compiler_4.4.3            rlang_1.1.6               crayon_1.5.3             
-    [125] labeling_0.4.3            plyr_1.8.9                ggbeeswarm_0.7.2          stringi_1.8.7            
-    [129] alabaster.se_1.6.0        munsell_0.5.1             Biostrings_2.74.1         lazyeval_0.2.2           
-    [133] Matrix_1.7-3              ExperimentHub_2.14.0      IRkernel_1.3.2            hms_1.1.3                
-    [137] sparseMatrixStats_1.18.0  bit64_4.6.0-1             Rhdf5lib_1.28.0           KEGGREST_1.46.0          
-    [141] statmod_1.5.0             alabaster.ranges_1.6.0    igraph_2.1.4              memoise_2.0.1            
-    [145] xgboost_1.7.10.1          bit_4.6.0                
+     [73] mime_0.13                 textshaping_1.0.1         colorspace_2.1-1          Cairo_1.6-2              
+     [77] gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.3.11            R.methodsS3_1.8.2        
+     [81] celldex_1.16.0            utf8_1.2.5                generics_0.1.4            data.table_1.17.4        
+     [85] rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0            uwot_0.2.3               
+     [89] pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4                ComplexHeatmap_2.22.0    
+     [93] XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0       clue_0.3-66              
+     [97] alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50                rstudioapi_0.17.1        
+    [101] tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1                curl_6.2.3               
+    [105] repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2              GlobalOptions_0.1.2      
+    [109] BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7               restfulr_0.0.15          
+    [113] alabaster.schemas_1.6.0   pillar_1.10.2             vctrs_0.6.5               BiocSingular_1.22.0      
+    [117] beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0            evaluate_1.0.3           
+    [121] Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12           compiler_4.4.3           
+    [125] rlang_1.1.6               crayon_1.5.3              labeling_0.4.3            plyr_1.8.9               
+    [129] ggbeeswarm_0.7.2          stringi_1.8.7             alabaster.se_1.6.0        Biostrings_2.74.1        
+    [133] lazyeval_0.2.2            Matrix_1.7-3              ExperimentHub_2.14.0      IRkernel_1.3.2           
+    [137] hms_1.1.3                 sparseMatrixStats_1.18.0  bit64_4.6.0-1             Rhdf5lib_1.28.0          
+    [141] KEGGREST_1.46.0           statmod_1.5.0             alabaster.ranges_1.6.0    igraph_2.1.4             
+    [145] memoise_2.0.1             xgboost_1.7.11.1          bit_4.6.0                
 
 
 # References
