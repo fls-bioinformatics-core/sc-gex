@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.0.2</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.0.3</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -13,6 +13,8 @@
 9. [DE analysis between conditions](#9---DE-analysis-between-conditions)
 10. [DE analysis between conditions in each cluster/cell type](#10---DE-analysis-between-conditions-in-each-cluster/cell-type)
 11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
+
+<span style="font-size:12px; font-style:italic">Workflow and Shiny App GitHub: https://github.com/fls-bioinformatics-core/sc-gex</span>
 
 # Project summary
 
@@ -971,8 +973,6 @@ c_cond_col
 
 
 
-Create a `dgCMatrix` logcounts matrix for faster computation in some steps.
-
 ### Run `multiBatchPCA` on the *uncorrected* `logcounts` matrix
 
 The `multiBatchPCA` function perform a principal components analysis across multiple gene expression matrices (i.e. batches) to project all cells to a common low-dimensional space. Default to `d = 50` dimensions.
@@ -1039,7 +1039,7 @@ as.data.frame(percentVar) %>% rownames_to_column("PC") %>% mutate(PC = as.numeri
 
 
     
-![png](Integrated_files/Integrated_49_0.png)
+![png](Integrated_files/Integrated_48_0.png)
     
 
 
@@ -1094,7 +1094,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_55_0.png)
+![png](Integrated_files/Integrated_54_0.png)
     
 
 
@@ -1109,7 +1109,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_56_0.png)
+![png](Integrated_files/Integrated_55_0.png)
     
 
 
@@ -1312,7 +1312,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_73_0.png)
+![png](Integrated_files/Integrated_72_0.png)
     
 
 
@@ -1327,7 +1327,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_74_0.png)
+![png](Integrated_files/Integrated_73_0.png)
     
 
 
@@ -1351,7 +1351,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_77_0.png)
+![png](Integrated_files/Integrated_76_0.png)
     
 
 
@@ -1366,7 +1366,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_78_0.png)
+![png](Integrated_files/Integrated_77_0.png)
     
 
 
@@ -1388,7 +1388,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_80_0.png)
+![png](Integrated_files/Integrated_79_0.png)
     
 
 
@@ -1407,7 +1407,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_82_0.png)
+![png](Integrated_files/Integrated_81_0.png)
     
 
 
@@ -1514,7 +1514,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_90_0.png)
+![png](Integrated_files/Integrated_89_0.png)
     
 
 
@@ -1599,7 +1599,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_94_0.png)
+![png](Integrated_files/Integrated_93_0.png)
     
 
 
@@ -1705,35 +1705,14 @@ p2 <- plotProjections(combined, "first.pass", dimnames = c("MNN-TSNE", "MNN-UMAP
                       feat_color = c30(), text_by = "first.pass", point_size = 0.1, point_alpha = 0.1,
                       guides_size = 4)
 
-fig(width = 16, height = 15)    
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Integrated_files/Integrated_103_0.png)
-    
-
-
-
-```R
-p1 <- plotProjections(combined, "CellType", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Cell Type", 
-                      feat_color = c_celltype_col, text_by = "first.pass", point_size = 0.1, point_alpha = 0.1, 
-                      legend_pos = "none", add_void = TRUE)
-
-p2 <- plotProjections(combined, "first.pass", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = method, 
-                      feat_color = c30(), text_by = "first.pass", point_size = 0.1, point_alpha = 0.1,
-                      guides_size = 4)
-
-fig(width = 16, height = 15)    
-plot_grid(p1, p2, ncol = 1)
-reset.fig()
-```
-
-
-    
-![png](Integrated_files/Integrated_104_0.png)
+![png](Integrated_files/Integrated_102_0.png)
     
 
 
@@ -1791,7 +1770,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_107_1.png)
+![png](Integrated_files/Integrated_105_1.png)
     
 
 
@@ -1835,7 +1814,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_109_1.png)
+![png](Integrated_files/Integrated_107_1.png)
     
 
 
@@ -1879,7 +1858,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_111_1.png)
+![png](Integrated_files/Integrated_109_1.png)
     
 
 
@@ -1982,7 +1961,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_117_0.png)
+![png](Integrated_files/Integrated_115_0.png)
     
 
 
@@ -2070,7 +2049,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_123_0.png)
+![png](Integrated_files/Integrated_121_0.png)
     
 
 
@@ -2158,7 +2137,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_129_0.png)
+![png](Integrated_files/Integrated_127_0.png)
     
 
 
@@ -2200,7 +2179,8 @@ colLabels(combined) <- factor(colLabels(combined), levels = gtools::mixedsort(le
 ```R
 # Set colours for cell clusters
 c_clust_col <- choosePalette(colLabels(combined), 
-                             pals::kovesi.rainbow_bgyrm_35_85_c69(nlevels(colLabels(combined)))) # more than 40 clusters
+                             # more than 40 clusters
+                             pals::kovesi.rainbow_bgyrm_35_85_c69(nlevels(colLabels(combined))))
 ```
 
 ### Print number and percentage of cells
@@ -2242,7 +2222,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_137_0.png)
+![png](Integrated_files/Integrated_135_0.png)
     
 
 
@@ -2259,7 +2239,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_138_0.png)
+![png](Integrated_files/Integrated_136_0.png)
     
 
 
@@ -2281,7 +2261,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_140_0.png)
+![png](Integrated_files/Integrated_138_0.png)
     
 
 
@@ -2300,7 +2280,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_141_0.png)
+![png](Integrated_files/Integrated_139_0.png)
     
 
 
@@ -2316,7 +2296,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_142_0.png)
+![png](Integrated_files/Integrated_140_0.png)
     
 
 
@@ -2335,7 +2315,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_143_1.png)
+![png](Integrated_files/Integrated_141_1.png)
     
 
 
@@ -2351,7 +2331,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_144_0.png)
+![png](Integrated_files/Integrated_142_0.png)
     
 
 
@@ -2370,7 +2350,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_145_1.png)
+![png](Integrated_files/Integrated_143_1.png)
     
 
 
@@ -2386,7 +2366,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_146_0.png)
+![png](Integrated_files/Integrated_144_0.png)
     
 
 
@@ -2405,7 +2385,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_147_1.png)
+![png](Integrated_files/Integrated_145_1.png)
     
 
 
@@ -2421,7 +2401,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_148_0.png)
+![png](Integrated_files/Integrated_146_0.png)
     
 
 
@@ -2493,7 +2473,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_150_0.png)
+![png](Integrated_files/Integrated_148_0.png)
     
 
 
@@ -2512,7 +2492,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_151_0.png)
+![png](Integrated_files/Integrated_149_0.png)
     
 
 
@@ -2540,7 +2520,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_153_0.png)
+![png](Integrated_files/Integrated_151_0.png)
     
 
 
@@ -2811,7 +2791,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_168_1.png)
+![png](Integrated_files/Integrated_166_1.png)
     
 
 
@@ -2834,7 +2814,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_169_0.png)
+![png](Integrated_files/Integrated_167_0.png)
     
 
 
@@ -2942,7 +2922,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_174_0.png)
+![png](Integrated_files/Integrated_172_0.png)
     
 
 
@@ -2959,7 +2939,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_175_0.png)
+![png](Integrated_files/Integrated_173_0.png)
     
 
 
@@ -2976,7 +2956,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_176_0.png)
+![png](Integrated_files/Integrated_174_0.png)
     
 
 
@@ -3071,7 +3051,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_180_0.png)
+![png](Integrated_files/Integrated_178_0.png)
     
 
 
@@ -3087,7 +3067,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_181_0.png)
+![png](Integrated_files/Integrated_179_0.png)
     
 
 
@@ -3104,7 +3084,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_182_0.png)
+![png](Integrated_files/Integrated_180_0.png)
     
 
 
@@ -3604,7 +3584,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_204_0.png)
+![png](Integrated_files/Integrated_202_0.png)
     
 
 
@@ -3708,13 +3688,13 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_209_0.png)
+![png](Integrated_files/Integrated_207_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_209_1.png)
+![png](Integrated_files/Integrated_207_1.png)
     
 
 
@@ -3740,7 +3720,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_210_1.png)
+![png](Integrated_files/Integrated_208_1.png)
     
 
 
@@ -3814,13 +3794,13 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_213_0.png)
+![png](Integrated_files/Integrated_211_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_213_1.png)
+![png](Integrated_files/Integrated_211_1.png)
     
 
 
@@ -3846,7 +3826,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_214_1.png)
+![png](Integrated_files/Integrated_212_1.png)
     
 
 
@@ -3869,7 +3849,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_215_0.png)
+![png](Integrated_files/Integrated_213_0.png)
     
 
 
@@ -3975,7 +3955,7 @@ We sum counts together from cells with the same combination of selected features
 
 
 ```R
-summed <- aggregateAcrossCells(kept, id = colData(kept)[,c("Sample","condition","CellType_1")], BPPARAM = bpp)
+summed <- aggregateAcrossCells(kept, id = colData(kept)[,c("Sample","CellType_1")], BPPARAM = bpp)
 colData(summed) <- droplevels(colData(summed))
 sizeFactors(summed) <- NULL
 summed <- logNormCounts(summed) # Add logcounts
@@ -3990,7 +3970,7 @@ summed
     rownames(15919): SAMD11 NOC2L ... MT-ND6 MT-CYB
     rowData names(6): ID Symbol ... is_mito is_hvg
     colnames: NULL
-    colData names(21): Sample Barcode ... ncells sizeFactor
+    colData names(20): Sample Barcode ... ncells sizeFactor
     reducedDimNames(6): PCA TSNE ... MNN-TSNE MNN-UMAP
     mainExpName: Gene Expression
     altExpNames(0):
@@ -4023,7 +4003,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_225_0.png)
+![png](Integrated_files/Integrated_223_0.png)
     
 
 
@@ -4147,7 +4127,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_235_0.png)
+![png](Integrated_files/Integrated_233_0.png)
     
 
 
@@ -4171,7 +4151,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_237_1.png)
+![png](Integrated_files/Integrated_235_1.png)
     
 
 
@@ -4190,7 +4170,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_239_0.png)
+![png](Integrated_files/Integrated_237_0.png)
     
 
 
@@ -4327,7 +4307,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_248_0.png)
+![png](Integrated_files/Integrated_246_0.png)
     
 
 
@@ -4355,7 +4335,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_250_1.png)
+![png](Integrated_files/Integrated_248_1.png)
     
 
 
@@ -4410,8 +4390,8 @@ reduced <- ~ 1 # reduced model
 outputRes <- function(dds, test = "condition", ref = NULL, old_ref = NULL) {
     # Build results tables
     res <- list()
-    freq <- data.frame(table(dds$condition))
-    ref <- if(is.null(ref)) levels(dds$condition)[1] else ref
+    freq <- data.frame(table(colData(dds)[,test]))
+    ref <- if(is.null(ref)) levels(colData(dds)[,test])[1] else ref
     t <- NULL
     for(j in resultsNames(dds)) {
         if(grepl(test, j)) {
@@ -4484,14 +4464,14 @@ for(i in levels(kept$CellType_1)) {
     # Build results tables
     res[[i]] <- outputRes(dds[[i]], test = test, ref = levels(colData(dds[[i]])[,test])[1])
     
-    # Relevel to get final comparison
-    if(nlevels(colData(dds[[i]])[,test]) == 3) {
-        colData(dds[[i]])[,test] <- relevel(colData(dds[[i]])[,test], ref = levels(colData(dds[[i]])[,test])[2])
-        dds[[i]] <- nbinomLRT(dds[[i]], minmu = 1e-6, type = "glmGamPoi", reduced = reduced, quiet = TRUE)
-        res[[i]] <- c(res[[i]], outputRes(dds[[i]], test = test,
-                                          ref = levels(colData(dds[[i]])[,test])[1], 
-                                          old_ref = levels(colData(tmp[[i]])[,test])[1]))
-    }
+    # Use relevel to change ref to get all possible comparisons when nlevels is 3.
+    #if(nlevels(colData(dds[[i]])[,test]) == 3) {
+    #    colData(dds[[i]])[,test] <- relevel(colData(dds[[i]])[,test], ref = levels(colData(dds[[i]])[,test])[2])
+    #    dds[[i]] <- nbinomLRT(dds[[i]], minmu = 1e-6, type = "glmGamPoi", reduced = reduced, quiet = TRUE)
+    #    res[[i]] <- c(res[[i]], outputRes(dds[[i]], test = test,
+    #                                      ref = levels(colData(dds[[i]])[,test])[1], 
+    #                                      old_ref = levels(colData(tmp[[i]])[,test])[1]))
+    #}
     flush.console()
 }
 ```
@@ -4746,7 +4726,10 @@ names(res)
 
 
 ```R
-metadata(combined)[["DESeq2_Cancer_Control"]] <- purrr::map(res, "Cancer_vs_Control")
+# Use purrr::map to retrieve element in list with the specified second-layer element name
+# Use purrr::compact to remove empty list elements
+# Note: duplicate and update accordingly if you have more second-layer element names to store in `metadata`
+metadata(combined)[["DESeq2_Cancer_Control"]] <- purrr::compact(purrr::map(res, "Cancer_vs_Control"))
 ```
 
 ## Visualise MA-plot
@@ -4759,7 +4742,7 @@ The function `plotMA` shows the log2 fold changes attributable to a given variab
 
 
 ```R
-tmp <- purrr::map(res, "Cancer_vs_Control") # all levels have same pvalue/padj in LRT
+tmp <- metadata(combined)[["DESeq2_Cancer_Control"]] # all levels have same pvalue/padj in LRT
 ```
 
 
@@ -4785,7 +4768,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_263_0.png)
+![png](Integrated_files/Integrated_261_0.png)
     
 
 
@@ -4798,7 +4781,7 @@ Show top N genes with `baseMean` > `minexp`.
 </div>
 
 <div class="alert alert-warning">
-    In the example below, we group cells and compare between conditions in each <b>coarse cell type</b>, i.e. <code>CellType_1</code>.
+    In the example below, we group cells and compare between conditions in each <b>coarse cell type</b>, i.e. <code>CellType_1</code>, as how the DEA was performed above.
 </div>
 
 
@@ -4808,7 +4791,7 @@ nTop <- 10
 
 fig(width = 16, height = 6)
 for(i in names(tmp)) {
-    g <- if(is.numeric(i)) paste("Cluster", i) else i
+    g <- if(grepl("^[[:digit:]]+$", i)) paste("Cluster", i) else i
     df <- as.data.frame(tmp[[i]]) %>% arrange(padj, pvalue) %>% filter(padj < padj_cutoff & baseMean > minexp)
     if(nrow(df) < 1) {
         message(sprintf("There is no DE genes that passed the defined thresholds in '%s'.", g))
@@ -4831,43 +4814,43 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_265_0.png)
+![png](Integrated_files/Integrated_263_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_1.png)
+![png](Integrated_files/Integrated_263_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_2.png)
+![png](Integrated_files/Integrated_263_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_3.png)
+![png](Integrated_files/Integrated_263_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_4.png)
+![png](Integrated_files/Integrated_263_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_5.png)
+![png](Integrated_files/Integrated_263_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_265_6.png)
+![png](Integrated_files/Integrated_263_6.png)
     
 
 
@@ -4889,7 +4872,7 @@ print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
 ```
 
-    [1] "Number of available databases from Enrichr: 247"
+    [1] "Number of available databases from Enrichr: 216"
 
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
@@ -5623,113 +5606,85 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_279_0.png)
+![png](Integrated_files/Integrated_277_0.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_1.png)
+![png](Integrated_files/Integrated_277_1.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_2.png)
+![png](Integrated_files/Integrated_277_2.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_3.png)
+![png](Integrated_files/Integrated_277_3.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_4.png)
+![png](Integrated_files/Integrated_277_4.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_5.png)
+![png](Integrated_files/Integrated_277_5.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_6.png)
+![png](Integrated_files/Integrated_277_6.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_7.png)
+![png](Integrated_files/Integrated_277_7.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_8.png)
+![png](Integrated_files/Integrated_277_8.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_9.png)
+![png](Integrated_files/Integrated_277_9.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_10.png)
+![png](Integrated_files/Integrated_277_10.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_11.png)
+![png](Integrated_files/Integrated_277_11.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_12.png)
+![png](Integrated_files/Integrated_277_12.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_13.png)
-    
-
-
-    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
-    “There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting.”
-
-
-
-    
-![png](Integrated_files/Integrated_279_15.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_16.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_17.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_18.png)
+![png](Integrated_files/Integrated_277_13.png)
     
 
 
@@ -5739,127 +5694,25 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_279_20.png)
+![png](Integrated_files/Integrated_277_15.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_21.png)
+![png](Integrated_files/Integrated_277_16.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_22.png)
+![png](Integrated_files/Integrated_277_17.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_23.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_24.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_25.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_26.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_27.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_28.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_29.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_30.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_31.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_32.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_33.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_34.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_35.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_36.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_37.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_38.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_39.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_279_40.png)
+![png](Integrated_files/Integrated_277_18.png)
     
 
 
@@ -5869,13 +5722,143 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_279_42.png)
+![png](Integrated_files/Integrated_277_20.png)
     
 
 
 
     
-![png](Integrated_files/Integrated_279_43.png)
+![png](Integrated_files/Integrated_277_21.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_22.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_23.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_24.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_25.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_26.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_27.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_28.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_29.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_30.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_31.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_32.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_33.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_34.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_35.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_36.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_37.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_38.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_39.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_40.png)
+    
+
+
+    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
+    “There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting.”
+
+
+
+    
+![png](Integrated_files/Integrated_277_42.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_277_43.png)
     
 
 
@@ -5894,7 +5877,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_281_1.png)
+![png](Integrated_files/Integrated_279_1.png)
     
 
 
@@ -5909,7 +5892,7 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_283_0.png)
+![png](Integrated_files/Integrated_281_0.png)
     
 
 
@@ -5919,6 +5902,57 @@ reset.fig()
 ```R
 fig(width = 16, height = 5)
 plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_up']], db = "GO_Biological_Process_2025")
+reset.fig()
+```
+
+
+    
+![png](Integrated_files/Integrated_283_0.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_1.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_2.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_3.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_4.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_5.png)
+    
+
+
+
+    
+![png](Integrated_files/Integrated_283_6.png)
+    
+
+
+**On downregulated 'Cancer vs. Control' DE genes (from `DESeq2`)**
+
+
+```R
+fig(width = 16, height = 5)
+plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']], db = "GO_Biological_Process_2025")
 reset.fig()
 ```
 
@@ -5961,57 +5995,6 @@ reset.fig()
 
     
 ![png](Integrated_files/Integrated_285_6.png)
-    
-
-
-**On downregulated 'Cancer vs. Control' DE genes (from `DESeq2`)**
-
-
-```R
-fig(width = 16, height = 5)
-plotEnrichR(metadata(combined)[['enrichR_DESeq2_Cancer_Control_dn']], db = "GO_Biological_Process_2025")
-reset.fig()
-```
-
-
-    
-![png](Integrated_files/Integrated_287_0.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_1.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_2.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_3.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_4.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_5.png)
-    
-
-
-
-    
-![png](Integrated_files/Integrated_287_6.png)
     
 
 
@@ -6376,8 +6359,6 @@ combined
 # reducedDim(combined, "PCA") <- NULL
 # For example, this removed "MNN" from the reducedDims slot
 # reducedDim(combined, "MNN") <- NULL
-# For example, this removed "reconstructed" from the assays slot
-# assay(combined, "reconstructed") <- NULL
 ```
 
 
@@ -6430,11 +6411,11 @@ sessionInfo()
     other attached packages:
      [1] kableExtra_1.4.0            lubridate_1.9.4             forcats_1.0.0              
      [4] stringr_1.5.1               dplyr_1.1.4                 purrr_1.0.4                
-     [7] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
+     [7] readr_2.1.5                 tidyr_1.3.1                 tibble_3.3.0               
     [10] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
     [13] viridisLite_0.4.2           scran_1.34.0                scater_1.34.1              
-    [16] scuttle_1.16.0              scales_1.4.0                pheatmap_1.0.12            
-    [19] ggforce_0.4.2               ggplot2_3.5.2               enrichR_3.4                
+    [16] scuttle_1.16.0              scales_1.4.0                pheatmap_1.0.13            
+    [19] ggforce_0.5.0               ggplot2_3.5.2               enrichR_3.4                
     [22] edgeR_4.4.2                 limma_3.62.2                DESeq2_1.46.0              
     [25] cowplot_1.1.3               bluster_1.16.0              BiocParallel_1.40.2        
     [28] BiocNeighbors_2.0.1         batchelor_1.22.0            SingleCellExperiment_1.28.1
@@ -6443,32 +6424,32 @@ sessionInfo()
     [37] BiocGenerics_0.52.0         MatrixGenerics_1.18.1       matrixStats_1.5.0          
     
     loaded via a namespace (and not attached):
-      [1] RColorBrewer_1.1-3        rstudioapi_0.17.1         jsonlite_2.0.0            shape_1.4.6.1            
-      [5] magrittr_2.0.3            ggbeeswarm_0.7.2          rmarkdown_2.29            farver_2.1.2             
-      [9] fs_1.6.6                  GlobalOptions_0.1.2       zlibbioc_1.52.0           vctrs_0.6.5              
-     [13] Cairo_1.6-2               DelayedMatrixStats_1.28.1 base64enc_0.1-3           htmltools_0.5.8.1        
-     [17] S4Arrays_1.6.0            curl_6.2.3                Rhdf5lib_1.28.0           gridGraphics_0.5-1       
-     [21] rhdf5_2.50.2              SparseArray_1.6.2         ResidualMatrix_1.16.0     uuid_1.2-1               
-     [25] igraph_2.1.4              lifecycle_1.0.4           iterators_1.0.14          pkgconfig_2.0.3          
-     [29] rsvd_1.0.5                Matrix_1.7-3              R6_2.6.1                  fastmap_1.2.0            
-     [33] GenomeInfoDbData_1.2.13   clue_0.3-66               digest_0.6.37             colorspace_2.1-1         
-     [37] ggnewscale_0.5.1          dqrng_0.4.1               irlba_2.3.5.1             textshaping_1.0.1        
-     [41] beachmat_2.22.0           labeling_0.4.3            WriteXLS_6.8.0            timechange_0.3.0         
-     [45] httr_1.4.7                polyclip_1.10-7           abind_1.4-8               compiler_4.4.3           
-     [49] withr_3.0.2               doParallel_1.0.17         maps_3.4.3                HDF5Array_1.34.0         
-     [53] MASS_7.3-65               DelayedArray_0.32.0       rjson_0.2.23              gtools_3.9.5             
-     [57] tools_4.4.3               vipor_0.4.7               beeswarm_0.4.0            glmGamPoi_1.18.0         
-     [61] glue_1.8.0                rhdf5filters_1.18.1       Rtsne_0.17                pbdZMQ_0.3-14            
-     [65] cluster_2.1.8.1           generics_0.1.4            gtable_0.3.6              tzdb_0.5.0               
-     [69] hms_1.1.3                 xml2_1.3.8                BiocSingular_1.22.0       ScaledMatrix_1.14.0      
-     [73] metapod_1.14.0            XVector_0.46.0            RcppAnnoy_0.0.22          ggrepel_0.9.6            
-     [77] foreach_1.5.2             pillar_1.10.2             yulab.utils_0.2.0         pals_1.10                
-     [81] IRdisplay_1.1             circlize_0.4.16           tweenr_2.0.3              lattice_0.22-7           
-     [85] tidyselect_1.2.1          ComplexHeatmap_2.22.0     locfit_1.5-9.12           knitr_1.50               
-     [89] gridExtra_2.3             svglite_2.2.1             xfun_0.52                 statmod_1.5.0            
-     [93] stringi_1.8.7             UCSC.utils_1.2.0          evaluate_1.0.3            codetools_0.2-20         
-     [97] ggplotify_0.1.2           cli_3.6.5                 uwot_0.2.3                IRkernel_1.3.2           
-    [101] systemfonts_1.2.3         repr_1.1.7                dichromat_2.0-0.1         Rcpp_1.0.14              
-    [105] mapproj_1.2.12            png_0.1-8                 parallel_4.4.3            sparseMatrixStats_1.18.0 
-    [109] crayon_1.5.3              GetoptLong_1.0.5          rlang_1.1.6              
+      [1] RcppAnnoy_0.0.22          pbdZMQ_0.3-14             ggplotify_0.1.2           polyclip_1.10-7          
+      [5] lifecycle_1.0.4           doParallel_1.0.17         lattice_0.22-7            pals_1.10                
+      [9] MASS_7.3-65               magrittr_2.0.3            rmarkdown_2.29            metapod_1.14.0           
+     [13] glmGamPoi_1.18.0          mapproj_1.2.12            RColorBrewer_1.1-3        ResidualMatrix_1.16.0    
+     [17] maps_3.4.3                abind_1.4-8               zlibbioc_1.52.0           Rtsne_0.17               
+     [21] yulab.utils_0.2.0         WriteXLS_6.8.0            tweenr_2.0.3              circlize_0.4.16          
+     [25] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             dqrng_0.4.1              
+     [29] svglite_2.2.1             DelayedMatrixStats_1.28.1 codetools_0.2-20          DelayedArray_0.32.0      
+     [33] xml2_1.3.8                tidyselect_1.2.1          shape_1.4.6.1             UCSC.utils_1.2.0         
+     [37] farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3           jsonlite_2.0.0           
+     [41] GetoptLong_1.0.5          iterators_1.0.14          systemfonts_1.2.3         foreach_1.5.2            
+     [45] tools_4.4.3               ggnewscale_0.5.2          ragg_1.4.0                Rcpp_1.0.14              
+     [49] glue_1.8.0                gridExtra_2.3             SparseArray_1.6.2         xfun_0.52                
+     [53] IRdisplay_1.1             HDF5Array_1.34.0          withr_3.0.2               fastmap_1.2.0            
+     [57] rhdf5filters_1.18.1       digest_0.6.37             rsvd_1.0.5                timechange_0.3.0         
+     [61] R6_2.6.1                  gridGraphics_0.5-1        textshaping_1.0.1         colorspace_2.1-1         
+     [65] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         generics_0.1.4           
+     [69] httr_1.4.7                S4Arrays_1.6.0            uwot_0.2.3                pkgconfig_2.0.3          
+     [73] gtable_0.3.6              ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1        
+     [77] clue_0.3-66               png_0.1-8                 knitr_1.50                rstudioapi_0.17.1        
+     [81] tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1                curl_6.4.0               
+     [85] repr_1.1.7                rhdf5_2.50.2              GlobalOptions_0.1.2       parallel_4.4.3           
+     [89] vipor_0.4.7               pillar_1.10.2             vctrs_0.6.5               BiocSingular_1.22.0      
+     [93] beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0            evaluate_1.0.4           
+     [97] cli_3.6.5                 locfit_1.5-9.12           compiler_4.4.3            rlang_1.1.6              
+    [101] crayon_1.5.3              labeling_0.4.3            fs_1.6.6                  ggbeeswarm_0.7.2         
+    [105] stringi_1.8.7             Matrix_1.7-3              IRkernel_1.3.2            hms_1.1.3                
+    [109] sparseMatrixStats_1.18.0  Rhdf5lib_1.28.0           statmod_1.5.0             igraph_2.1.4             
 
