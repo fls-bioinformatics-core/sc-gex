@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.2</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.3</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -14,6 +14,8 @@
 10. [Marker gene detection](#10---Marker-gene-detection)
 11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
 12. [Doublet detection](#12---Doublet-detection)
+
+<span style="font-size:12px; font-style:italic">Workflow and Shiny App GitHub: https://github.com/fls-bioinformatics-core/sc-gex</span>
 
 # Project summary
 
@@ -2421,8 +2423,8 @@ set.seed(12345)
 cdScAnnot <- runTSNE(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "TSNE", n_threads = nthreads, BPPARAM = bpp)
 
 fig(width = 8, height = 8)
-plotProjection(cdScAnnot, "Sample", dimname = "TSNE", feat_color = c_sample_col, point_alpha = 0.3, 
-               legend_pos = "none")
+plotProjection(cdScAnnot, "Sample", dimname = "TSNE", feat_color = c_sample_col, 
+               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
 reset.fig()
 ```
 
@@ -2473,8 +2475,8 @@ cdScAnnot <- runUMAP(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "UMAP",
                      n_neighbors = 20, spread = 1, min_dist = 0.1, n_threads = nthreads, BPPARAM = bpp)
 
 fig(width = 8, height = 8)
-plotProjection(cdScAnnot, "Sample", dimname = "UMAP", feat_color = c_sample_col, point_alpha = 0.3, 
-               legend_pos = "none")
+plotProjection(cdScAnnot, "Sample", dimname = "UMAP", feat_color = c_sample_col, 
+               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
 reset.fig()
 ```
 
@@ -2660,7 +2662,7 @@ table("BlueprintEncodeData" = singler.bp$labels)
 ```R
 fig(width = 9, height = 7)
 plotProjection(cdScAnnot, singler.bp$labels, dimname = "TSNE", feat_desc = "BlueprintEncodeData", 
-               feat_color = c40(), point_size = 1, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2685,7 +2687,7 @@ table("HumanPrimaryCellAtlasData" = singler.hpca$labels)
 ```R
 fig(width = 9, height = 7)
 plotProjection(cdScAnnot, singler.hpca$labels, dimname = "TSNE", feat_desc = "HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 1, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2711,7 +2713,7 @@ table("BlueprintEncodeData + HumanPrimaryCellAtlasData" = singler$labels)
 fig(width = 9, height = 7)
 plotProjection(cdScAnnot, singler$labels, dimname = "TSNE", 
                feat_desc = "BlueprintEncodeData + HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 1, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2822,7 +2824,8 @@ c_celltype_col <- choosePalette(cdScAnnot$CellType, c40)
 ```R
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
 reset.fig()
 ```
 
@@ -3016,12 +3019,12 @@ We add the cluster assignments back into the `sce` object as a factor in the col
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, 
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), text_by = my.clusters[[method]][[dimname]], 
-                      guides_size = 4, guides_ncol = 1)
+                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
 fig(width = 16, height = 14)
 plot_grid(p1, p2, ncol = 1)
@@ -3124,12 +3127,12 @@ reset.fig()
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, 
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), text_by = my.clusters[[method]][[dimname]], 
-                      guides_size = 4, guides_ncol = 1)
+                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
 fig(width = 16, height = 14)
 plot_grid(p1, p2, ncol = 1)
@@ -3233,12 +3236,12 @@ reset.fig()
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, 
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), text_by = my.clusters[[method]][[dimname]], 
-                      guides_size = 4, guides_ncol = 1)
+                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
 fig(width = 16, height = 14)
 plot_grid(p1, p2, ncol = 1)
@@ -3375,7 +3378,7 @@ reset.fig()
 ```R
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, "label", dimnames = c("TSNE", "UMAP"), feat_desc = "Cluster", 
-                feat_color = c_clust_col, text_by = "label", guides_size = 4)
+                feat_color = c_clust_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
@@ -3389,7 +3392,7 @@ reset.fig()
 ```R
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, "CellCycle", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Cycle Phases", 
-                feat_color = c_phase_col, text_by = "label", guides_size = 4)
+                feat_color = c_phase_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
@@ -3409,8 +3412,8 @@ bk <- round(bk, 2)
 
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, "log10Sum", dimnames = c("TSNE", "UMAP"), feat_desc = "log10(Sum)", 
-                feat_color = rev(rainbow(5)), color_breaks = bk, text_by = "label", guides_barheight = 10, 
-                rel_widths = c(8, 1))
+                feat_color = rev(rainbow(5)), color_breaks = bk, point_size = 0.5, point_alpha = 0.3, 
+                text_by = "label", guides_barheight = 10, rel_widths = c(8, 1))
 reset.fig()
 ```
 
@@ -3424,8 +3427,8 @@ reset.fig()
 ```R
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, text_by = "label", guides_size = 4, guides_ncol = 1, 
-                rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
 reset.fig()
 ```
 
@@ -4176,7 +4179,7 @@ print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
 ```
 
-    [1] "Number of available databases from Enrichr: 240"
+    [1] "Number of available databases from Enrichr: 216"
 
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
@@ -4639,7 +4642,7 @@ reset.fig()
 fig(width = 16, height = 7)
 plotProjections(cdScAnnot, log1p(dbl.dens), dimnames = c("TSNE", "UMAP"), 
                 feat_desc = "Doublet Score (log1p)", feat_color = plasma(256, direction = -1), 
-                text_by = "label")
+                point_size = 0.5, point_alpha = 0.3, text_by = "label")
 reset.fig()
 ```
 
@@ -4781,11 +4784,11 @@ sessionInfo()
      [1] ensembldb_2.30.0            AnnotationFilter_1.30.0     GenomicFeatures_1.58.0     
      [4] AnnotationDbi_1.68.0        lubridate_1.9.4             forcats_1.0.0              
      [7] stringr_1.5.1               dplyr_1.1.4                 purrr_1.0.4                
-    [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.2.1               
+    [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.3.0               
     [13] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
     [16] viridisLite_0.4.2           SingleR_2.8.0               scran_1.34.0               
     [19] scater_1.34.1               scuttle_1.16.0              scales_1.4.0               
-    [22] ggforce_0.4.2               ggplot2_3.5.2               enrichR_3.4                
+    [22] ggforce_0.5.0               ggplot2_3.5.2               enrichR_3.4                
     [25] DropletUtils_1.26.0         SingleCellExperiment_1.28.1 SummarizedExperiment_1.36.0
     [28] Biobase_2.66.0              GenomicRanges_1.58.0        GenomeInfoDb_1.42.3        
     [31] IRanges_2.40.1              S4Vectors_0.44.0            MatrixGenerics_1.18.1      
@@ -4803,35 +4806,35 @@ sessionInfo()
      [21] metapod_1.14.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
      [25] zlibbioc_1.52.0           Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17          
      [29] WriteXLS_6.8.0            tweenr_2.0.3              rappdirs_0.3.3            circlize_0.4.16          
-     [33] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             pheatmap_1.0.12          
+     [33] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             pheatmap_1.0.13          
      [37] dqrng_0.4.1               svglite_2.2.1             DelayedMatrixStats_1.28.1 codetools_0.2-20         
      [41] DelayedArray_0.32.0       xml2_1.3.8                tidyselect_1.2.1          shape_1.4.6.1            
      [45] UCSC.utils_1.2.0          farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3          
      [49] GenomicAlignments_1.42.0  jsonlite_2.0.0            GetoptLong_1.0.5          iterators_1.0.14         
-     [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.1         
-     [57] Rcpp_1.0.14               glue_1.8.0                gridExtra_2.3             SparseArray_1.6.2        
-     [61] xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0              HDF5Array_1.34.0         
-     [65] withr_3.0.2               BiocManager_1.30.25       fastmap_1.2.0             rhdf5filters_1.18.1      
-     [69] digest_0.6.37             rsvd_1.0.5                timechange_0.3.0          R6_2.6.1                 
-     [73] mime_0.13                 textshaping_1.0.1         colorspace_2.1-1          Cairo_1.6-2              
-     [77] gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.3.11            R.methodsS3_1.8.2        
-     [81] celldex_1.16.0            utf8_1.2.5                generics_0.1.4            data.table_1.17.4        
-     [85] rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0            uwot_0.2.3               
-     [89] pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4                ComplexHeatmap_2.22.0    
-     [93] XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0       clue_0.3-66              
-     [97] alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50                rstudioapi_0.17.1        
-    [101] tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1                curl_6.2.3               
-    [105] repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2              GlobalOptions_0.1.2      
-    [109] BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7               restfulr_0.0.15          
-    [113] alabaster.schemas_1.6.0   pillar_1.10.2             vctrs_0.6.5               BiocSingular_1.22.0      
-    [117] beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0            evaluate_1.0.3           
-    [121] Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12           compiler_4.4.3           
-    [125] rlang_1.1.6               crayon_1.5.3              labeling_0.4.3            plyr_1.8.9               
-    [129] ggbeeswarm_0.7.2          stringi_1.8.7             alabaster.se_1.6.0        Biostrings_2.74.1        
-    [133] lazyeval_0.2.2            Matrix_1.7-3              ExperimentHub_2.14.0      IRkernel_1.3.2           
-    [137] hms_1.1.3                 sparseMatrixStats_1.18.0  bit64_4.6.0-1             Rhdf5lib_1.28.0          
-    [141] KEGGREST_1.46.0           statmod_1.5.0             alabaster.ranges_1.6.0    igraph_2.1.4             
-    [145] memoise_2.0.1             xgboost_1.7.11.1          bit_4.6.0                
+     [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.2         
+     [57] ragg_1.4.0                Rcpp_1.0.14               glue_1.8.0                gridExtra_2.3            
+     [61] SparseArray_1.6.2         xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0             
+     [65] HDF5Array_1.34.0          withr_3.0.2               BiocManager_1.30.26       fastmap_1.2.0            
+     [69] rhdf5filters_1.18.1       digest_0.6.37             rsvd_1.0.5                timechange_0.3.0         
+     [73] R6_2.6.1                  mime_0.13                 textshaping_1.0.1         colorspace_2.1-1         
+     [77] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.1            
+     [81] R.methodsS3_1.8.2         celldex_1.16.0            utf8_1.2.6                generics_0.1.4           
+     [85] data.table_1.17.6         rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0           
+     [89] uwot_0.2.3                pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4               
+     [93] ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0      
+     [97] clue_0.3-66               alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50               
+    [101] rstudioapi_0.17.1         tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1               
+    [105] curl_6.4.0                repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2             
+    [109] GlobalOptions_0.1.2       BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7              
+    [113] restfulr_0.0.15           alabaster.schemas_1.6.0   pillar_1.10.2             vctrs_0.6.5              
+    [117] BiocSingular_1.22.0       beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0           
+    [121] evaluate_1.0.4            Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12          
+    [125] compiler_4.4.3            rlang_1.1.6               crayon_1.5.3              labeling_0.4.3           
+    [129] plyr_1.8.9                ggbeeswarm_0.7.2          stringi_1.8.7             alabaster.se_1.6.0       
+    [133] Biostrings_2.74.1         lazyeval_0.2.2            Matrix_1.7-3              ExperimentHub_2.14.0     
+    [137] IRkernel_1.3.2            hms_1.1.3                 sparseMatrixStats_1.18.0  bit64_4.6.0-1            
+    [141] Rhdf5lib_1.28.0           KEGGREST_1.46.0           statmod_1.5.0             alabaster.ranges_1.6.0   
+    [145] igraph_2.1.4              memoise_2.0.1             xgboost_1.7.11.1          bit_4.6.0                
 
 
 # References
