@@ -7,7 +7,7 @@
 3. [Quality filtering of cells](#3---Quality-filtering-of-cells)
 4. [Classification of cell cycle phase](#4---Classification-of-cell-cycle-phase)
 5. [Expression normalization](#5---Expression-normalization)
-6. [Feature (HVGs) selection](#6---Feature-(HVGs)-selection)
+6. [Feature selection](#6---Feature-selection)
 7. [Dimensionality reduction using HVG](#7---Dimensionality-reduction-using-HVG)
 8. [Cell type annotation](#8---Cell-type-annotation)
 9. [Cell clustering](#9---Cell-clustering)
@@ -1844,7 +1844,7 @@ Create a `dgCMatrix` logcounts matrix for faster computation in some steps.
 annot_l <- as(logcounts(cdScAnnot, withDimnames = TRUE), "dgCMatrix")
 ```
 
-# 6 - Feature (HVGs) selection
+# 6 - Feature selection
 
 We often use scRNA-seq data in exploratory analyses to characterize heterogeneity across cells. Procedures like clustering and dimensionality reduction compare cells based on their gene expression profiles. We want to select genes that contain useful information about the biology of the system while removing genes that contain random noise. 
 
@@ -3274,8 +3274,7 @@ tab <- table(walktrap = paste0("W", cdScAnnot$walktrap),
              leiden = paste0("D", cdScAnnot$leiden))
 
 tab <- gather_set_data(as.data.frame(tab), 1:3)
-tab$x <- as.factor(tab$x)
-levels(tab$x) <- c("walktrap","louvain","leiden")
+tab$x <- factor(tab$x, levels = c("walktrap","louvain","leiden"))
 
 tab$walktrap <- factor(tab$walktrap, levels = gtools::mixedsort(levels(tab$walktrap)))
 tab$louvain <- factor(tab$louvain, levels = gtools::mixedsort(levels(tab$louvain)))
@@ -4179,7 +4178,7 @@ print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
 ```
 
-    [1] "Number of available databases from Enrichr: 216"
+    [1] "Number of available databases from Enrichr: 218"
 
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
@@ -4783,7 +4782,7 @@ sessionInfo()
     other attached packages:
      [1] ensembldb_2.30.0            AnnotationFilter_1.30.0     GenomicFeatures_1.58.0     
      [4] AnnotationDbi_1.68.0        lubridate_1.9.4             forcats_1.0.0              
-     [7] stringr_1.5.1               dplyr_1.1.4                 purrr_1.0.4                
+     [7] stringr_1.5.1               dplyr_1.1.4                 purrr_1.1.0                
     [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.3.0               
     [13] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
     [16] viridisLite_0.4.2           SingleR_2.8.0               scran_1.34.0               
@@ -4792,7 +4791,7 @@ sessionInfo()
     [25] DropletUtils_1.26.0         SingleCellExperiment_1.28.1 SummarizedExperiment_1.36.0
     [28] Biobase_2.66.0              GenomicRanges_1.58.0        GenomeInfoDb_1.42.3        
     [31] IRanges_2.40.1              S4Vectors_0.44.0            MatrixGenerics_1.18.1      
-    [34] matrixStats_1.5.0           cowplot_1.1.3               bluster_1.16.0             
+    [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.16.0             
     [37] BiocParallel_1.40.2         BiocNeighbors_2.0.1         AnnotationHub_3.14.0       
     [40] BiocFileCache_2.14.0        dbplyr_2.5.0                BiocGenerics_0.52.0        
     [43] kableExtra_1.4.0           
@@ -4800,7 +4799,7 @@ sessionInfo()
     loaded via a namespace (and not attached):
       [1] RcppAnnoy_0.0.22          BiocIO_1.16.0             pbdZMQ_0.3-14             bitops_1.0-9             
       [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.18            
-      [9] httr2_1.1.2               lifecycle_1.0.4           scDblFinder_1.20.2        edgeR_4.4.2              
+      [9] httr2_1.2.1               lifecycle_1.0.4           scDblFinder_1.20.2        edgeR_4.4.2              
      [13] doParallel_1.0.17         lattice_0.22-7            MASS_7.3-65               alabaster.base_1.6.1     
      [17] magrittr_2.0.3            limma_3.62.2              rmarkdown_2.29            yaml_2.3.10              
      [21] metapod_1.14.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
@@ -4812,21 +4811,21 @@ sessionInfo()
      [45] UCSC.utils_1.2.0          farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3          
      [49] GenomicAlignments_1.42.0  jsonlite_2.0.0            GetoptLong_1.0.5          iterators_1.0.14         
      [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.2         
-     [57] ragg_1.4.0                Rcpp_1.0.14               glue_1.8.0                gridExtra_2.3            
+     [57] ragg_1.4.0                Rcpp_1.1.0                glue_1.8.0                gridExtra_2.3            
      [61] SparseArray_1.6.2         xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0             
      [65] HDF5Array_1.34.0          withr_3.0.2               BiocManager_1.30.26       fastmap_1.2.0            
      [69] rhdf5filters_1.18.1       digest_0.6.37             rsvd_1.0.5                timechange_0.3.0         
      [73] R6_2.6.1                  mime_0.13                 textshaping_1.0.1         colorspace_2.1-1         
-     [77] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.1            
+     [77] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.2            
      [81] R.methodsS3_1.8.2         celldex_1.16.0            utf8_1.2.6                generics_0.1.4           
-     [85] data.table_1.17.6         rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0           
+     [85] data.table_1.17.8         rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0           
      [89] uwot_0.2.3                pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4               
      [93] ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0      
      [97] clue_0.3-66               alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50               
     [101] rstudioapi_0.17.1         tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1               
     [105] curl_6.4.0                repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2             
     [109] GlobalOptions_0.1.2       BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7              
-    [113] restfulr_0.0.15           alabaster.schemas_1.6.0   pillar_1.10.2             vctrs_0.6.5              
+    [113] restfulr_0.0.16           alabaster.schemas_1.6.0   pillar_1.11.0             vctrs_0.6.5              
     [117] BiocSingular_1.22.0       beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0           
     [121] evaluate_1.0.4            Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12          
     [125] compiler_4.4.3            rlang_1.1.6               crayon_1.5.3              labeling_0.4.3           
