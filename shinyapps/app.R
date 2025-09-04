@@ -13,14 +13,14 @@ default.dimred <- "MNN-TSNE"
 # Add custom cell features (and their descriptions) for colouring, accessible from `colData(sce)`
 # Built-in recognised feature names: "Sample", "sum", "detected", "subsets_Mt_percent", "CellCycle",
 # "DoubletDensity", "DoubletDensity_log1p", "label", "CellType", "ClusterCellType"
-my.color_by <- c("condition")
-my.color_by.desc <- c("Condition")
+my.color_by <- c("CellType_1","CellType_2","condition")
+my.color_by.desc <- c("Coarse cell type","Fine cell type","Condition")
 
 # Add custom cell features (and their descriptions) for grouped presentation
 # (typically in the dotplots, boxplots and heatmap), accessible from `colData(sce)`
 # Built-in recognised feature names: "Sample","label","CellType","ClusterCellType"
-my.group_by <- c("condition")
-my.group_by.desc <- c("Condition")
+my.group_by <- c("CellType_1","CellType_2","condition")
+my.group_by.desc <- c("Coarse cell type","Fine cell type","Condition")
 
 # Add custom clustering methods (and their descriptions), accessible from `colData(sce)`
 # Built-in recognised methods: "hclust", "walktrap", "louvain", "leiden", 
@@ -407,7 +407,12 @@ server <- function(input, output, session) {
     if(length(edger.listnames) > 0) {
       edger.menu <- menuItem("DEA (edgeR)", tabName = "edgeR", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(edger.listnames, function(listname) {
-          tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", listname))
+          tab.name <- gsub("edgeR_", "", listname)
+          if(grep("_vs_", tab.name)) {
+            tab.name <- gsub("_", " ", gsub("_vs_", " vs. ", tab.name))
+          } else {
+            tab.name <- gsub("_", " vs. ", listname)
+          }
           menuSubItem(tab.name, tabName = listname)
         })
       )
@@ -418,7 +423,12 @@ server <- function(input, output, session) {
     if(length(deseq.listnames) > 0) {
       deseq.menu <- menuItem("DEA (DESeq2)", tabName = "DESeq2", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(deseq.listnames, function(listname) {
-          tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", listname))
+          tab.name <- gsub("DESeq2_", "", listname)
+          if(grep("_vs_", tab.name)) {
+            tab.name <- gsub("_", " ", gsub("_vs_", " vs. ", tab.name))
+          } else {
+            tab.name <- gsub("_", " vs. ", tab.name)
+          }
           menuSubItem(tab.name, tabName = listname)
         })
       )
@@ -669,11 +679,19 @@ server <- function(input, output, session) {
               lapply(deseq.sublistnames, function(sublistname) {
                 res <- metadata(sce)[[listname]][[sublistname]]
                 deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
-                fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
-                             width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
-                             renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
-                                                rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
-                                      formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+                if("stat" %in% colnames(res)) { # without lfcShrink/single-cell method
+                  fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
+                               width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                               renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                                  rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                        formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+                } else { # with lfcShrink/pseudobulk method
+                  fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
+                               width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
+                               renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
+                                                  rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
+                                        formatRound(columns = c("baseMean","log2FoldChange"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+                }
           })))
         })
       }
