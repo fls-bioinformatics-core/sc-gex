@@ -49,7 +49,7 @@ multi_max_options <- 2
 # App info and settings
 ####################
 
-app.version <- "v0.7.8"
+app.version <- "v0.7.9"
 app.header <- "BCF Single Cell GEX"
 app.title <- "BCF Single Cell Gene Expression Shiny App"
 app.author <- "I-Hsuan Lin [Author, Creator], Syed Murtuza baker [Contributor]"
@@ -407,13 +407,14 @@ server <- function(input, output, session) {
     if(length(edger.listnames) > 0) {
       edger.menu <- menuItem("DEA (edgeR)", tabName = "edgeR", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(edger.listnames, function(listname) {
+          tab.url <- gsub("\\.", "-", listname) # '.' not supported in url/tabName if used
           tab.name <- gsub("edgeR_", "", listname)
-          if(grep("_vs_", tab.name)) {
+          if(grepl("_vs_", tab.name)) {
             tab.name <- gsub("_", " ", gsub("_vs_", " vs. ", tab.name))
           } else {
             tab.name <- gsub("_", " vs. ", listname)
           }
-          menuSubItem(tab.name, tabName = listname)
+          menuSubItem(tab.name, tabName = tab.url)
         })
       )
     } else edger.menu <- NULL
@@ -423,13 +424,14 @@ server <- function(input, output, session) {
     if(length(deseq.listnames) > 0) {
       deseq.menu <- menuItem("DEA (DESeq2)", tabName = "DESeq2", icon = fa_i("magnifying-glass-chart", fill = "ffd500"), startExpanded = TRUE,
         lapply(deseq.listnames, function(listname) {
+          tab.url <- gsub("\\.", "-", listname) # '.' not supported in url/tabName if used
           tab.name <- gsub("DESeq2_", "", listname)
-          if(grep("_vs_", tab.name)) {
+          if(grepl("_vs_", tab.name)) {
             tab.name <- gsub("_", " ", gsub("_vs_", " vs. ", tab.name))
           } else {
             tab.name <- gsub("_", " vs. ", tab.name)
           }
-          menuSubItem(tab.name, tabName = listname)
+          menuSubItem(tab.name, tabName = tab.url)
         })
       )
     } else deseq.menu <- NULL
@@ -623,10 +625,11 @@ server <- function(input, output, session) {
     if(length(edger.listnames) > 0) {
       edger_items$items <- NULL # reset and re-build
       for(listname in edger.listnames) {
-        tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", listname))
+        tab.url <- gsub("\\.", "-", listname) # '.' not supported in url/tabName if used
+        tab.name <- gsub("_", " vs. ", gsub("edgeR_", "", tab.url))
         edger.sublistnames <- names(metadata(sce)[[listname]])
 
-        edger_items$items[[length(edger_items$items)+1]] <- tabItem(tabName = listname,
+        edger_items$items[[length(edger_items$items)+1]] <- tabItem(tabName = tab.url,
           fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
             lapply(edger.sublistnames, function(sublistname) {
               res <- metadata(sce)[[listname]][[sublistname]]
@@ -663,10 +666,11 @@ server <- function(input, output, session) {
     if(length(deseq.listnames) > 0) {
       deseq_items$items <- NULL # reset and re-build
       for(listname in deseq.listnames) {
-        tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", listname))
+        tab.url <- gsub("\\.", "-", listname) # '.' not supported in url/tabName if used
+        tab.name <- gsub("_", " vs. ", gsub("DESeq2_", "", tab.url))
         deseq.sublistnames <- names(metadata(sce)[[listname]])
 
-        deseq_items$items[[length(deseq_items$items)+1]] <- tabItem(tabName = listname,
+        deseq_items$items[[length(deseq_items$items)+1]] <- tabItem(tabName = tab.url,
         # Check if DESeq2 is installed
         if(class(try(find.package("DESeq2"), silent = TRUE)) %in% c("try-error", "NULL")) {
           fluidRow(box(title = "The DESeq2 package is required to view stored results",
@@ -678,19 +682,19 @@ server <- function(input, output, session) {
             fluidRow(box(title = tab.name, width = 12, status = "primary", solidHeader = TRUE, collapsible = FALSE,
               lapply(deseq.sublistnames, function(sublistname) {
                 res <- metadata(sce)[[listname]][[sublistname]]
-                deseq.df <- res %>% as.data.frame %>% select(-lfcSE) %>% dplyr::arrange(padj, pvalue, Symbol)
+                deseq.df <- res %>% as.data.frame %>% dplyr::arrange(padj, pvalue, Symbol)
                 if("stat" %in% colnames(res)) { # without lfcShrink/single-cell method
                   fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
                                width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                                renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
                                                   rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
-                                        formatRound(columns = c("baseMean","log2FoldChange","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+                                        formatRound(columns = c("baseMean","log2FoldChange","lfcSE","stat"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
                 } else { # with lfcShrink/pseudobulk method
                   fluidRow(box(title = span(fa("caret-right", fill = "purple"), sublistname, fa("caret-left", fill = "purple")),
                                width = 12, status = "primary", solidHeader = FALSE, collapsible = TRUE,
                                renderDT(datatable(deseq.df, options = list(searching = TRUE, pageLength = 10, scrollX = TRUE, lengthChange = FALSE),
                                                   rownames = FALSE, selection = "none", class = "white-space: nowrap") %>%
-                                        formatRound(columns = c("baseMean","log2FoldChange"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
+                                        formatRound(columns = c("baseMean","log2FoldChange","lfcSE"), digits = 4) %>% formatSignif(columns = c("pvalue", "padj"), digits = 4))))
                 }
           })))
         })
