@@ -1,14 +1,14 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.3</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.1.0</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
 1. [Prepare workspace and data](#1---Prepare-workspace-and-data)
 2. [Cells and genes QC plots](#2---Cells-and-genes-QC-plots)
 3. [Quality filtering of cells](#3---Quality-filtering-of-cells)
-4. [Classification of cell cycle phase](#4---Classification-of-cell-cycle-phase)
+4. [Cell cycle assignment](#4---Cell-cycle-assignment)
 5. [Expression normalization](#5---Expression-normalization)
 6. [Feature selection](#6---Feature-selection)
-7. [Dimensionality reduction using HVG](#7---Dimensionality-reduction-using-HVG)
+7. [Dimensionality reduction](#7---Dimensionality-reduction)
 8. [Cell type annotation](#8---Cell-type-annotation)
 9. [Cell clustering](#9---Cell-clustering)
 10. [Marker gene detection](#10---Marker-gene-detection)
@@ -67,7 +67,7 @@ runInfo <- list(
 
 
 ```R
-if (suppressPackageStartupMessages(requireNamespace("kableExtra"))) {
+if (suppressPackageStartupMessages(requireNamespace("kableExtra")) && requireNamespace("IRdisplay")) {
     suppressPackageStartupMessages(library(kableExtra))
     data.frame(Feat = names(runInfo[[1]]), Info = runInfo[[1]], row.names = NULL) %>% 
     kable("html", caption = '<span style = "font-size: 110%; font-weight:bold; color: blue; white-space: nowrap;">Sample Summary</span>') %>% 
@@ -80,9 +80,9 @@ if (suppressPackageStartupMessages(requireNamespace("kableExtra"))) {
     as.character() %>% IRdisplay::display_html()
 } else {
     message("Single-cell Sample Summary")
-    IRdisplay::display(data.frame(data.frame(Feat = names(runInfo[[1]]), Info = runInfo[[1]], row.names = NULL)))
+    data.frame(data.frame(Feat = names(runInfo[[1]]), Info = runInfo[[1]], row.names = NULL))
     message("Data Processing Summary")
-    IRdisplay::display(data.frame(data.frame(Feat = names(runInfo[[2]]), Info = runInfo[[2]], row.names = NULL)))
+    data.frame(data.frame(Feat = names(runInfo[[2]]), Info = runInfo[[2]], row.names = NULL))
 }
 ```
 
@@ -176,7 +176,7 @@ if (suppressPackageStartupMessages(requireNamespace("kableExtra"))) {
 
 # 1 - Prepare workspace and data
 
-**Tested on R version 4.4 and Bioconductor version 3.20**
+**Tested on R version 4.5 and Bioconductor version 3.22**
 
 - Set sample name and Cell Ranger HDF5 file path
 - Load R libraries
@@ -221,7 +221,7 @@ data.frame(ID = c(rep(sample_name, 2)), Type = c("filtered", rep("raw", length(s
 
 ## Load libraries
 
-The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).
+The required R packages are listed below. This workflow has been tested on **R version 4.5** (**Bioconductor version 3.22**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).
 
 Commented line below are packages that are required but we are not loading and attaching them.
 
@@ -232,12 +232,12 @@ Commented line below are packages that are required but we are not loading and a
 
 ```R
 suppressPackageStartupMessages({
-    # R-4.4.3
+    # R-4.5.2
     library(AnnotationHub)
     library(BiocNeighbors) # AnnoyParam
     library(BiocParallel)  # MulticoreParam
-    library(bluster)       # clusterRows, NNGraphParam, mergeCommunities
-    library(cowplot)       # plotColData, plotRowData, plot_grid
+    library(bluster)       # clusterRows, NNGraphParam
+    library(cowplot)       # theme_cowplot, plot_grid
     library(DropletUtils)  # read10xCounts, emptyDrops, ambientProfileEmpty
     library(enrichR)
     library(ggforce)       # gather_set_data, geom_parallel_sets*
@@ -254,12 +254,12 @@ suppressPackageStartupMessages({
 #    library(dplyr)         # select
 #    library(gtools)        # mixedsort
 #    library(HDF5Array)     # saveHDF5SummarizedExperiment
-#    library(igraph)        # cut_at
-#    library(limma)         # vennDiagram
+#    library(igraph)        # cut_at (for walktrap)
 #    library(plyr)          # ldply
 #    library(RColorBrewer)  # brewer.pal
 #    library(scDblFinder)   # computeDoubletDensity
 #    library(stringr)       # str_to_title
+#    library(UpSetR)        # upset
 
     library(scRUtils)       # with customised functions
     library(tidyverse)
@@ -290,7 +290,7 @@ Choose a `BiocParallel` Interface:
 
 ```R
 # Set number of threads for parallelisation
-nthreads <- 8
+nthreads <- 6
 
 # Choose BiocParallel Interface
 bpp <- MulticoreParam(nthreads)
@@ -453,7 +453,7 @@ Here, we make use of `AnnotationHub` to add SEQNAME (chromosome) annotation from
 
 ```R
 # Create an AnnotationHub object
-ah = AnnotationHub()
+ah <- AnnotationHub()
 
 # To display Human EnsDb if required
 #hs <- query(ah, c("EnsDb", "Ensembl", "Homo sapiens"))
@@ -478,7 +478,7 @@ Select the EnsDb corresponds to the correct Reference Package used by Cell Range
 
 
 ```R
-ens <- AnnotationHub()[["AH113665"]]
+ens <- ah[["AH113665"]]
 ```
 
     loading from cache
@@ -522,7 +522,7 @@ counts(cdSc)[1:5,1:5] # same as assay(cdSc, "counts")
     PERM1                            0   .                          0
 
 
-## Estimate ambient contamination (applicable to snRNA-seq)
+## (Optional) Estimate ambient contamination (applicable to snRNA-seq)
 
 Ambient contamination is a phenomenon that is generally most pronounced in massively multiplexed scRNA-seq protocols. Briefly, extracellular RNA (most commonly released upon cell lysis) is captured along with each cell in its reaction chamber, contributing counts to genes that are not otherwise expressed in that cell.
 
@@ -629,12 +629,12 @@ summary(is.cell.no.na)
 
 
        Mode   FALSE    TRUE    NA's 
-    logical     623   20843  622441 
+    logical    1123   20343  622441 
 
 
 
        Mode   FALSE    TRUE 
-    logical  623064   20843 
+    logical  623564   20343 
 
 
 ### Estimate the ambient contribution from controls
@@ -673,7 +673,7 @@ summary(contam[,1])
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-      0.000   0.713   0.801   0.722   0.903   1.000   22401 
+     0.0000  0.7108  0.7989  0.7205  0.9004  1.0000   22406 
 
 
 We create a plot to show the percentage of counts in the nuclei that are attributed to contamination from the ambient solution. Each point represents a gene and mitochondrial genes are highlighted in red.
@@ -718,9 +718,9 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 	<tr><th></th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>MT-CO2</th><td>0.9318756</td></tr>
-	<tr><th scope=row>MT-ND4</th><td>0.9329791</td></tr>
-	<tr><th scope=row>MT-CO3</th><td>0.9975259</td></tr>
+	<tr><th scope=row>MT-CO2</th><td>0.9308621</td></tr>
+	<tr><th scope=row>MT-ND4</th><td>0.9325874</td></tr>
+	<tr><th scope=row>MT-CO3</th><td>0.9967029</td></tr>
 	<tr><th scope=row>MT-ND1</th><td>1.0000000</td></tr>
 	<tr><th scope=row>MT-ND2</th><td>1.0000000</td></tr>
 	<tr><th scope=row>MT-CO1</th><td>1.0000000</td></tr>
@@ -736,15 +736,15 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 
 
 
-    [1] "Ambient contamination cutoff: 0.9319"
+    [1] "Ambient contamination cutoff: 0.9309"
 
 
 
        Mode   FALSE    TRUE    NA's 
-    logical    3495   12742   22401 
+    logical    3471   12761   22406 
 
 
-    [1] "Number of genes passed the ambient contamination cutoff: 12742"
+    [1] "Number of genes passed the ambient contamination cutoff: 12761"
 
 
 # 2 - Cells and genes QC plots
@@ -800,7 +800,7 @@ rowData(cdSc)$pct_dropout <- 100 - rowData(cdSc)$detected
 
     
     FALSE  TRUE 
-    12524  5605 
+    12543  5586 
 
 
 #### View information related with cells
@@ -975,11 +975,6 @@ __For scRNA-seq:__
 # Print mitochondrial proportion summary
 summary(cdSc$subsets_Mt_percent)
 
-print("Number of cells with 0% mitochondrial content:")
-data.frame(Sample = cdSc$Sample, ZeroMito = cdSc$subsets_Mt_percent == 0) %>%
-    count(Sample, ZeroMito, name = "Count") %>% group_by(Sample) %>% 
-    mutate(Percentage = round(prop.table(Count)*100, 2))
-
 # Plot histogram
 ggplot(as.data.frame(colData(cdSc)), aes(x = subsets_Mt_percent, fill = Sample)) +
     geom_histogram(color = "white", alpha = 0.6, linewidth = 0.3, bins = 50) +
@@ -994,26 +989,9 @@ ggplot(as.data.frame(colData(cdSc)), aes(x = subsets_Mt_percent, fill = Sample))
      0.1295  1.1287  1.4047  1.5114  1.7366 28.7284 
 
 
-    [1] "Number of cells with 0% mitochondrial content:"
-
-
-
-<table class="dataframe">
-<caption>A grouped_df: 1 × 4</caption>
-<thead>
-	<tr><th scope=col>Sample</th><th scope=col>ZeroMito</th><th scope=col>Count</th><th scope=col>Percentage</th></tr>
-	<tr><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;lgl&gt;</th><th scope=col>&lt;int&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
-</thead>
-<tbody>
-	<tr><td>Control1</td><td>FALSE</td><td>20490</td><td>100</td></tr>
-</tbody>
-</table>
-
-
-
 
     
-![png](Control1_files/Control1_51_3.png)
+![png](Control1_files/Control1_51_1.png)
     
 
 
@@ -1491,20 +1469,20 @@ as.data.frame(colData(cdSc)) %>% cbind(., highcount.drop) %>%
 
 
 ```R
-print(paste("Cells removed if:"))
-print(paste("Read count below library size cutoff:", round(cut_off_reads, 2)))
-print(paste("Number of genes expressed below feature cutoff:", round(cut_off_genes, 2)))
-print(paste("MT percent above mito cutoff:", round(cut_off_MT, 2)))
-print(paste("Novelty cutoff:", round(cut_off_novelty, 2)))
-print(paste("High count cutoff:", round(cut_off_highcount, 2)))
+cat("Cells removed if:\n")
+cat(sprintf("- Read count below library size cutoff: %.2f\n", cut_off_reads))
+cat(sprintf("- Number of genes expressed below feature cutoff: %.2f\n", cut_off_genes))
+cat(sprintf("- MT percent above mito cutoff: %.2f\n", cut_off_MT))
+cat(sprintf("- Novelty cutoff: %.2f\n", cut_off_novelty))
+cat(sprintf("- High count cutoff: %d\n", cut_off_highcount))
 ```
 
-    [1] "Cells removed if:"
-    [1] "Read count below library size cutoff: 2132.54"
-    [1] "Number of genes expressed below feature cutoff: 1472.21"
-    [1] "MT percent above mito cutoff: 3.5"
-    [1] "Novelty cutoff: 0.88"
-    [1] "High count cutoff: 15000"
+    Cells removed if:
+    - Read count below library size cutoff: 2132.54
+    - Number of genes expressed below feature cutoff: 1472.21
+    - MT percent above mito cutoff: 3.50
+    - Novelty cutoff: 0.88
+    - High count cutoff: 15000
 
 
 
@@ -1513,14 +1491,15 @@ print(paste("High count cutoff:", round(cut_off_highcount, 2)))
 discard <- libsize.drop | feature.drop | mito.drop | novelty.drop | highcount.drop
 cdSc$discard <- discard
 
-venn.df <- data.frame(Sample = cdSc$Sample, LibSize = libsize.drop, FeaturesExp = feature.drop, 
-                      MitoProp = mito.drop, Novelty = novelty.drop, HighCount = highcount.drop, Total = discard)
+venn.df <- data.frame(LibSize = libsize.drop, FeaturesExp = feature.drop, MitoProp = mito.drop, 
+                      Novelty = novelty.drop, HighCount = highcount.drop, Total = discard) %>% 
+    mutate_if(is.logical, as.integer)
 
-print(paste("Total number of cells removed:"))
-DataFrame(Cells = colSums(venn.df[,2:7]))
+cat("Number of cells removed:\n")
+DataFrame(Cells = colSums(venn.df))
 ```
 
-    [1] "Total number of cells removed:"
+    Number of cells removed:
 
 
 
@@ -1537,12 +1516,22 @@ DataFrame(Cells = colSums(venn.df[,2:7]))
 
 
 ```R
-limma::vennDiagram(venn.df[,2:6], cex = c(1.5,1.2,1.0))
+fig(width = 12, height = 6)
+suppressWarnings({
+    UpSetR::upset(venn.df[,-ncol(venn.df)], sets = colnames(venn.df)[-length(colnames(venn.df))], text.scale = 2, 
+                  point.size = 4, mb.ratio = c(0.6, 0.4), keep.order = T, order.by = "degree",
+                  set_size.show = TRUE, set_size.scale_max = sum(venn.df$Total)) # size of "Set Size" panel
+})
+dev.off()
 ```
 
 
+<strong>null device:</strong> 1
+
+
+
     
-![png](Control1_files/Control1_80_0.png)
+![png](Control1_files/Control1_80_1.png)
     
 
 
@@ -1594,33 +1583,17 @@ cdScAnnot
 
 
 ```R
-print(paste("Total cells before quality filtering =", ncol(cdSc)))
-print(paste("Total cells before quality filtering, per sample:"))
-table(cdSc$Sample)
-
-print(paste("Total cells remaining after quality filtering =", ncol(cdScAnnot)))
-print(paste("Total cells after quality filtering, per sample:"))
-table(cdScAnnot$Sample)
+cat(sprintf("Total cells before quality filtering: %d\n", ncol(cdSc)))
+cat(sprintf("\nTotal cells remaining after quality filtering: %d\n", ncol(cdScAnnot)))
+cat(sprintf("\nTotal cells removed: %d (%.2f%%)\n", ncol(cdSc) - ncol(cdScAnnot), 
+            (ncol(cdSc) - ncol(cdScAnnot))/ncol(cdSc)*100))
 ```
 
-    [1] "Total cells before quality filtering = 20490"
-    [1] "Total cells before quality filtering, per sample:"
-
-
-
+    Total cells before quality filtering: 20490
     
-    Control1 
-       20490 
-
-
-    [1] "Total cells remaining after quality filtering = 18460"
-    [1] "Total cells after quality filtering, per sample:"
-
-
-
+    Total cells remaining after quality filtering: 18460
     
-    Control1 
-       18460 
+    Total cells removed: 2030 (9.91%)
 
 
 
@@ -1675,7 +1648,7 @@ Create a `dgCMatrix` counts matrix for faster computation in some steps.
 annot_c <- as(counts(cdScAnnot, withDimnames = TRUE), "dgCMatrix")
 ```
 
-# 4 - Classification of cell cycle phase
+# 4 - Cell cycle assignment
 
 On occasion, it can be desirable to determine cell cycle activity from scRNA-seq data. In and of itself, the distribution of cells across phases of the cell cycle is not usually informative, but we can use this to determine if there are differences in proliferation between subpopulations or across treatment conditions.
 
@@ -1721,7 +1694,7 @@ assignments <- cyclone(annot_c, sample.pairs, gene.names = rowData(cdScAnnot)$ID
 ## Assigning cell-cycle stages to the scater object
 cdScAnnot$CellCycle <- factor(assignments$phases)
 
-print("Predicted phase:")
+cat("Predicted phase:\n")
 table(Sample = cdScAnnot$Sample, "Phases (cells)" = cdScAnnot$CellCycle)
 round(prop.table(table(Sample = cdScAnnot$Sample, "Phases (%)" = cdScAnnot$CellCycle))*100, 2)
 ```
@@ -1734,7 +1707,7 @@ round(prop.table(table(Sample = cdScAnnot$Sample, "Phases (%)" = cdScAnnot$CellC
     
 
 
-    [1] "Predicted phase:"
+    Predicted phase:
 
 
 
@@ -1884,10 +1857,10 @@ cdScFilt
 
 
     class: SingleCellExperiment 
-    dim: 12524 18460 
+    dim: 12543 18460 
     metadata(2): Samples cyclone
     assays(2): counts logcounts
-    rownames(12524): SAMD11 NOC2L ... KDM5D EIF1AY
+    rownames(12543): SAMD11 NOC2L ... KDM5D EIF1AY
     rowData names(11): ID Symbol ... n_cells_by_counts pct_dropout
     colnames(18460): AAACAAGCAACAAGTTACTTTAGG-1 AAACAAGCAACTAGTGACTTTAGG-1 ...
       TTTGTGAGTGGCGTAGACTTTAGG-1 TTTGTGAGTTAATTCGACTTTAGG-1
@@ -1918,14 +1891,14 @@ var.out1 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>
 ```
 
 
-    DataFrame with 12524 rows and 6 columns
+    DataFrame with 12543 rows and 6 columns
                   mean     total      tech       bio     p.value         FDR
              <numeric> <numeric> <numeric> <numeric>   <numeric>   <numeric>
-    CD74      3.769706   4.04530  0.739990   3.30531 8.64111e-97 1.07392e-92
-    LYZ       1.456335   4.59072  0.875177   3.71554 1.18216e-87 7.34596e-84
-    GNLY      1.207638   4.16534  0.806959   3.35838 2.56373e-84 1.06207e-80
-    IGHM      0.914239   3.48598  0.689975   2.79600 4.69497e-80 1.45873e-76
-    S100A9    1.128323   3.82526  0.776920   3.04834 3.46431e-75 8.61088e-72
+    CD74      3.769706   4.04530  0.737618   3.30768 5.92917e-99 7.38241e-95
+    LYZ       1.456335   4.59072  0.876041   3.71468 1.02935e-88 6.40820e-85
+    GNLY      1.207638   4.16534  0.807764   3.35757 2.47071e-85 1.02543e-81
+    IGHM      0.914239   3.48598  0.690703   2.79527 5.25379e-81 1.63537e-77
+    S100A9    1.128323   3.82526  0.777701   3.04756 4.36533e-76 1.08705e-72
     ...            ...       ...       ...       ...         ...         ...
     IL1RAPL2         0         0         0         0         NaN         NaN
     COL4A6           0         0         0         0         NaN         NaN
@@ -1948,7 +1921,7 @@ var.out2 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>
 ```
 
 
-    DataFrame with 12524 rows and 6 columns
+    DataFrame with 12543 rows and 6 columns
                   mean     total      tech       bio   p.value       FDR
              <numeric> <numeric> <numeric> <numeric> <numeric> <numeric>
     LYZ        1.45634   4.59072  0.632304   3.95841         0         0
@@ -2034,7 +2007,7 @@ reset.fig()
 
 ## Selecting highly variable genes
 
-Once the per-gene variations are quantified, the next step is to select the HVGs to be used in downstream analyses. Selecting a larger number of HVGs will allow use to retain more potentially relevant genes to capture any batch-specific variation that might be present but at the same time increasing noise from irrelevant genes that obscure interesting biological signal. There are several common methods used to guide HVG selection, which you can read more [here](https://bioconductor.org/books/3.20/OSCA.basic/feature-selection.html).
+Once the per-gene variations are quantified, the next step is to select the HVGs to be used in downstream analyses. Selecting a larger number of HVGs will allow use to retain more potentially relevant genes to capture any batch-specific variation that might be present but at the same time increasing noise from irrelevant genes that obscure interesting biological signal. There are several common methods used to guide HVG selection, which you can read more [here](https://bioconductor.org/books/3.22/OSCA.basic/feature-selection.html).
 
 ### (Option 1) Select the top N genes with the highest biological components
 
@@ -2102,7 +2075,7 @@ head(hvg.out2, 20)
 
 Below we mark the selected HVG from both models in red.
 
-Trends based purely on technical noise (i.e. `modelGeneVarByPoisson`) tend to yield large biological components for highly-expressed genes, including “house-keeping” genes coding for essential cellular components such as ribosomal proteins, which are considered uninteresting for characterizing cellular heterogeneity. These observations suggest that a more accurate noise model does not necessarily yield a better ranking of HVGs, though one should keep an open mind - house-keeping genes are regularly DE in a variety of conditions, and the fact that they have large biological components indicates that there is strong variation across cells that may not be completely irrelevant. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/feature-selection.html#sec:spikeins)
+Trends based purely on technical noise (i.e. `modelGeneVarByPoisson`) tend to yield large biological components for highly-expressed genes, including “house-keeping” genes coding for essential cellular components such as ribosomal proteins, which are considered uninteresting for characterizing cellular heterogeneity. These observations suggest that a more accurate noise model does not necessarily yield a better ranking of HVGs, though one should keep an open mind - house-keeping genes are regularly DE in a variety of conditions, and the fact that they have large biological components indicates that there is strong variation across cells that may not be completely irrelevant. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/feature-selection.html#sec:spikeins)
 
 
 ```R
@@ -2224,18 +2197,12 @@ hvg %>% DataFrame
     NKG7            NKG7   1.49643   3.89281  0.627994   3.26482           0           0
     S100A9        S100A9   1.12832   3.82526  0.634779   3.19048           0           0
     ...              ...       ...       ...       ...       ...         ...         ...
-    MAF1            MAF1  0.940962  0.649845  0.597206 0.0526384 5.05196e-08 8.13392e-08
-    KDM4C          KDM4C  0.980784  0.660599  0.608066 0.0525330 8.98152e-08 1.42648e-07
-    CCNI            CCNI  1.395193  0.692392  0.637385 0.0550066 9.25833e-08 1.46913e-07
-    TNFRSF14    TNFRSF14  1.110026  0.687020  0.632535 0.0544856 9.75961e-08 1.54611e-07
-    SYNRG          SYNRG  1.055376  0.677930  0.624222 0.0537087 1.00737e-07 1.59445e-07
+    ANKRD44      ANKRD44  1.446403  0.689182  0.633291 0.0558907 4.86514e-08 7.83848e-08
+    MAF1            MAF1  0.940962  0.649845  0.597206 0.0526384 5.05196e-08 8.13212e-08
+    CCNI            CCNI  1.395193  0.692392  0.637385 0.0550066 9.25833e-08 1.46866e-07
+    TNFRSF14    TNFRSF14  1.110026  0.687020  0.632535 0.0544856 9.75961e-08 1.54562e-07
+    SYNRG          SYNRG  1.055376  0.677930  0.624222 0.0537087 1.00737e-07 1.59395e-07
 
-
-
-```R
-# Save to file
-write.table(hvg, file = "HVG.tsv", sep = "\t", quote = F, row.names = F, col.names = T)
-```
 
 
 ```R
@@ -2256,23 +2223,19 @@ __Final Notes__ There are alternative approaches for determining the HVG, especi
 However, it has been mentioned that fitting the trendline to endogenous genes might not always be a good idea.
 
 
-# 7 - Dimensionality reduction using HVG
+# 7 - Dimensionality reduction
 
-1. Principal components analysis (PCA)
-2. t-stochastic neighbor embedding (t-SNE)
-3. Uniform manifold approximation and projection (UMAP)
+<div class="alert alert-warning">
+    <strong>Warning!</strong> The PCA, TSNE, UMAP and clustering results will <strong>NOT</strong> be identical between different R versions. Make sure to use the same environment/versions to process (or re-process) data from the same project.
+</div>
 
 ## Principal components analysis
 
 We perform a PCA on the log-normalized expression values using the `calculatePCA` function from `scater` package. By default, `calculatePCA` function will compute the first 50 PCs.
 
-Here, we restricting the PCA to the HVGs selected previously (by using `subset_row`) to reduce both computational work and high-dimensional random noise. In particular, while PCA is robust to random noise, an excess of it may cause the earlier PCs to capture noise instead of biological structure.
+Here, we restricting the PCA to the **HVGs** selected previously (by using `subset_row`) to reduce both computational work and high-dimensional random noise. In particular, while PCA is robust to random noise, an excess of it may cause the earlier PCs to capture noise instead of biological structure.
 
-For large data sets, greater efficiency is obtained by using approximate SVD algorithms that only compute the top PCs. By default, most PCA-related functions in `scater` and `scran` will use methods from the `irlba` or `rsvd` packages to perform the SVD. Many of these approximate algorithms are based on randomization and thus require `set.seed()` to obtain reproducible results. See [here](https://bioconductor.org/books/3.20/OSCA.advanced/dealing-with-big-data.html#big-data-svd) more details.
-
-<div class="alert alert-warning">
-    <strong>Warning!</strong> The PCA results are slightly different from versions available in R 4.3 versus R 4.4. Therefore the TSNE, UMAP and clustering results will also be different. Make sure to use the same environment/versions to process (or re-process) data from the same project.
-</div>
+For large data sets, greater efficiency is obtained by using approximate SVD algorithms that only compute the top PCs. By default, most PCA-related functions in `scater` and `scran` will use methods from the `irlba` or `rsvd` packages to perform the SVD. Many of these approximate algorithms are based on randomization and thus require `set.seed()` to obtain reproducible results. See [here](https://bioconductor.org/books/3.22/OSCA.advanced/dealing-with-big-data.html#big-data-svd) more details.
 
 
 ```R
@@ -2316,13 +2279,13 @@ str(reducedDim(cdScAnnot, "PCA"))
 
 
 
-     num [1:18460, 1:50] 2.135 10.722 9.907 12.776 0.666 ...
+     num [1:18460, 1:50] 2.184 10.725 9.914 12.78 0.666 ...
      - attr(*, "dimnames")=List of 2
       ..$ : chr [1:18460] "AAACAAGCAACAAGTTACTTTAGG-1" "AAACAAGCAACTAGTGACTTTAGG-1" "AAACAAGCAGTTATCCACTTTAGG-1" "AAACAAGCATAGCCGGACTTTAGG-1" ...
       ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
-     - attr(*, "varExplained")= num [1:50] 231.9 81.1 54.6 17 14.8 ...
-     - attr(*, "percentVar")= num [1:50] 16.97 5.93 4 1.24 1.08 ...
-     - attr(*, "rotation")= num [1:2000, 1:50] -0.12405 -0.09781 0.01309 0.00846 -0.1065 ...
+     - attr(*, "varExplained")= num [1:50] 232.4 81.1 54.7 17 14.9 ...
+     - attr(*, "percentVar")= num [1:50] 17.01 5.94 4 1.25 1.09 ...
+     - attr(*, "rotation")= num [1:2000, 1:50] -0.12394 -0.0977 0.01306 0.00845 -0.10641 ...
       ..- attr(*, "dimnames")=List of 2
       .. ..$ : chr [1:2000] "LYZ" "CD74" "GNLY" "NKG7" ...
       .. ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
@@ -2350,26 +2313,26 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 	<tr><th></th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td> 1</td><td>16.9709397</td></tr>
-	<tr><th scope=row>2</th><td> 2</td><td> 5.9338477</td></tr>
-	<tr><th scope=row>3</th><td> 3</td><td> 3.9987916</td></tr>
-	<tr><th scope=row>4</th><td> 4</td><td> 1.2437952</td></tr>
-	<tr><th scope=row>5</th><td> 5</td><td> 1.0835411</td></tr>
-	<tr><th scope=row>6</th><td> 6</td><td> 0.6578113</td></tr>
-	<tr><th scope=row>7</th><td> 7</td><td> 0.4877981</td></tr>
-	<tr><th scope=row>8</th><td> 8</td><td> 0.4645971</td></tr>
-	<tr><th scope=row>9</th><td> 9</td><td> 0.4130075</td></tr>
-	<tr><th scope=row>10</th><td>10</td><td> 0.3578047</td></tr>
-	<tr><th scope=row>11</th><td>11</td><td> 0.3389722</td></tr>
-	<tr><th scope=row>12</th><td>12</td><td> 0.2652962</td></tr>
-	<tr><th scope=row>13</th><td>13</td><td> 0.2492934</td></tr>
-	<tr><th scope=row>14</th><td>14</td><td> 0.2349211</td></tr>
-	<tr><th scope=row>15</th><td>15</td><td> 0.2233692</td></tr>
-	<tr><th scope=row>16</th><td>16</td><td> 0.2028569</td></tr>
-	<tr><th scope=row>17</th><td>17</td><td> 0.1931340</td></tr>
-	<tr><th scope=row>18</th><td>18</td><td> 0.1718654</td></tr>
-	<tr><th scope=row>19</th><td>19</td><td> 0.1618642</td></tr>
-	<tr><th scope=row>20</th><td>20</td><td> 0.1557931</td></tr>
+	<tr><th scope=row>1</th><td> 1</td><td>17.0080870</td></tr>
+	<tr><th scope=row>2</th><td> 2</td><td> 5.9372388</td></tr>
+	<tr><th scope=row>3</th><td> 3</td><td> 4.0011811</td></tr>
+	<tr><th scope=row>4</th><td> 4</td><td> 1.2456374</td></tr>
+	<tr><th scope=row>5</th><td> 5</td><td> 1.0871550</td></tr>
+	<tr><th scope=row>6</th><td> 6</td><td> 0.6580081</td></tr>
+	<tr><th scope=row>7</th><td> 7</td><td> 0.4880477</td></tr>
+	<tr><th scope=row>8</th><td> 8</td><td> 0.4652427</td></tr>
+	<tr><th scope=row>9</th><td> 9</td><td> 0.4130184</td></tr>
+	<tr><th scope=row>10</th><td>10</td><td> 0.3578034</td></tr>
+	<tr><th scope=row>11</th><td>11</td><td> 0.3391768</td></tr>
+	<tr><th scope=row>12</th><td>12</td><td> 0.2659259</td></tr>
+	<tr><th scope=row>13</th><td>13</td><td> 0.2493006</td></tr>
+	<tr><th scope=row>14</th><td>14</td><td> 0.2350635</td></tr>
+	<tr><th scope=row>15</th><td>15</td><td> 0.2234417</td></tr>
+	<tr><th scope=row>16</th><td>16</td><td> 0.2031653</td></tr>
+	<tr><th scope=row>17</th><td>17</td><td> 0.1945038</td></tr>
+	<tr><th scope=row>18</th><td>18</td><td> 0.1717159</td></tr>
+	<tr><th scope=row>19</th><td>19</td><td> 0.1610023</td></tr>
+	<tr><th scope=row>20</th><td>20</td><td> 0.1559708</td></tr>
 </tbody>
 </table>
 
@@ -2386,7 +2349,7 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 
 
     
-![png](Control1_files/Control1_138_0.png)
+![png](Control1_files/Control1_137_0.png)
     
 
 
@@ -2400,7 +2363,7 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 
 ## Visualising with t-SNE
 
-The t-stochastic neighbor embedding (t-SNE) method attempts to find a low-dimensional representation of the data that preserves the distances between each point and its neighbors in the high-dimensional space. Unlike PCA, it is not restricted to linear transformations, nor is it obliged to accurately represent distances between distant populations. This means that it has much more freedom in how it arranges cells in low-dimensional space, enabling it to separate many distinct clusters in a complex population. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/dimensionality-reduction.html#t-stochastic-neighbor-embedding)
+The t-stochastic neighbor embedding (t-SNE) method attempts to find a low-dimensional representation of the data that preserves the distances between each point and its neighbors in the high-dimensional space. Unlike PCA, it is not restricted to linear transformations, nor is it obliged to accurately represent distances between distant populations. This means that it has much more freedom in how it arranges cells in low-dimensional space, enabling it to separate many distinct clusters in a complex population. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/dimensionality-reduction.html#t-stochastic-neighbor-embedding)
 
 #### n_dimred
 
@@ -2424,19 +2387,19 @@ cdScAnnot <- runTSNE(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "TSNE", n_
 
 fig(width = 8, height = 8)
 plotProjection(cdScAnnot, "Sample", dimname = "TSNE", feat_color = c_sample_col, 
-               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
+               point_size = 0.1, point_alpha = 0.2, legend_pos = "none")
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_141_0.png)
+![png](Control1_files/Control1_140_0.png)
     
 
 
 ## Visualising with UMAP (`uwot::umap`)
 
-The uniform manifold approximation and projection (UMAP) method is an alternative to t-SNE for non-linear dimensionality reduction. It is roughly similar to t-SNE in that it also tries to find a low-dimensional representation that preserves relationships between neighbors in high-dimensional space. However, the two methods are based on different theory, represented by differences in the various graph weighting equations. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/dimensionality-reduction.html#uniform-manifold-approximation-and-projection)
+The uniform manifold approximation and projection (UMAP) method is an alternative to t-SNE for non-linear dimensionality reduction. It is roughly similar to t-SNE in that it also tries to find a low-dimensional representation that preserves relationships between neighbors in high-dimensional space. However, the two methods are based on different theory, represented by differences in the various graph weighting equations. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/dimensionality-reduction.html#uniform-manifold-approximation-and-projection)
 
 Compared to t-SNE, the UMAP visualisation tends to have more compact visual clusters with more empty space between them. It also attempts to preserve more of the global structure than t-SNE.
 
@@ -2462,10 +2425,6 @@ Note:
 - Default settings in scater/uwot: n_neighbors = 15, spread = 1, min_dist = 0.01
 - Default settings in seurat: n_neighbors = 30, spread = 1, min_dist = 0.3
 
-<div class="alert alert-warning">
-  It is arguable whether the UMAP or t-SNE visualizations are more useful or aesthetically pleasing. UMAP aims to preserve more global structure but this necessarily reduces resolution within each visual cluster. However, UMAP is unarguably much faster, and for that reason alone, it is increasingly displacing t-SNE as the method of choice for visualizing large scRNA-seq data sets.
-</div>
-
 ### Use adjusted settings
 
 
@@ -2476,15 +2435,19 @@ cdScAnnot <- runUMAP(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "UMAP",
 
 fig(width = 8, height = 8)
 plotProjection(cdScAnnot, "Sample", dimname = "UMAP", feat_color = c_sample_col, 
-               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
+               point_size = 0.1, point_alpha = 0.2, legend_pos = "none")
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_143_0.png)
+![png](Control1_files/Control1_142_0.png)
     
 
+
+<div class="alert alert-warning">
+  It is arguable whether the UMAP or t-SNE visualizations are more useful or aesthetically pleasing. UMAP aims to preserve more global structure but this necessarily reduces resolution within each visual cluster. However, UMAP is unarguably much faster, and for that reason alone, it is increasingly displacing t-SNE as the method of choice for visualizing large scRNA-seq data sets.
+</div>
 
 
 ```R
@@ -2549,7 +2512,7 @@ AAACGATGTCTTGAAC-1	T cell	mature T cell	428
 
 ## Predict cell type using SingleR and celldex
 
-If not, we can use of the `SingleR` method for cell type annotation. This method assigns labels to cells based on the reference samples with the highest Spearman rank correlations, using only the marker genes between pairs of labels to focus on the relevant differences between cell types. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/cell-type-annotation.html#assigning-cell-labels-from-reference-data)
+If not, we can use of the `SingleR` method for cell type annotation. This method assigns labels to cells based on the reference samples with the highest Spearman rank correlations, using only the marker genes between pairs of labels to focus on the relevant differences between cell types. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/cell-type-annotation.html#assigning-cell-labels-from-reference-data)
 
 The `celldex` package contains a number of curated reference datasets (listed below), mostly assembled from bulk RNA-seq or microarray data of sorted cell types. 
 
@@ -2655,16 +2618,16 @@ table("BlueprintEncodeData" = singler.bp$labels)
 
     BlueprintEncodeData
          B-cells CD4+ T-cells CD8+ T-cells           DC  Eosinophils          HSC    Monocytes  Neutrophils 
-            1795         5948         4157            3            1           22         3918            1 
+            1793         5948         4157            4            1           22         3919            1 
         NK cells 
             2615 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler.bp$labels, dimname = "TSNE", feat_desc = "BlueprintEncodeData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2681,17 +2644,17 @@ table("HumanPrimaryCellAtlasData" = singler.hpca$labels)
 
 
     HumanPrimaryCellAtlasData
-              B_cell              CMP               DC              GMP       HSC_-G-CSF              MEP 
-                1809               15                1                3                6                3 
-            Monocyte      Neutrophils          NK_cell Pre-B_cell_CD34- Pro-B_cell_CD34+          T_cells 
-                3858                2             2463               39                2            10259 
+              B_cell              CMP              GMP       HSC_-G-CSF              MEP         Monocyte 
+                1811               15                3                5                3             3859 
+         Neutrophils          NK_cell Pre-B_cell_CD34- Pro-B_cell_CD34+          T_cells 
+                   2             2462               38                2            10260 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler.hpca$labels, dimname = "TSNE", feat_desc = "HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2709,17 +2672,17 @@ table("BlueprintEncodeData + HumanPrimaryCellAtlasData" = singler$labels)
 
     BlueprintEncodeData + HumanPrimaryCellAtlasData
          B-cells CD4+ T-cells CD8+ T-cells           DC          HSC     Monocyte    Monocytes  Neutrophils 
-            1797         6161         3917            1           22            3         3922            1 
+            1797         6160         3917            1           22            3         3922            1 
         NK cells      T_cells 
-            2635            1 
+            2636            1 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler$labels, dimname = "TSNE", 
                feat_desc = "BlueprintEncodeData + HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2760,7 +2723,7 @@ Ideally, each cell (i.e., column of the heatmap) should have one score that is o
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 4)
 suppressWarnings(plotScoreHeatmap(singler.bp, grid.vars = list(ncol = 2), fontsize = 12, fontsize_row = 12))
 reset.fig()
 ```
@@ -2773,7 +2736,7 @@ reset.fig()
 
 
 ```R
-fig(width = 16, height = 9)
+fig(width = 16, height = 4)
 suppressWarnings(plotScoreHeatmap(singler.hpca, grid.vars = list(ncol = 2), fontsize = 12, fontsize_row = 12))
 reset.fig()
 ```
@@ -2812,13 +2775,13 @@ table(CellType = cdScAnnot$CellType, Sample = cdScAnnot$Sample)
                   Sample
     CellType       Control1
       B-cells          1797
-      CD4+ T-cells     6161
+      CD4+ T-cells     6160
       CD8+ T-cells     3917
       DC                  1
       HSC                22
       Monocytes        3925
       Neutrophils         1
-      NK cells         2635
+      NK cells         2636
       T-cells             1
 
 
@@ -2831,10 +2794,10 @@ c_celltype_col <- choosePalette(cdScAnnot$CellType, c40)
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, 
-                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2, 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(8, 1))
 reset.fig()
 ```
 
@@ -2846,40 +2809,17 @@ reset.fig()
 
 # 9 - Cell clustering
 
-The goal is to split the cells in the dataset into clusters, such that:
+The primary purpose of clustering is to summarize complex scRNA-seq data into a digestible format for human interpretation. This allows us to describe population heterogeneity in terms of discrete labels that are easily understood. 
 
-1. The gene expression profile in the same cluster are as similar as possible,
-2. The gene expression profile in different clusters are highly distinct
-
-**Assessing cluster separation**
-
-We can perform silhouette analysis to measures how well cells are clustered and it estimates the average distance between clusters. The silhouette plot displays a measure of how close each cell in one cluster is to cells in the neighboring clusters. Ideally, each cluster would contain large positive silhouette widths $s_i$, indicating that it is well-separated from other clusters.
-
-For each observation $i$, the silhouette width $s_i$ is calculated as follows:
-
-1. For each observation $i$, calculate the average dissimalirty $\alpha_i$ between $i$ and all other points of the cluster which $i$ belongs.
-2. For all other clusters $C$, to which $i$ does not belong, calculate the average dissimilarity $d(i,C)$ of $i$ to all observations of $C$. The smallest of these $d(i,C)$ is defined as $b_i = min_C d(i,C)$. The value of $b_i$ can be seen as the dissimilarity between i and its __neighbour__ cluster, i.e. the nearest one to which it does not belong.
-3. Finally the silhouette width of the observation $i$ is defined by the formula: $S_i = \frac{(b_i - a_i)}{max(a_i,b_i)}$
-
-Silhouette width $s_i$ can be interpreted as follows:
-
-- Cells with a large $s_i$ (almost 1) are very well clustered.
-- A small $s_i$ (around 0) means that the observation lies between two clusters.
-- Cells with a negative $s_i$ are probably placed in the wrong cluster. (so cluster is less stable and trustworthy)
+After annotation based on marker genes, the clusters can be treated as proxies for more abstract biological concepts such as cell types or states.
 
 
-```R
-# Stores clustering labels
-my.clusters <- vector(mode = "list")
-communities <- vector(mode = "list") # walktrap, louvain
-```
-
-## Use graph-based clustering
+## Graph-based clustering
 
 Popularized by its use in Seurat, graph-based clustering is a flexible and scalable technique for clustering large scRNA-seq datasets. The major advantage of graph-based clustering lies in its scalability. It only requires a  
 k-nearest neighbor search that can be done in log-linear time on average. Graph construction avoids making strong assumptions about the shape of the clusters or the distribution of cells within each cluster.
 
-From a practical perspective, each cell is forcibly connected to a minimum number of neighboring cells, which reduces the risk of generating many uninformative clusters consisting of one or two outlier cells. The main drawback of graph-based methods is that, after graph construction, no information is retained about relationships beyond the neighboring cells. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/clustering.html#clustering-graph)
+From a practical perspective, each cell is forcibly connected to a minimum number of neighboring cells, which reduces the risk of generating many uninformative clusters consisting of one or two outlier cells. The main drawback of graph-based methods is that, after graph construction, no information is retained about relationships beyond the neighboring cells. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/clustering.html#clustering-graph)
 
 #### About `k`
 
@@ -2887,17 +2827,24 @@ Set `k` to specify the number of nearest neighbors to consider during graph cons
 
 #### Different methods for finding communities in `igraph`
 
-In this notebook, we use the **Walktrap**, **Louvain** and **Leiden** algorithms to detect community structure. This is also the method demonstrated in [OSCA](https://bioconductor.org/books/3.20/OSCA.basic/clustering.html#implementation). There are other methods in `igraph` ([doc](https://igraph.org/r/doc/communities.html)): 
+This notebook shows how to use the **Walktrap**, **Louvain** and **Leiden** algorithms to detect community structure. This is also the method demonstrated in [OSCA](https://bioconductor.org/books/3.22/OSCA.basic/clustering.html#implementation). There are other methods in `igraph` ([doc](https://igraph.org/r/doc/communities.html)): 
 
 - cluster_edge_betweenness: Community structure detection based on edge betweenness.
 - cluster_fast_greedy: Community structure via greedy optimization of modularity.
 - cluster_label_prop: Finding communities based on propagating labels.
 - cluster_leading_eigen: Community structure detecting based on the leading eigenvector of the community matrix.
-- **cluster_louvain \***: Finding community structure by multi-level optimization of modularity
-- **cluster_leiden (new)**: Finding community structure of a graph using the Leiden algorithm of Traag, van Eck & Waltman. 
+- **cluster_louvain**: Finding community structure by multi-level optimization of modularity
+- **cluster_leiden**: Finding community structure of a graph using the Leiden algorithm of Traag, van Eck & Waltman. 
 - cluster_optimal: Optimal community structure
 - cluster_spinglass: Finding communities in graphs based on statistical meachanics
-- **cluster_walktrap \***: Community strucure via short random walks
+- **cluster_walktrap**: Community strucure via short random walks
+
+
+```R
+# Stores clustering labels
+my.clusters <- vector(mode = "list")
+communities <- vector(mode = "list") # walktrap, louvain
+```
 
 ### Using 'walktrap' algorithm
 
@@ -2922,37 +2869,33 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Walktrap cluster assignments:"
-              walktrap
+    Cluster assignments using Walktrap:
+              
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      Control1 1328 2015  796 3299 2409  289  237  280  572   95 3157 2256   75  221 1035   82   34  167   46
-              walktrap
-                 20   21
-      Control1   52   15
+      Control1  295 1723  301  969 2016 2979  307 2165  257  592 3262  106 2228   81   77   34 1003   50   15
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4509  0.1477  0.2344  0.2271  0.3277  0.6778 
+    -0.4740  0.1598  0.2479  0.2460  0.3480  0.6902 
 
 
 #### Manually tuning walktrap clustering resolution
 
 You can increase `k` to obtain less resolved clusters or descrease `k` to obtain more resolved clusters. However it will be increasingly slow with higher `k`. 
 
-The `igraph`'s Walktrap community finding algorithm is a hierarchical algorithm. This implies that there is an underlying hierarchy in the communities object, and we can use the `cut_at` function to cut the merge tree at the desired place and returns a membership vector. The desired place can be expressed as the desired number of communities (e.g. `no=10`) or as the number of merge steps to make (e.g. `steps = 5`). The function gives an error message if called with a non-hierarchical method.
+The `igraph`'s Walktrap community finding algorithm is a hierarchical algorithm. This implies that there is an underlying hierarchy in the communities object, and we can use the `cut_at` function to cut the merge tree at the desired place and returns a membership vector. The desired place can be expressed as the desired number of communities (e.g. `no = 10`) or as the number of merge steps to make (e.g. `steps = 5`). The function gives an error message if called with a non-hierarchical method.
 
 
 ```R
@@ -2962,90 +2905,50 @@ n <- 16
 my.clusters[[method]][[dimname]] <- igraph::cut_at(communities[[method]][[dimname]]$objects$communities, n = n)
 my.clusters[[method]][[dimname]] <- as.factor(my.clusters[[method]][[dimname]])
 
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Walktrap cluster assignments:"
-              walktrap
+    Cluster assignments using Walktrap:
+              
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1 8879 1617  303 2015  796 2409  237  280  572   95   75 1035   34   46   52   15
+      Control1 2030 8469  295  301  969 2016 2165  257  592  106   81   77   34 1003   50   15
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.5288  0.2564  0.3595  0.3134  0.4057  0.6778 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.5288  0.2564  0.3595  0.3134  0.4057  0.6778 
-    [90m# A tibble: 16 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1                4.64
-    [90m 2[39m 2               11.0 
-    [90m 3[39m 3               14.2 
-    [90m 4[39m 4                0.4 
-    [90m 5[39m 5                1.01
-    [90m 6[39m 6                6.77
-    [90m 7[39m 7                1.69
-    [90m 8[39m 8               21.4 
-    [90m 9[39m 9                8.92
-    [90m10[39m 10               2.11
-    [90m11[39m 11              17.3 
-    [90m12[39m 12               0.29
-    [90m13[39m 13               2.94
-    [90m14[39m 14               0   
-    [90m15[39m 15               0   
-    [90m16[39m 16               0   
-
-
-
-    
-![png](Control1_files/Control1_178_2.png)
-    
+    -0.4636  0.2539  0.3691  0.3242  0.4205  0.6902 
 
 
 #### Show assigned walktrap clusters
 
-We add the cluster assignments back into the `sce` object as a factor in the column metadata (`label`). This allows us to visualise the distribution of clusters in a t-SNE plot.
+We view the cluster assignment `my.clusters[["walktrap"]][["PCA"]]` using `plotProjections()`.
 
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_180_0.png)
+![png](Control1_files/Control1_178_0.png)
     
 
 
@@ -3073,88 +2976,50 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Louvain cluster assignments:"
-              louvain
-                  1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1  315 2271 2871 1045 3210  493 1459 2160  573 2027  969  286   52  307  388   34
+    Cluster assignments using Louvain:
+              
+                  1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17
+      Control1  316 2262 2906 1054 3207  405 1454 2311  564 2034  819  264   53  307   86  291  127
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.3704  0.1589  0.2500  0.2526  0.3637  0.6770 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.3704  0.1589  0.2500  0.2526  0.3637  0.6770 
-    [90m# A tibble: 16 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1               21.6 
-    [90m 2[39m 2                0.09
-    [90m 3[39m 3               14.7 
-    [90m 4[39m 4                0.1 
-    [90m 5[39m 5                0.87
-    [90m 6[39m 6               25.4 
-    [90m 7[39m 7                5.35
-    [90m 8[39m 8                0.74
-    [90m 9[39m 9                8.03
-    [90m10[39m 10               1.28
-    [90m11[39m 11               4.75
-    [90m12[39m 12              18.5 
-    [90m13[39m 13               0   
-    [90m14[39m 14               3.91
-    [90m15[39m 15              68.3 
-    [90m16[39m 16               2.94
-
-
-
-    
-![png](Control1_files/Control1_184_2.png)
-    
+    -0.3709  0.1563  0.2422  0.2494  0.3560  0.7187 
 
 
 #### Show assigned louvain clusters
 
+We view the cluster assignment `my.clusters[["louvain"]][["PCA"]]` using `plotProjections()`.
+
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_186_0.png)
+![png](Control1_files/Control1_183_0.png)
     
 
 
@@ -3182,89 +3047,50 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Leiden cluster assignments:"
-              leiden
+    Cluster assignments using Leiden:
+              
                   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17
-      Control1  313 2259 2794 1048 3246  413 1483 2198  572  305 2021  936  279   52  158  305   78
+      Control1  314 2258 2728 1059 3257  408 1476 2200  559  376 2023  935  272   52  304  157   82
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.2972  0.1587  0.2453  0.2536  0.3606  0.7320 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.2972  0.1587  0.2453  0.2536  0.3606  0.7320 
-    [90m# A tibble: 17 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1               23.3 
-    [90m 2[39m 2                0   
-    [90m 3[39m 3               12.9 
-    [90m 4[39m 4                0   
-    [90m 5[39m 5                0.99
-    [90m 6[39m 6               16.2 
-    [90m 7[39m 7               11.6 
-    [90m 8[39m 8                0.86
-    [90m 9[39m 9                7.87
-    [90m10[39m 10              16.4 
-    [90m11[39m 11               1.68
-    [90m12[39m 12               2.46
-    [90m13[39m 13              16.5 
-    [90m14[39m 14               0   
-    [90m15[39m 15              44.9 
-    [90m16[39m 16               2.95
-    [90m17[39m 17               6.41
-
-
-
-    
-![png](Control1_files/Control1_190_2.png)
-    
+    -0.3209  0.1605  0.2476  0.2553  0.3625  0.7335 
 
 
 #### Show assigned leiden clusters
 
+We view the cluster assignment `my.clusters[["leiden"]][["PCA"]]` using `plotProjections()`.
+
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_192_0.png)
+![png](Control1_files/Control1_188_0.png)
     
 
 
@@ -3311,7 +3137,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_197_0.png)
+![png](Control1_files/Control1_193_0.png)
     
 
 
@@ -3343,8 +3169,8 @@ table_samples_by_clusters
 
 
               Cluster
-    Sample        1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      Control1  315 2271 2871 1045 3210  493 1459 2160  573 2027  969  286   52  307  388   34
+    Sample        1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17
+      Control1  316 2262 2906 1054 3207  405 1454 2311  564 2034  819  264   53  307   86  291  127
 
 
 
@@ -3360,7 +3186,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_202_0.png)
+![png](Control1_files/Control1_198_0.png)
     
 
 
@@ -3377,7 +3203,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_203_0.png)
+![png](Control1_files/Control1_199_0.png)
     
 
 
@@ -3389,29 +3215,29 @@ reset.fig()
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "label", dimnames = c("TSNE", "UMAP"), feat_desc = "Cluster", 
-                feat_color = c_clust_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
+                feat_color = c_clust_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_205_0.png)
+![png](Control1_files/Control1_201_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellCycle", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Cycle Phases", 
-                feat_color = c_phase_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
+                feat_color = c_phase_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_206_0.png)
+![png](Control1_files/Control1_202_0.png)
     
 
 
@@ -3423,37 +3249,37 @@ cdScAnnot$log10Sum <- log10(cdScAnnot$sum+1)
 bk <- seq(min(cdScAnnot$log10Sum), max(cdScAnnot$log10Sum), max(cdScAnnot$log10Sum)/20)
 bk <- round(bk, 2)
 
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "log10Sum", dimnames = c("TSNE", "UMAP"), feat_desc = "log10(Sum)", 
-                feat_color = rev(rainbow(5)), color_breaks = bk, point_size = 0.5, point_alpha = 0.3, 
-                text_by = "label", guides_barheight = 10, rel_widths = c(8, 1))
+                feat_color = rev(rainbow(5)), color_breaks = bk, point_size = 0.1, point_alpha = 0.2, 
+                text_by = "label", guides_barheight = 15)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_207_0.png)
+![png](Control1_files/Control1_203_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", 
-                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(8, 1))
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_208_0.png)
+![png](Control1_files/Control1_204_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 5)
+fig(width = 16, height = 6)
 ggplot(data.frame(table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)), 
        aes(Cluster, Freq, fill = CellType)) +
     geom_bar(position = "fill", stat = "identity", linewidth = 0.2, color = "black") + coord_flip() +
@@ -3464,7 +3290,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_209_0.png)
+![png](Control1_files/Control1_205_0.png)
     
 
 
@@ -3481,7 +3307,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_210_0.png)
+![png](Control1_files/Control1_206_0.png)
     
 
 
@@ -3492,16 +3318,16 @@ table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)
 
 
                   Cluster
-    CellType          1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      B-cells       149    0    0 1045    0    2    0    0  573    0    0    0   19    0    0    9
-      CD4+ T-cells   62  656 2160    0 3170    1    0    0    0    0    0   49    3    0   60    0
-      CD8+ T-cells   49 1615  706    0   40    8 1059    0    0    0    0  234    2    1  200    3
-      DC              0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0
-      HSC             0    0    0    0    0    0    0    0    0    0    0    0    0    0    0   22
-      Monocytes       0    0    0    0    0  464    0 2160    0    0  969    0   28  304    0    0
-      Neutrophils     0    0    1    0    0    0    0    0    0    0    0    0    0    0    0    0
-      NK cells       55    0    4    0    0   18  400    0    0 2027    0    3    0    0  128    0
-      T-cells         0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0
+    CellType          1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17
+      B-cells       149    0    0 1054    0    0    0    0  564    0    0    0   19    0    2    0    9
+      CD4+ T-cells   62  657 2183    0 3165    1    0    0    0    0    0   34    3    0    0    0   55
+      CD8+ T-cells   50 1605  718    0   42    6 1051    0    0    5    0  227    2    2    0  169   40
+      DC              0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0    0
+      HSC             0    0    0    0    0    0    0    0    0    0    0    0    0    0    0    0   22
+      Monocytes       0    0    0    0    0  379    0 2311    0    0  819    0   29  303   84    0    0
+      Neutrophils     0    0    1    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+      NK cells       55    0    4    0    0   19  403    0    0 2029    0    3    0    0    0  122    1
+      T-cells         0    0    0    0    0    0    0    0    0    0    0    0    0    1    0    0    0
 
 
 ## Visualising gene expressions in cells
@@ -3524,7 +3350,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_213_0.png)
+![png](Control1_files/Control1_209_0.png)
     
 
 
@@ -3553,47 +3379,45 @@ file_id
 
 ```R
 # Use logcounts from cdScAnnot
-ave.expr.label <- sumCountsAcrossCells(annot_l, ids = DataFrame(cluster = cdScAnnot$label), average = TRUE, 
-                                       BPPARAM = bpp) %>% 
+ave.expr <- sumCountsAcrossCells(annot_l, ids = DataFrame(cluster = cdScAnnot$label), 
+                                 average = TRUE, BPPARAM = bpp) %>% 
     `colnames<-`(paste0("Cluster", .$cluster)) %>% assay %>% as.data.frame %>% rownames_to_column("Symbol")
-head(ave.expr.label)
+head(ave.expr)
 
 outfile <- paste0(file_id, "_average_logcounts_in_clusters.tsv")
-print(paste("Write to file:", outfile))
-write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F, col.names = T)
+cat(sprintf("Write to file: %s\n", outfile))
+write.table(ave.expr, file = outfile, sep = "\t", quote = F, row.names = F, col.names = T)
 ```
 
 
 <table class="dataframe">
-<caption>A data.frame: 6 × 17</caption>
+<caption>A data.frame: 6 × 18</caption>
 <thead>
-	<tr><th></th><th scope=col>Symbol</th><th scope=col>Cluster1</th><th scope=col>Cluster2</th><th scope=col>Cluster3</th><th scope=col>Cluster4</th><th scope=col>Cluster5</th><th scope=col>Cluster6</th><th scope=col>Cluster7</th><th scope=col>Cluster8</th><th scope=col>Cluster9</th><th scope=col>Cluster10</th><th scope=col>Cluster11</th><th scope=col>Cluster12</th><th scope=col>Cluster13</th><th scope=col>Cluster14</th><th scope=col>Cluster15</th><th scope=col>Cluster16</th></tr>
-	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th></th><th scope=col>Symbol</th><th scope=col>Cluster1</th><th scope=col>Cluster2</th><th scope=col>Cluster3</th><th scope=col>Cluster4</th><th scope=col>Cluster5</th><th scope=col>Cluster6</th><th scope=col>Cluster7</th><th scope=col>Cluster8</th><th scope=col>Cluster9</th><th scope=col>Cluster10</th><th scope=col>Cluster11</th><th scope=col>Cluster12</th><th scope=col>Cluster13</th><th scope=col>Cluster14</th><th scope=col>Cluster15</th><th scope=col>Cluster16</th><th scope=col>Cluster17</th></tr>
+	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.323950024</td><td>0.3134798601</td><td>0.274838214</td><td>0.316248953</td><td>0.2836551912</td><td>0.350696866</td><td>0.25866841</td><td>0.31414132</td><td>0.325542268</td><td>0.30880432</td><td>0.445158087</td><td>0.386258148</td><td>0.39591604</td><td>0.316138042</td><td>0.33106242</td><td>0.43700458</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.076648592</td><td>0.0694519816</td><td>0.068836109</td><td>0.057609012</td><td>0.0687172363</td><td>0.078573995</td><td>0.07242574</td><td>0.08764508</td><td>0.093925883</td><td>0.09090687</td><td>0.095953940</td><td>0.069582487</td><td>0.07296376</td><td>0.085102167</td><td>0.11443077</td><td>0.02891171</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.008897498</td><td>0.0057618028</td><td>0.033829495</td><td>0.001346934</td><td>0.0032799969</td><td>0.043278335</td><td>0.02053546</td><td>0.03526607</td><td>0.003871614</td><td>0.01256336</td><td>0.003573072</td><td>0.005963639</td><td>0.00000000</td><td>0.013103558</td><td>0.01470391</td><td>0.01648145</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.0003530115</td><td>0.000000000</td><td>0.000000000</td><td>0.0003713437</td><td>0.001160001</td><td>0.00043989</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.001901927</td><td>0.00000000</td><td>0.00000000</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.027801648</td><td>0.0069337241</td><td>0.008664431</td><td>0.010752618</td><td>0.0156165134</td><td>0.302367953</td><td>0.01323547</td><td>0.17175271</td><td>0.018405957</td><td>0.06021532</td><td>1.281369238</td><td>0.022057129</td><td>0.00000000</td><td>0.063902949</td><td>0.04422343</td><td>0.00000000</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.0000000000</td><td>0.00000000</td><td>0.0000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.322924866</td><td>0.3141254946</td><td>0.276443993</td><td>0.315028157</td><td>0.2837481007</td><td>0.34963586</td><td>0.2575257544</td><td>0.32040424</td><td>0.327971982</td><td>0.30975197</td><td>0.45025838</td><td>0.387939977</td><td>0.38844592</td><td>0.318377839</td><td>0.363849189</td><td>0.33886245</td><td>0.30904601</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.080010563</td><td>0.0687720248</td><td>0.069278683</td><td>0.057117094</td><td>0.0685470568</td><td>0.07920324</td><td>0.0733756770</td><td>0.08714419</td><td>0.095424700</td><td>0.09082208</td><td>0.09943650</td><td>0.069784297</td><td>0.07158708</td><td>0.085102167</td><td>0.071205502</td><td>0.10122321</td><td>0.11024713</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.008869341</td><td>0.0057847277</td><td>0.032630424</td><td>0.001335432</td><td>0.0032830652</td><td>0.04692065</td><td>0.0189472960</td><td>0.03296179</td><td>0.003933395</td><td>0.01252013</td><td>0.00422748</td><td>0.006460609</td><td>0.00000000</td><td>0.013103558</td><td>0.027132056</td><td>0.02466018</td><td>0.02993468</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.000000000</td><td>0.0003544161</td><td>0.000000000</td><td>0.000000000</td><td>0.0003716911</td><td>0.00000000</td><td>0.0004414027</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.001901927</td><td>0.006649773</td><td>0.00000000</td><td>0.00000000</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.027713668</td><td>0.0069613119</td><td>0.008560076</td><td>0.010660802</td><td>0.0156311219</td><td>0.28424273</td><td>0.0136343993</td><td>0.19623002</td><td>0.018699669</td><td>0.05975545</td><td>1.41170910</td><td>0.023895224</td><td>0.00000000</td><td>0.065073488</td><td>0.424942445</td><td>0.03802715</td><td>0.04797472</td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Write to file: 160k_Control1_average_logcounts_in_clusters.tsv"
+    Write to file: 160k_Control1_average_logcounts_in_clusters.tsv
 
 
 # 10 - Marker gene detection
 
-Potential marker genes are identified by taking the top set of DE genes from each pairwise comparison between clusters. The results are arranged into a single output table that allows a marker set to be easily defined for a user-specified size of the top set. For example, to construct a marker set from the top 10 genes of each comparison, one would filter `marker.set` to retain rows with Top less than or equal to 10.
+To interpret the clustering results, we can perform marker gene detection to identify the genes that drive separation between clusters, and help us to assign biological meaning to each cluster. 
 
-<div class="alert alert-warning">
-  <strong>Warning!</strong> Take note of any poor clusters in the silhouette plot and consider how trustworthy the marker genes actually are.
-</div>
+In the simplest case, we have a priori knowledge of the marker genes associated with particular cell types, allowing us to treat the clustering as a proxy for cell type identity. The same principle can be applied to discover more subtle differences between clusters (e.g., changes in activation or differentiation state) based on the behavior of genes in the affected pathways.
 
-Here we are going to use `findMarkers` from `scran` package as this is much faster. 
+The most straightforward approach to marker gene detection involves testing for differential expression between clusters. If a gene is strongly DE between clusters, it is likely to have driven the separation of cells in the clustering algorithm. Here we are using `findMarkers()` from the `scran` package. 
 
 ## Decided the `pval.type` and `min.prop` settings
 
@@ -3643,8 +3467,8 @@ marker.genes.cluster
 ```
 
 
-    List of length 16
-    names(16): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+    List of length 17
+    names(17): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
 
 
 Print the number of markers that passed the FDR or `Top` threshold.
@@ -3655,22 +3479,23 @@ printMarkerStats(marker.genes.cluster, pval.type = pval.type, min.prop = min.pro
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 185; Up = 113; Down = 72; Max. P-value = 3e-39.
-    - Cluster2: 173; Up = 101; Down = 72; Max. P-value = 0.
-    - Cluster3: 159; Up = 101; Down = 58; Max. P-value = 0.
-    - Cluster4: 199; Up = 86; Down = 113; Max. P-value = 7.7e-100.
-    - Cluster5: 168; Up = 97; Down = 71; Max. P-value = 0.
-    - Cluster6: 205; Up = 182; Down = 23; Max. P-value = 1.2e-130.
-    - Cluster7: 171; Up = 117; Down = 54; Max. P-value = 0.
-    - Cluster8: 218; Up = 202; Down = 16; Max. P-value = 1.9e-281.
-    - Cluster9: 179; Up = 66; Down = 113; Max. P-value = 9.7e-132.
-    - Cluster10: 192; Up = 147; Down = 45; Max. P-value = 5.5e-292.
-    - Cluster11: 225; Up = 187; Down = 38; Max. P-value = 0.
-    - Cluster12: 155; Up = 85; Down = 70; Max. P-value = 3.3e-80.
-    - Cluster13: 165; Up = 43; Down = 122; Max. P-value = 3.3e-28.
-    - Cluster14: 196; Up = 119; Down = 77; Max. P-value = 2e-117.
-    - Cluster15: 164; Up = 65; Down = 99; Max. P-value = 2.7e-122.
-    - Cluster16: 180; Up = 0; Down = 180; Max. P-value = 8.9e-56.
+    - Cluster1: 235; Up = 119; Down = 116; Max. P-value = 1.5e-45.
+    - Cluster2: 209; Up = 116; Down = 93; Max. P-value = 6e-319.
+    - Cluster3: 187; Up = 115; Down = 72; Max. P-value = 9.2e-250.
+    - Cluster4: 224; Up = 91; Down = 133; Max. P-value = 8.3e-187.
+    - Cluster5: 194; Up = 106; Down = 88; Max. P-value = 1.9e-172.
+    - Cluster6: 227; Up = 192; Down = 35; Max. P-value = 1.4e-100.
+    - Cluster7: 206; Up = 128; Down = 78; Max. P-value = 9.3e-297.
+    - Cluster8: 232; Up = 214; Down = 18; Max. P-value = 0.
+    - Cluster9: 225; Up = 84; Down = 141; Max. P-value = 8.2e-73.
+    - Cluster10: 219; Up = 157; Down = 62; Max. P-value = 8.1e-286.
+    - Cluster11: 242; Up = 198; Down = 44; Max. P-value = 4.3e-213.
+    - Cluster12: 190; Up = 93; Down = 97; Max. P-value = 1.2e-69.
+    - Cluster13: 194; Up = 47; Down = 147; Max. P-value = 1.3e-30.
+    - Cluster14: 210; Up = 127; Down = 83; Max. P-value = 4.4e-137.
+    - Cluster15: 234; Up = 142; Down = 92; Max. P-value = 3.4e-44.
+    - Cluster16: 200; Up = 115; Down = 85; Max. P-value = 6.3e-49.
+    - Cluster17: 172; Up = 3; Down = 169; Max. P-value = 6.1e-19.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3702,6 +3527,7 @@ exportResList(marker.genes.cluster, col_anno = c("ID","Symbol"), prefix = file_i
     Creating file: 160k_Control1_findMarkers_Cluster14.tsv
     Creating file: 160k_Control1_findMarkers_Cluster15.tsv
     Creating file: 160k_Control1_findMarkers_Cluster16.tsv
+    Creating file: 160k_Control1_findMarkers_Cluster17.tsv
 
 
 ### Run `findMarkers` (upregulated genes)
@@ -3722,8 +3548,8 @@ marker.genes.cluster.up
 ```
 
 
-    List of length 16
-    names(16): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+    List of length 17
+    names(17): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
 
 
 Print the number of markers that passed the FDR or `Top` threshold. This will be the number of genes as inut for `enrichR`.
@@ -3734,22 +3560,23 @@ printMarkerStats(marker.genes.cluster.up, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 272; Up = 272; Down = 0; Max. P-value = 1.
-    - Cluster2: 251; Up = 251; Down = 0; Max. P-value = 5.4e-14.
-    - Cluster3: 272; Up = 272; Down = 0; Max. P-value = 1.1e-07.
-    - Cluster4: 248; Up = 248; Down = 0; Max. P-value = 9.5e-05.
-    - Cluster5: 252; Up = 252; Down = 0; Max. P-value = 2.7e-32.
-    - Cluster6: 234; Up = 234; Down = 0; Max. P-value = 1.8e-41.
-    - Cluster7: 243; Up = 243; Down = 0; Max. P-value = 9.9e-06.
-    - Cluster8: 244; Up = 244; Down = 0; Max. P-value = 1.3e-238.
-    - Cluster9: 245; Up = 245; Down = 0; Max. P-value = 7.1e-08.
-    - Cluster10: 261; Up = 261; Down = 0; Max. P-value = 1.9e-16.
-    - Cluster11: 241; Up = 241; Down = 0; Max. P-value = 2.6e-159.
-    - Cluster12: 275; Up = 275; Down = 0; Max. P-value = 1.1e-06.
-    - Cluster13: 241; Up = 241; Down = 0; Max. P-value = 0.00032.
-    - Cluster14: 244; Up = 244; Down = 0; Max. P-value = 1.1e-18.
-    - Cluster15: 258; Up = 258; Down = 0; Max. P-value = 9.2e-17.
-    - Cluster16: 249; Up = 249; Down = 0; Max. P-value = 1.
+    - Cluster1: 288; Up = 288; Down = 0; Max. P-value = 4.5e-09.
+    - Cluster2: 258; Up = 258; Down = 0; Max. P-value = 1.6e-05.
+    - Cluster3: 289; Up = 289; Down = 0; Max. P-value = 8.9e-82.
+    - Cluster4: 254; Up = 254; Down = 0; Max. P-value = 9e-31.
+    - Cluster5: 270; Up = 270; Down = 0; Max. P-value = 1.8e-18.
+    - Cluster6: 259; Up = 259; Down = 0; Max. P-value = 2.4e-18.
+    - Cluster7: 251; Up = 251; Down = 0; Max. P-value = 3.7e-93.
+    - Cluster8: 250; Up = 250; Down = 0; Max. P-value = 4.4e-142.
+    - Cluster9: 254; Up = 254; Down = 0; Max. P-value = 5.1e-46.
+    - Cluster10: 269; Up = 269; Down = 0; Max. P-value = 1e-107.
+    - Cluster11: 249; Up = 249; Down = 0; Max. P-value = 5.6e-180.
+    - Cluster12: 284; Up = 284; Down = 0; Max. P-value = 4e-34.
+    - Cluster13: 248; Up = 248; Down = 0; Max. P-value = 2.2e-08.
+    - Cluster14: 250; Up = 250; Down = 0; Max. P-value = 8.5e-41.
+    - Cluster15: 251; Up = 251; Down = 0; Max. P-value = 1.2e-11.
+    - Cluster16: 259; Up = 259; Down = 0; Max. P-value = 6.6e-06.
+    - Cluster17: 300; Up = 300; Down = 0; Max. P-value = 0.091.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3781,6 +3608,7 @@ exportResList(marker.genes.cluster.up, col_anno = c("ID","Symbol"), prefix = fil
     Creating file: 160k_Control1_findMarkers_upregulated_Cluster14.tsv
     Creating file: 160k_Control1_findMarkers_upregulated_Cluster15.tsv
     Creating file: 160k_Control1_findMarkers_upregulated_Cluster16.tsv
+    Creating file: 160k_Control1_findMarkers_upregulated_Cluster17.tsv
 
 
 ### Run `findMarkers` (downregulated genes)
@@ -3801,8 +3629,8 @@ marker.genes.cluster.dn
 ```
 
 
-    List of length 16
-    names(16): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+    List of length 17
+    names(17): 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
 
 
 Print the number of markers that passed the FDR or `Top` threshold. This will be the number of genes as inut for `enrichR`.
@@ -3813,22 +3641,23 @@ printMarkerStats(marker.genes.cluster.dn, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 107; Up = 0; Down = 107; Max. P-value = 1.1e-09.
-    - Cluster2: 168; Up = 0; Down = 168; Max. P-value = 6.6e-185.
-    - Cluster3: 122; Up = 0; Down = 122; Max. P-value = 3.6e-197.
-    - Cluster4: 210; Up = 0; Down = 210; Max. P-value = 0.
-    - Cluster5: 175; Up = 0; Down = 175; Max. P-value = 1.4e-191.
-    - Cluster6: 116; Up = 0; Down = 116; Max. P-value = 4.4e-131.
-    - Cluster7: 147; Up = 0; Down = 147; Max. P-value = 0.
-    - Cluster8: 201; Up = 0; Down = 201; Max. P-value = 2.1e-84.
-    - Cluster9: 201; Up = 0; Down = 201; Max. P-value = 2.5e-37.
-    - Cluster10: 181; Up = 0; Down = 181; Max. P-value = 5.2e-124.
-    - Cluster11: 197; Up = 0; Down = 197; Max. P-value = 3.3e-20.
-    - Cluster12: 153; Up = 0; Down = 153; Max. P-value = 1.
-    - Cluster13: 199; Up = 0; Down = 199; Max. P-value = 1.6e-08.
-    - Cluster14: 178; Up = 0; Down = 178; Max. P-value = 1.2e-75.
-    - Cluster15: 107; Up = 0; Down = 107; Max. P-value = 8.3e-124.
-    - Cluster16: 199; Up = 0; Down = 199; Max. P-value = 1.6e-23.
+    - Cluster1: 175; Up = 0; Down = 175; Max. P-value = 1.8e-40.
+    - Cluster2: 223; Up = 0; Down = 223; Max. P-value = 0.
+    - Cluster3: 180; Up = 0; Down = 180; Max. P-value = 6e-119.
+    - Cluster4: 255; Up = 0; Down = 255; Max. P-value = 0.
+    - Cluster5: 227; Up = 0; Down = 227; Max. P-value = 6.3e-207.
+    - Cluster6: 148; Up = 0; Down = 148; Max. P-value = 1.4e-16.
+    - Cluster7: 208; Up = 0; Down = 208; Max. P-value = 3.7e-40.
+    - Cluster8: 217; Up = 0; Down = 217; Max. P-value = 0.
+    - Cluster9: 254; Up = 0; Down = 254; Max. P-value = 1.7e-67.
+    - Cluster10: 241; Up = 0; Down = 241; Max. P-value = 0.00036.
+    - Cluster11: 214; Up = 0; Down = 214; Max. P-value = 7.3e-13.
+    - Cluster12: 221; Up = 0; Down = 221; Max. P-value = 2.7e-93.
+    - Cluster13: 243; Up = 0; Down = 243; Max. P-value = 3e-57.
+    - Cluster14: 202; Up = 0; Down = 202; Max. P-value = 7e-27.
+    - Cluster15: 185; Up = 0; Down = 185; Max. P-value = 0.062.
+    - Cluster16: 152; Up = 0; Down = 152; Max. P-value = 1.5e-106.
+    - Cluster17: 223; Up = 0; Down = 223; Max. P-value = 7e-25.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3860,6 +3689,7 @@ exportResList(marker.genes.cluster.dn, col_anno = c("ID","Symbol"), prefix = fil
     Creating file: 160k_Control1_findMarkers_downregulated_Cluster14.tsv
     Creating file: 160k_Control1_findMarkers_downregulated_Cluster15.tsv
     Creating file: 160k_Control1_findMarkers_downregulated_Cluster16.tsv
+    Creating file: 160k_Control1_findMarkers_downregulated_Cluster17.tsv
 
 
 ## Save `findMarkers` results to `metadata`
@@ -3888,25 +3718,24 @@ nGene <- 250
 geneNames <- sapply(marker.genes.cluster, function(x) rownames(x[1:nGene,]))
 
 geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
-print(paste("Number of genes to plot:", length(geneNames)))
+cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
-    [1] "Number of genes to plot: 1184"
-
+    Number of genes to plot: 1090
 
 
 ```R
 fig(width = 16, height = 7)
 plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clustering_method = "ward.D2", 
                    border_color = "black", color = c_heatmap_col2, fontsize = 14, angle_col = 0,
-                   center = TRUE, scale = TRUE, zlim = c(-3, 3), 
+                   center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), 
                    main = "Row-scaled", show_rownames = FALSE)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_237_0.png)
+![png](Control1_files/Control1_233_0.png)
     
 
 
@@ -3925,36 +3754,36 @@ geneNames <- sapply(marker.genes.cluster, function(x) rownames(x[1:nGene,]))
 t(geneNames) # A matrix
 
 geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
-print(paste("Number of genes to plot:", length(geneNames)))
+cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
 
 <table class="dataframe">
-<caption>A matrix: 16 × 7 of type chr</caption>
+<caption>A matrix: 17 × 7 of type chr</caption>
 <tbody>
-	<tr><th scope=row>1</th><td>CD74  </td><td>CD79A  </td><td>CD37  </td><td>MS4A1 </td><td>NIBAN3</td><td>FCRL1    </td><td>IRF8   </td></tr>
-	<tr><th scope=row>2</th><td>CD8A  </td><td>NELL2  </td><td>CD74  </td><td>LEF1  </td><td>ACTN1 </td><td>MYO1F    </td><td>CD3E   </td></tr>
-	<tr><th scope=row>3</th><td>CD74  </td><td>IL32   </td><td>IL7R  </td><td>CD3E  </td><td>EFHD2 </td><td>CD4      </td><td>TRAC   </td></tr>
-	<tr><th scope=row>4</th><td>IGHM  </td><td>CD74   </td><td>IGHD  </td><td>MS4A1 </td><td>CD79A </td><td>FCRL1    </td><td>CD37   </td></tr>
-	<tr><th scope=row>5</th><td>LEF1  </td><td>CD74   </td><td>CCR7  </td><td>EFHD2 </td><td>CD3E  </td><td>MYO1F    </td><td>TCF7   </td></tr>
-	<tr><th scope=row>6</th><td>TYMP  </td><td>SPI1   </td><td>CST3  </td><td>CTSS  </td><td>CD74  </td><td>DUSP1    </td><td>IFI30  </td></tr>
-	<tr><th scope=row>7</th><td>CCL5  </td><td>CD74   </td><td>NKG7  </td><td>KLRG1 </td><td>IL32  </td><td>CST7     </td><td>PRF1   </td></tr>
-	<tr><th scope=row>8</th><td>SPI1  </td><td>TNFAIP2</td><td>LYZ   </td><td>TYMP  </td><td>CD14  </td><td>IFI30    </td><td>CSF3R  </td></tr>
-	<tr><th scope=row>9</th><td>CD74  </td><td>MS4A1  </td><td>CD3E  </td><td>BLK   </td><td>IL32  </td><td>TNFRSF13C</td><td>POU2AF1</td></tr>
-	<tr><th scope=row>10</th><td>GNLY  </td><td>PRF1   </td><td>KLRF1 </td><td>IL2RB </td><td>CTSW  </td><td>TRAC     </td><td>KLRD1  </td></tr>
-	<tr><th scope=row>11</th><td>SPI1  </td><td>CSF1R  </td><td>PLXNB2</td><td>LRRC25</td><td>LST1  </td><td>FTH1     </td><td>CST3   </td></tr>
-	<tr><th scope=row>12</th><td>CD74  </td><td>PFN1   </td><td>FGD2  </td><td>IL32  </td><td>ACTG1 </td><td>COTL1    </td><td>TXNIP  </td></tr>
-	<tr><th scope=row>13</th><td>IRF8  </td><td>MYC    </td><td>APOL3 </td><td>RGS3  </td><td>MPEG1 </td><td>SIGLEC10 </td><td>ITM2C  </td></tr>
-	<tr><th scope=row>14</th><td>CST3  </td><td>CD74   </td><td>KCTD12</td><td>SPI1  </td><td>ITGAX </td><td>SAMHD1   </td><td>BCL11B </td></tr>
-	<tr><th scope=row>15</th><td>CD74  </td><td>PRF1   </td><td>NKG7  </td><td>GNLY  </td><td>FGD2  </td><td>KLRD1    </td><td>CST7   </td></tr>
-	<tr><th scope=row>16</th><td>GIMAP8</td><td>FCRL3  </td><td>RASSF4</td><td>CX3CR1</td><td>ID3   </td><td>NELL2    </td><td>CD7    </td></tr>
+	<tr><th scope=row>1</th><td>CD74  </td><td>CD79A </td><td>CD37   </td><td>MS4A1 </td><td>NIBAN3</td><td>FCRL1 </td><td>IRF8     </td></tr>
+	<tr><th scope=row>2</th><td>CD8A  </td><td>NELL2 </td><td>CD74   </td><td>LEF1  </td><td>CD248 </td><td>ACTN1 </td><td>MYO1F    </td></tr>
+	<tr><th scope=row>3</th><td>CD74  </td><td>IL32  </td><td>IL7R   </td><td>CD3E  </td><td>TRAC  </td><td>CD4   </td><td>EFHD2    </td></tr>
+	<tr><th scope=row>4</th><td>IGHM  </td><td>IGHD  </td><td>FCRL1  </td><td>CD74  </td><td>MS4A1 </td><td>NIBAN3</td><td>CD79A    </td></tr>
+	<tr><th scope=row>5</th><td>CD74  </td><td>LEF1  </td><td>CCR7   </td><td>MAL   </td><td>NOG   </td><td>CD3E  </td><td>MYO1F    </td></tr>
+	<tr><th scope=row>6</th><td>SPI1  </td><td>TYMP  </td><td>CD74   </td><td>IFI30 </td><td>CTSS  </td><td>FTH1  </td><td>DUSP1    </td></tr>
+	<tr><th scope=row>7</th><td>CCL5  </td><td>CD74  </td><td>NKG7   </td><td>KLRG1 </td><td>CST7  </td><td>IL32  </td><td>PRF1     </td></tr>
+	<tr><th scope=row>8</th><td>SPI1  </td><td>LYZ   </td><td>TNFAIP2</td><td>TYMP  </td><td>CD14  </td><td>IFI30 </td><td>CST3     </td></tr>
+	<tr><th scope=row>9</th><td>CD74  </td><td>MS4A1 </td><td>NIBAN3 </td><td>BANK1 </td><td>CD3E  </td><td>BLK   </td><td>TNFRSF13C</td></tr>
+	<tr><th scope=row>10</th><td>GNLY  </td><td>PRF1  </td><td>KLRF1  </td><td>CTSW  </td><td>IL2RB </td><td>TRAC  </td><td>KLRD1    </td></tr>
+	<tr><th scope=row>11</th><td>CSF1R </td><td>PLXNB2</td><td>FCGR3A </td><td>SPI1  </td><td>LST1  </td><td>CDKN1C</td><td>FTH1     </td></tr>
+	<tr><th scope=row>12</th><td>CD74  </td><td>IL32  </td><td>PFN1   </td><td>FGD2  </td><td>ACTG1 </td><td>ACTB  </td><td>CFL1     </td></tr>
+	<tr><th scope=row>13</th><td>IRF8  </td><td>MYC   </td><td>ITM2C  </td><td>RGS3  </td><td>MPEG1 </td><td>DENND3</td><td>APOL3    </td></tr>
+	<tr><th scope=row>14</th><td>CST3  </td><td>CD74  </td><td>KCTD12 </td><td>SAMHD1</td><td>CD3E  </td><td>FGL2  </td><td>CTSZ     </td></tr>
+	<tr><th scope=row>15</th><td>TYMP  </td><td>CD74  </td><td>SPI1   </td><td>MS4A1 </td><td>GATA3 </td><td>CD79A </td><td>CD247    </td></tr>
+	<tr><th scope=row>16</th><td>CD74  </td><td>CST7  </td><td>NKG7   </td><td>PRF1  </td><td>GNLY  </td><td>CCL5  </td><td>TBX21    </td></tr>
+	<tr><th scope=row>17</th><td>NIBAN3</td><td>MPEG1 </td><td>B2M    </td><td>ALOX5 </td><td>IRF8  </td><td>TMSB4X</td><td>FCER1G   </td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 71"
-
+    Number of genes to plot: 74
 
 Alternatively, use genes identified from up- and downregulated `findMarkers` results.
 
@@ -3968,7 +3797,7 @@ Alternatively, use genes identified from up- and downregulated `findMarkers` res
 #geneNames2 # A matrix
 
 #geneNames <- unique(c(as.character(geneNames1), as.character(geneNames2))) # Remove duplicated genes
-#print(paste("Number of genes to plot:", length(geneNames)))
+#cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
 
@@ -3979,7 +3808,7 @@ p1 <- plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clust
 
 p2 <- plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clustering_method = "ward.D2", 
                          border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0, 
-                         center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
+                         center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), main = "Row-scaled", silent = T)
 
 fig(width = 16, height = 18)
 plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h")
@@ -3988,7 +3817,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_243_0.png)
+![png](Control1_files/Control1_239_0.png)
     
 
 
@@ -3999,7 +3828,7 @@ The mean expression of each gene is centered at zero with `center = TRUE`. The e
 
 ```R
 fig(width = 9, height = 20)
-plotDots(cdScAnnot, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3, 3), 
+plotDots(cdScAnnot, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     scale_y_discrete(limits = geneNames[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
@@ -4017,7 +3846,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_245_1.png)
+![png](Control1_files/Control1_241_1.png)
     
 
 
@@ -4034,7 +3863,7 @@ geneExprs <- pivot_longer(geneExprs, cols = -c(Cell, Cluster), names_to = "Gene"
     mutate(Cluster = fct_rev(Cluster), Gene = factor(Gene, levels = geneNames))
 
 # Plot
-fig(width = 16, height = 8)
+fig(width = 16, height = 10)
 ggplot(geneExprs, aes(Gene, Expression, fill = Gene)) + 
     geom_violin(scale = "width", adjust = 1, trim = TRUE) +
     scale_y_continuous(expand = c(0, 0), position = "right", 
@@ -4050,7 +3879,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_246_0.png)
+![png](Control1_files/Control1_242_0.png)
     
 
 
@@ -4066,7 +3895,7 @@ summarise(cluster = paste(cluster, collapse = ",")) %>%
 mutate(order = as.numeric(str_replace(cluster, ",.*", ""))) %>% arrange(order)
 df
 
-print(paste("Number of genes to plot:", nrow(df)))
+cat(sprintf("Number of genes to plot: %d", nrow(df)))
 ```
 
 
@@ -4077,24 +3906,23 @@ print(paste("Number of genes to plot:", nrow(df)))
 	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>CD74 </td><td>1,4,9,14</td><td> 1</td></tr>
-	<tr><td>CD8A </td><td>2       </td><td> 2</td></tr>
-	<tr><td>IL32 </td><td>3,12    </td><td> 3</td></tr>
-	<tr><td>TCF7 </td><td>5       </td><td> 5</td></tr>
-	<tr><td>TYMP </td><td>6       </td><td> 6</td></tr>
-	<tr><td>CCL5 </td><td>7       </td><td> 7</td></tr>
-	<tr><td>SPI1 </td><td>8,11    </td><td> 8</td></tr>
-	<tr><td>GNLY </td><td>10      </td><td>10</td></tr>
-	<tr><td>IRF8 </td><td>13      </td><td>13</td></tr>
-	<tr><td>ZAP70</td><td>15      </td><td>15</td></tr>
-	<tr><td>H1-5 </td><td>16      </td><td>16</td></tr>
+	<tr><td>CD74 </td><td>1,4,9,14,15</td><td> 1</td></tr>
+	<tr><td>CD8A </td><td>2          </td><td> 2</td></tr>
+	<tr><td>IL32 </td><td>3,12       </td><td> 3</td></tr>
+	<tr><td>TCF7 </td><td>5          </td><td> 5</td></tr>
+	<tr><td>TYMP </td><td>6          </td><td> 6</td></tr>
+	<tr><td>CCL5 </td><td>7          </td><td> 7</td></tr>
+	<tr><td>SPI1 </td><td>8,11       </td><td> 8</td></tr>
+	<tr><td>GNLY </td><td>10         </td><td>10</td></tr>
+	<tr><td>IRF8 </td><td>13         </td><td>13</td></tr>
+	<tr><td>NKG7 </td><td>16         </td><td>16</td></tr>
+	<tr><td>ZAP70</td><td>17         </td><td>17</td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 11"
-
+    Number of genes to plot: 11
 
 
 ```R
@@ -4104,7 +3932,7 @@ p1 <- plotGroupedHeatmap(cdScAnnot, features = df$gene, group = "label", cluster
 
 p2 <- plotGroupedHeatmap(cdScAnnot, features = df$gene, group = "label", clustering_method = "ward.D2", 
                          border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0, 
-                         center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
+                         center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), main = "Row-scaled", silent = T)
 
 fig(width = 16, height = 5)
 plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h")
@@ -4113,14 +3941,14 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_249_0.png)
+![png](Control1_files/Control1_245_0.png)
     
 
 
 
 ```R
 fig(width = 9, height = 6)
-plotDots(cdScAnnot, features = df$gene[p2$tree_row$order], group = "label", zlim = c(-3, 3), 
+plotDots(cdScAnnot, features = df$gene[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     scale_y_discrete(limits = df$gene[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
@@ -4138,7 +3966,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_250_1.png)
+![png](Control1_files/Control1_246_1.png)
     
 
 
@@ -4157,7 +3985,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_251_1.png)
+![png](Control1_files/Control1_247_1.png)
     
 
 
@@ -4170,7 +3998,7 @@ as.data.frame(reducedDim(cdScAnnot, dimname)) %>% `colnames<-`(c("V1","V2")) %>%
     bind_cols(as_tibble(t(logcounts(cdScAnnot[df$gene,])))) %>%
     gather(., key = "Symbol", value = "Expression", -c(V1, V2) ) %>% 
     mutate_at(vars(Symbol), factor) %>% mutate(Symbol = factor(Symbol, levels = df$gene)) %>% 
-    ggplot(aes(x = V1, y = V2, color = Expression)) + geom_point(size = 0.3, alpha = 0.3) + 
+    ggplot(aes(x = V1, y = V2, color = Expression)) + geom_point(size = 0.1, alpha = 0.2) + 
     facet_wrap(~ Symbol, ncol = 5, 
                labeller = as_labeller(function(x) paste0(df$cluster,": ", x))) + # add cluster id
     scale_color_viridis(option = "plasma", direction = -1) +
@@ -4180,7 +4008,7 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_252_0.png)
+![png](Control1_files/Control1_248_0.png)
     
 
 
@@ -4198,12 +4026,11 @@ All the available gene-set libraries are listed in `dbs`
 ```R
 # This function generates the whole list of database for the enrichR. 
 dbs <- listEnrichrDbs()
-print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
+cat(sprintf("Number of available databases from Enrichr: %d", nrow(dbs)))
 ```
 
-    [1] "Number of available databases from Enrichr: 218"
-
+    Number of available databases from Enrichr: 225
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
 
@@ -4213,8 +4040,9 @@ Change `dbsSel` to remove or include more gene-set libraries in the enrichment a
 dbsSel <- c("GO_Biological_Process_2025", # Ontologies
 #            "GO_Molecular_Function_2025", # Ontologies
 #            "GO_Cellular_Component_2025", # Ontologies
-            "Reactome_Pathways_2024",     # Pathways
-            "WikiPathways_2024_Human",    # Pathways
+#            "Reactome_Pathways_2024",     # Pathways
+#            "WikiPathways_2024_Human",    # Pathways
+#            "KEGG_2026",                  # Pathways
             "CellMarker_2024")            # Cell types
 
 # Mouse
@@ -4223,6 +4051,7 @@ dbsSel <- c("GO_Biological_Process_2025", # Ontologies
 #            "GO_Cellular_Component_2025", # Ontologies
 #            "Reactome_Pathways_2024",     # Pathways
 #            "WikiPathways_2024_Mouse",    # Pathways
+#            "KEGG_2026",                  # Pathways
 #            "CellMarker_2024")            # Cell types
 ```
 
@@ -4242,178 +4071,155 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
     
     Connection is Live!
     
-    Running enrichR on 'Cluster1' with 272 up-regulated genes.
+    Running enrichR on 'Cluster1' with 288 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster2' with 251 up-regulated genes.
+    Running enrichR on 'Cluster2' with 258 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster3' with 272 up-regulated genes.
+    Running enrichR on 'Cluster3' with 289 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster4' with 248 up-regulated genes.
+    Running enrichR on 'Cluster4' with 254 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster5' with 252 up-regulated genes.
+    Running enrichR on 'Cluster5' with 270 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster6' with 234 up-regulated genes.
+    Running enrichR on 'Cluster6' with 259 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster7' with 243 up-regulated genes.
+    Running enrichR on 'Cluster7' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster8' with 244 up-regulated genes.
+    Running enrichR on 'Cluster8' with 250 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster9' with 245 up-regulated genes.
+    Running enrichR on 'Cluster9' with 254 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster10' with 261 up-regulated genes.
+    Running enrichR on 'Cluster10' with 269 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster11' with 241 up-regulated genes.
+    Running enrichR on 'Cluster11' with 249 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster12' with 275 up-regulated genes.
+    Running enrichR on 'Cluster12' with 284 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster13' with 241 up-regulated genes.
+    Running enrichR on 'Cluster13' with 248 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster14' with 244 up-regulated genes.
+    Running enrichR on 'Cluster14' with 250 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster15' with 258 up-regulated genes.
+    Running enrichR on 'Cluster15' with 251 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster16' with 249 up-regulated genes.
+    Running enrichR on 'Cluster16' with 259 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
+      Querying CellMarker_2024... Done.
+    Parsing results... Done.
+
+
+    Running enrichR on 'Cluster17' with 300 up-regulated genes.
+
+
+    Uploading data to Enrichr... Done.
+      Querying GO_Biological_Process_2025... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4433,53 +4239,31 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_260_0.png)
+![png](Control1_files/Control1_256_0.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_1.png)
+![png](Control1_files/Control1_256_1.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_2.png)
+![png](Control1_files/Control1_256_2.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_3.png)
+![png](Control1_files/Control1_256_3.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_4.png)
-    
-
-
-    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
-    "There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting."
-
-
-
-    
-![png](Control1_files/Control1_260_6.png)
-    
-
-
-
-    
-![png](Control1_files/Control1_260_7.png)
-    
-
-
-
-    
-![png](Control1_files/Control1_260_8.png)
+![png](Control1_files/Control1_256_4.png)
     
 
 
@@ -4489,31 +4273,19 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_260_10.png)
+![png](Control1_files/Control1_256_6.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_11.png)
+![png](Control1_files/Control1_256_7.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_12.png)
-    
-
-
-
-    
-![png](Control1_files/Control1_260_13.png)
-    
-
-
-
-    
-![png](Control1_files/Control1_260_14.png)
+![png](Control1_files/Control1_256_8.png)
     
 
 
@@ -4523,19 +4295,55 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_260_16.png)
+![png](Control1_files/Control1_256_10.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_17.png)
+![png](Control1_files/Control1_256_11.png)
     
 
 
 
     
-![png](Control1_files/Control1_260_18.png)
+![png](Control1_files/Control1_256_12.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_13.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_14.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_15.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_16.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_17.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_256_18.png)
     
 
 
@@ -4557,74 +4365,40 @@ printEnrichR(metadata(cdScAnnot)[["enrichR_findMarkers_Cluster_up"]],
 ```
 
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster1_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster2_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster3_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster4_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster5_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster6_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster7_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster8_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster9_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster10_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster11_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster12_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster13_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster14_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster15_CellMarker_2024.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster16_CellMarker_2024.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster17_GO_Biological_Process_2025.tsv
+    Creating file: Enrichr/160k_Control1_findMarkers_upregulated_Cluster17_CellMarker_2024.tsv
 
-
-## Ingenuity Pathway Analysis (IPA)
-
-Here we generate a file that can be imported directly into IPA for downstream analysis.
 
 ### Concatenate `findMarkers` 'Cluster' marker gene results
 
@@ -4640,7 +4414,7 @@ exportResList(metadata(cdScAnnot)[['findMarkers_Cluster']], concatenate = TRUE, 
 
 # 12 - Doublet detection
 
-In single-cell RNA sequencing (scRNA-seq) experiments, doublets are artifactual libraries generated from two cells. They typically arise due to errors in cell sorting or capture, especially in droplet-based protocols involving thousands of cells. Doublets are obviously undesirable when the aim is to characterize populations at the single-cell level. In particular, doublets can be mistaken for intermediate populations or transitory states that do not actually exist. Thus, it is desirable to identify and remove doublet libraries so that they do not compromise interpretation of the results. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.advanced/doublet-detection.html#doublet-detection)
+In single-cell RNA sequencing (scRNA-seq) experiments, doublets are artifactual libraries generated from two cells. They typically arise due to errors in cell sorting or capture, especially in droplet-based protocols involving thousands of cells. Doublets are obviously undesirable when the aim is to characterize populations at the single-cell level. In particular, doublets can be mistaken for intermediate populations or transitory states that do not actually exist. Thus, it is desirable to identify and remove doublet libraries so that they do not compromise interpretation of the results. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.advanced/doublet-detection.html#doublet-detection)
 
 ## Doublet detection by simulation
 
@@ -4657,46 +4431,47 @@ set.seed(12345)
 # Use counts from cdScAnnot
 dbl.dens <- scDblFinder::computeDoubletDensity(annot_c, size.factors.norm = sizeFactors(cdScAnnot), 
                                                subset.row = hvg_genes)
-summary(dbl.dens)
 
-# Save detection results to metadata
-metadata(cdScAnnot)[['DoubletDensity']] <- setNames(dbl.dens, colnames(cdScAnnot))
+# Save detection results to colData
+cdScAnnot$DoubletDensity <- dbl.dens
+
+summary(dbl.dens)
 ```
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-     0.0000  0.0400  0.1600  0.9766  0.5200 19.0000 
+     0.0000  0.0400  0.1600  0.9765  0.5200 18.8800 
 
 
 
 ```R
 fig(width = 16, height = 6)
 plyr::ldply(split(log1p(dbl.dens), cdScAnnot$label), cbind, .id = c("Cluster")) %>% 
-    rename_at(2, ~ "dbl") %>% ggplot(aes(Cluster, dbl, color = Cluster)) + 
-    geom_violin(linewidth = 1, width = 1) +
-    geom_boxplot(size = 0.5, width = 0.1, color = "black") + guides(color = guide_legend(ncol = 1)) +
-    scale_color_manual(values = c_clust_col) + theme_cowplot(20) + ylab("log Score")
+    rename_at(2, ~ "dbl") %>% ggplot(aes(Cluster, dbl, fill = Cluster)) + 
+    geom_violin(scale = "width", linewidth = 0.5, width = 0.9, alpha = 0.7) + 
+    geom_boxplot(width = 0.1, linewidth = 0.5, size = 1, color = "black", fill = "white") + 
+    guides(fill = "none") + scale_fill_manual(values = c_clust_col) + theme_cowplot(20) + ylab("log1p(Score)")
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_270_0.png)
+![png](Control1_files/Control1_265_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, log1p(dbl.dens), dimnames = c("TSNE", "UMAP"), 
                 feat_desc = "Doublet Score (log1p)", feat_color = plasma(256, direction = -1), 
-                point_size = 0.5, point_alpha = 0.3, text_by = "label")
+                point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_barheight = 15)
 reset.fig()
 ```
 
 
     
-![png](Control1_files/Control1_271_0.png)
+![png](Control1_files/Control1_266_0.png)
     
 
 
@@ -4704,7 +4479,7 @@ If cells with high scores are clustered in one or more clusters, we can choose t
 
 
 ```R
-chosen.doublet <- c(1, 6, 15)
+chosen.doublet <- c(1, 6, 15, 16)
 nTop <- 25
 
 fig(width = 16, height = 8)
@@ -4719,7 +4494,7 @@ for(ID in chosen.doublet) {
 
     p2 <- plotGroupedHeatmap(cdScAnnot, features = chosen, group = "label", clustering_method = "ward.D2", 
                              border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0,
-                             center = TRUE, scale = TRUE, zlim = c(-3, 3),
+                             center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5),
                              main = paste(title, "Row-scaled"), silent = T)
 
     print(plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h"))
@@ -4729,19 +4504,25 @@ reset.fig()
 
 
     
-![png](Control1_files/Control1_273_0.png)
+![png](Control1_files/Control1_268_0.png)
     
 
 
 
     
-![png](Control1_files/Control1_273_1.png)
+![png](Control1_files/Control1_268_1.png)
     
 
 
 
     
-![png](Control1_files/Control1_273_2.png)
+![png](Control1_files/Control1_268_2.png)
+    
+
+
+
+    
+![png](Control1_files/Control1_268_3.png)
     
 
 
@@ -4760,13 +4541,13 @@ cdScAnnot
 
     class: SingleCellExperiment 
     dim: 18129 18460 
-    metadata(8): Samples cyclone ... DoubletDensity runInfo
+    metadata(7): Samples cyclone ... enrichR_findMarkers_Cluster_up runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
     rowData names(12): ID Symbol ... pct_dropout is_hvg
     colnames(18460): AAACAAGCAACAAGTTACTTTAGG-1 AAACAAGCAACTAGTGACTTTAGG-1 ...
       TTTGTGAGTGGCGTAGACTTTAGG-1 TTTGTGAGTTAATTCGACTTTAGG-1
-    colData names(23): Sample Barcode ... label log10Sum
+    colData names(24): Sample Barcode ... log10Sum DoubletDensity
     reducedDimNames(3): PCA TSNE UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -4783,22 +4564,19 @@ cdScAnnot
 
 
 ```R
+outfile <- paste0(sample_name, "_h5_sce")
+cat(sprintf("h5 output folder: %s\n", outfile))
+
 # For HDF5-based SummarizedExperiment object
-HDF5Array::saveHDF5SummarizedExperiment(cdScAnnot, dir = paste0(sample_name, "_h5_sce"), replace = TRUE, verbose = FALSE)
+HDF5Array::saveHDF5SummarizedExperiment(cdScAnnot, dir = outfile, replace = TRUE, verbose = FALSE)
 
 # Print file size
-paste("Folder:", paste0(sample_name, "_h5_sce"))
-paste("Size:", utils:::format.object_size(file.info(paste0(sample_name, "_h5_sce", "/assays.h5"))$size + 
-                                          file.info(paste0(sample_name, "_h5_sce", "/se.rds"))$size, "auto"))
+cat(sprintf("h5 output size: %s", utils:::format.object_size(file.info(paste0(outfile, "/assays.h5"))$size + 
+                                                      file.info(paste0(outfile, "/se.rds"))$size, "auto")))
 ```
 
-
-'Folder: Control1_h5_sce'
-
-
-
-'Size: 613.8 Mb'
-
+    h5 output folder: Control1_h5_sce
+    h5 output size: 621.9 Mb
 
 # Session Info
 
@@ -4809,12 +4587,12 @@ sessionInfo()
 ```
 
 
-    R version 4.4.3 (2025-02-28)
+    R version 4.5.2 (2025-10-31)
     Platform: x86_64-conda-linux-gnu
     Running under: Ubuntu 20.04.6 LTS
     
     Matrix products: default
-    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.29.so;  LAPACK version 3.12.0
+    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.30.so;  LAPACK version 3.12.0
     
     locale:
      [1] LC_CTYPE=en_GB.UTF-8       LC_NUMERIC=C               LC_TIME=en_GB.UTF-8       
@@ -4829,60 +4607,61 @@ sessionInfo()
     [1] grid      stats4    stats     graphics  grDevices utils     datasets  methods   base     
     
     other attached packages:
-     [1] ensembldb_2.30.0            AnnotationFilter_1.30.0     GenomicFeatures_1.58.0     
-     [4] AnnotationDbi_1.68.0        lubridate_1.9.4             forcats_1.0.0              
-     [7] stringr_1.5.1               dplyr_1.1.4                 purrr_1.1.0                
-    [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.3.0               
-    [13] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
-    [16] viridisLite_0.4.2           SingleR_2.8.0               scran_1.34.0               
-    [19] scater_1.34.1               scuttle_1.16.0              scales_1.4.0               
-    [22] ggforce_0.5.0               ggplot2_3.5.2               enrichR_3.4                
-    [25] DropletUtils_1.26.0         SingleCellExperiment_1.28.1 SummarizedExperiment_1.36.0
-    [28] Biobase_2.66.0              GenomicRanges_1.58.0        GenomeInfoDb_1.42.3        
-    [31] IRanges_2.40.1              S4Vectors_0.44.0            MatrixGenerics_1.18.1      
-    [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.16.0             
-    [37] BiocParallel_1.40.2         BiocNeighbors_2.0.1         AnnotationHub_3.14.0       
-    [40] BiocFileCache_2.14.0        dbplyr_2.5.0                BiocGenerics_0.52.0        
-    [43] kableExtra_1.4.0           
+     [1] ensembldb_2.34.0            AnnotationFilter_1.34.0     GenomicFeatures_1.62.0     
+     [4] AnnotationDbi_1.72.0        lubridate_1.9.5             forcats_1.0.1              
+     [7] stringr_1.6.0               dplyr_1.2.0                 purrr_1.2.1                
+    [10] readr_2.1.6                 tidyr_1.3.2                 tibble_3.3.1               
+    [13] tidyverse_2.0.0             scRUtils_0.4.0              viridis_0.6.5              
+    [16] viridisLite_0.4.3           SingleR_2.12.0              scran_1.38.0               
+    [19] scater_1.38.0               scuttle_1.20.0              scales_1.4.0               
+    [22] ggforce_0.5.0               ggplot2_4.0.2               enrichR_3.4                
+    [25] DropletUtils_1.30.0         SingleCellExperiment_1.32.0 SummarizedExperiment_1.40.0
+    [28] Biobase_2.70.0              GenomicRanges_1.62.1        Seqinfo_1.0.0              
+    [31] IRanges_2.44.0              S4Vectors_0.48.0            MatrixGenerics_1.22.0      
+    [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.20.0             
+    [37] BiocParallel_1.44.0         BiocNeighbors_2.4.0         AnnotationHub_4.0.0        
+    [40] BiocFileCache_3.0.0         dbplyr_2.5.2                BiocGenerics_0.56.0        
+    [43] generics_0.1.4              kableExtra_1.4.0           
     
     loaded via a namespace (and not attached):
-      [1] RcppAnnoy_0.0.22          BiocIO_1.16.0             pbdZMQ_0.3-14             bitops_1.0-9             
-      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.18            
-      [9] httr2_1.2.1               lifecycle_1.0.4           scDblFinder_1.20.2        edgeR_4.4.2              
-     [13] doParallel_1.0.17         lattice_0.22-7            MASS_7.3-65               alabaster.base_1.6.1     
-     [17] magrittr_2.0.3            limma_3.62.2              rmarkdown_2.29            yaml_2.3.10              
-     [21] metapod_1.14.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
-     [25] zlibbioc_1.52.0           Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17          
-     [29] WriteXLS_6.8.0            tweenr_2.0.3              rappdirs_0.3.3            circlize_0.4.16          
-     [33] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             pheatmap_1.0.13          
-     [37] dqrng_0.4.1               svglite_2.2.1             DelayedMatrixStats_1.28.1 codetools_0.2-20         
-     [41] DelayedArray_0.32.0       xml2_1.3.8                tidyselect_1.2.1          shape_1.4.6.1            
-     [45] UCSC.utils_1.2.0          farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3          
-     [49] GenomicAlignments_1.42.0  jsonlite_2.0.0            GetoptLong_1.0.5          iterators_1.0.14         
-     [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.2         
-     [57] ragg_1.4.0                Rcpp_1.1.0                glue_1.8.0                gridExtra_2.3            
-     [61] SparseArray_1.6.2         xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0             
-     [65] HDF5Array_1.34.0          withr_3.0.2               BiocManager_1.30.26       fastmap_1.2.0            
-     [69] rhdf5filters_1.18.1       digest_0.6.37             rsvd_1.0.5                timechange_0.3.0         
-     [73] R6_2.6.1                  mime_0.13                 textshaping_1.0.1         colorspace_2.1-1         
-     [77] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.2            
-     [81] R.methodsS3_1.8.2         celldex_1.16.0            utf8_1.2.6                generics_0.1.4           
-     [85] data.table_1.17.8         rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0           
-     [89] uwot_0.2.3                pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4               
-     [93] ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0      
-     [97] clue_0.3-66               alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50               
-    [101] rstudioapi_0.17.1         tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1               
-    [105] curl_6.4.0                repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2             
-    [109] GlobalOptions_0.1.2       BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7              
-    [113] restfulr_0.0.16           alabaster.schemas_1.6.0   pillar_1.11.0             vctrs_0.6.5              
-    [117] BiocSingular_1.22.0       beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0           
-    [121] evaluate_1.0.4            Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12          
-    [125] compiler_4.4.3            rlang_1.1.6               crayon_1.5.3              labeling_0.4.3           
-    [129] plyr_1.8.9                ggbeeswarm_0.7.2          stringi_1.8.7             alabaster.se_1.6.0       
-    [133] Biostrings_2.74.1         lazyeval_0.2.2            Matrix_1.7-3              ExperimentHub_2.14.0     
-    [137] IRkernel_1.3.2            hms_1.1.3                 sparseMatrixStats_1.18.0  bit64_4.6.0-1            
-    [141] Rhdf5lib_1.28.0           KEGGREST_1.46.0           statmod_1.5.0             alabaster.ranges_1.6.0   
-    [145] igraph_2.1.4              memoise_2.0.1             xgboost_1.7.11.1          bit_4.6.0                
+      [1] RcppAnnoy_0.0.23          BiocIO_1.20.0             pbdZMQ_0.3-14             bitops_1.0-9             
+      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.22            
+      [9] lifecycle_1.0.5           httr2_1.2.2               scDblFinder_1.24.0        edgeR_4.8.2              
+     [13] doParallel_1.0.17         lattice_0.22-9            MASS_7.3-65               alabaster.base_1.10.0    
+     [17] magrittr_2.0.4            limma_3.66.0              rmarkdown_2.30            yaml_2.3.12              
+     [21] metapod_1.18.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
+     [25] Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17           WriteXLS_6.8.0           
+     [29] tweenr_2.0.3              rappdirs_0.3.4            circlize_0.4.17           ggrepel_0.9.6            
+     [33] irlba_2.3.7               pheatmap_1.0.13           RSpectra_0.16-2           dqrng_0.4.1              
+     [37] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.0      
+     [41] xml2_1.5.2                tidyselect_1.2.1          shape_1.4.6.1             UCSC.utils_1.6.1         
+     [45] farver_2.1.2              ScaledMatrix_1.18.0       base64enc_0.1-6           GenomicAlignments_1.46.0 
+     [49] jsonlite_2.0.0            GetoptLong_1.1.0          iterators_1.0.14          systemfonts_1.3.1        
+     [53] foreach_1.5.2             tools_4.5.2               ggnewscale_0.5.2          ragg_1.5.0               
+     [57] Rcpp_1.1.1                glue_1.8.0                gridExtra_2.3             SparseArray_1.10.8       
+     [61] xfun_0.56                 GenomeInfoDb_1.46.2       IRdisplay_1.1             gypsum_1.6.0             
+     [65] HDF5Array_1.38.0          withr_3.0.2               BiocManager_1.30.27       fastmap_1.2.0            
+     [69] rhdf5filters_1.22.0       digest_0.6.39             rsvd_1.0.5                timechange_0.4.0         
+     [73] R6_2.6.1                  textshaping_1.0.4         colorspace_2.1-2          Cairo_1.7-0              
+     [77] gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.6             cigarillo_1.0.0          
+     [81] R.methodsS3_1.8.2         h5mread_1.2.1             celldex_1.20.0            UpSetR_1.4.0             
+     [85] data.table_1.18.2.1       rtracklayer_1.70.1        httr_1.4.8                S4Arrays_1.10.1          
+     [89] uwot_0.2.4                pkgconfig_2.0.3           gtable_0.3.6              blob_1.3.0               
+     [93] ComplexHeatmap_2.26.1     S7_0.2.1                  XVector_0.50.0            htmltools_0.5.9          
+     [97] ProtGenerics_1.42.0       clue_0.3-66               alabaster.matrix_1.10.0   png_0.1-8                
+    [101] knitr_1.51                rstudioapi_0.18.0         tzdb_0.5.0                rjson_0.2.23             
+    [105] uuid_1.2-2                curl_7.0.0                repr_1.1.7                cachem_1.1.0             
+    [109] rhdf5_2.54.1              GlobalOptions_0.1.3       BiocVersion_3.22.0        parallel_4.5.2           
+    [113] vipor_0.4.7               restfulr_0.0.16           alabaster.schemas_1.10.0  pillar_1.11.1            
+    [117] vctrs_0.7.1               BiocSingular_1.26.1       beachmat_2.26.0           cluster_2.1.8.2          
+    [121] beeswarm_0.4.0            evaluate_1.0.5            Rsamtools_2.26.0          cli_3.6.5                
+    [125] locfit_1.5-9.12           compiler_4.5.2            rlang_1.1.7               crayon_1.5.3             
+    [129] labeling_0.4.3            plyr_1.8.9                ggbeeswarm_0.7.3          stringi_1.8.7            
+    [133] alabaster.se_1.10.0       Biostrings_2.78.0         lazyeval_0.2.2            Matrix_1.7-4             
+    [137] ExperimentHub_3.0.0       IRkernel_1.3.2            hms_1.1.4                 sparseMatrixStats_1.22.0 
+    [141] bit64_4.6.0-1             Rhdf5lib_1.32.0           KEGGREST_1.50.0           statmod_1.5.1            
+    [145] alabaster.ranges_1.10.0   igraph_2.2.2              memoise_2.0.1             xgboost_3.2.0.1          
+    [149] bit_4.6.0                
 
 
 # References

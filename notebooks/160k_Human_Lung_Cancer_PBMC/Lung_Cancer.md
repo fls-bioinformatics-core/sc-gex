@@ -1,14 +1,14 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.0.3</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.1.0</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
 1. [Prepare workspace and data](#1---Prepare-workspace-and-data)
 2. [Cells and genes QC plots](#2---Cells-and-genes-QC-plots)
 3. [Quality filtering of cells](#3---Quality-filtering-of-cells)
-4. [Classification of cell cycle phase](#4---Classification-of-cell-cycle-phase)
+4. [Cell cycle assignment](#4---Cell-cycle-assignment)
 5. [Expression normalization](#5---Expression-normalization)
 6. [Feature selection](#6---Feature-selection)
-7. [Dimensionality reduction using HVG](#7---Dimensionality-reduction-using-HVG)
+7. [Dimensionality reduction](#7---Dimensionality-reduction)
 8. [Cell type annotation](#8---Cell-type-annotation)
 9. [Cell clustering](#9---Cell-clustering)
 10. [Marker gene detection](#10---Marker-gene-detection)
@@ -176,7 +176,7 @@ if (suppressPackageStartupMessages(requireNamespace("kableExtra")) && requireNam
 
 # 1 - Prepare workspace and data
 
-**Tested on R version 4.4 and Bioconductor version 3.20**
+**Tested on R version 4.5 and Bioconductor version 3.22**
 
 - Set sample name and Cell Ranger HDF5 file path
 - Load R libraries
@@ -221,7 +221,7 @@ data.frame(ID = c(rep(sample_name, 2)), Type = c("filtered", rep("raw", length(s
 
 ## Load libraries
 
-The required R packages are listed below. This workflow has been tested on **R version 4.4** (**Bioconductor version 3.20**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).
+The required R packages are listed below. This workflow has been tested on **R version 4.5** (**Bioconductor version 3.22**) and latest versions of the packages supported in this R environment (see [Session Info](#Session-Info)).
 
 Commented line below are packages that are required but we are not loading and attaching them.
 
@@ -232,12 +232,12 @@ Commented line below are packages that are required but we are not loading and a
 
 ```R
 suppressPackageStartupMessages({
-    # R-4.4.3
+    # R-4.5.2
     library(AnnotationHub)
     library(BiocNeighbors) # AnnoyParam
     library(BiocParallel)  # MulticoreParam
-    library(bluster)       # clusterRows, NNGraphParam, mergeCommunities
-    library(cowplot)       # plotColData, plotRowData, plot_grid
+    library(bluster)       # clusterRows, NNGraphParam
+    library(cowplot)       # theme_cowplot, plot_grid
     library(DropletUtils)  # read10xCounts, emptyDrops, ambientProfileEmpty
     library(enrichR)
     library(ggforce)       # gather_set_data, geom_parallel_sets*
@@ -254,12 +254,12 @@ suppressPackageStartupMessages({
 #    library(dplyr)         # select
 #    library(gtools)        # mixedsort
 #    library(HDF5Array)     # saveHDF5SummarizedExperiment
-#    library(igraph)        # cut_at
-#    library(limma)         # vennDiagram
+#    library(igraph)        # cut_at (for walktrap)
 #    library(plyr)          # ldply
 #    library(RColorBrewer)  # brewer.pal
 #    library(scDblFinder)   # computeDoubletDensity
 #    library(stringr)       # str_to_title
+#    library(UpSetR)        # upset
 
     library(scRUtils)       # with customised functions
     library(tidyverse)
@@ -290,7 +290,7 @@ Choose a `BiocParallel` Interface:
 
 ```R
 # Set number of threads for parallelisation
-nthreads <- 8
+nthreads <- 6
 
 # Choose BiocParallel Interface
 bpp <- MulticoreParam(nthreads)
@@ -453,7 +453,7 @@ Here, we make use of `AnnotationHub` to add SEQNAME (chromosome) annotation from
 
 ```R
 # Create an AnnotationHub object
-ah = AnnotationHub()
+ah <- AnnotationHub()
 
 # To display Human EnsDb if required
 #hs <- query(ah, c("EnsDb", "Ensembl", "Homo sapiens"))
@@ -478,7 +478,7 @@ Select the EnsDb corresponds to the correct Reference Package used by Cell Range
 
 
 ```R
-ens <- AnnotationHub()[["AH113665"]]
+ens <- ah[["AH113665"]]
 ```
 
     loading from cache
@@ -522,7 +522,7 @@ counts(cdSc)[1:5,1:5] # same as assay(cdSc, "counts")
     PERM1                            0   .                          0
 
 
-## Estimate ambient contamination (applicable to snRNA-seq)
+## (Optional) Estimate ambient contamination (applicable to snRNA-seq)
 
 Ambient contamination is a phenomenon that is generally most pronounced in massively multiplexed scRNA-seq protocols. Briefly, extracellular RNA (most commonly released upon cell lysis) is captured along with each cell in its reaction chamber, contributing counts to genes that are not otherwise expressed in that cell.
 
@@ -629,12 +629,12 @@ summary(is.cell.no.na)
 
 
        Mode   FALSE    TRUE    NA's 
-    logical    1065   15892  579041 
+    logical    1355   15602  579041 
 
 
 
        Mode   FALSE    TRUE 
-    logical  580106   15892 
+    logical  580396   15602 
 
 
 ### Estimate the ambient contribution from controls
@@ -673,7 +673,7 @@ summary(contam[,1])
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-      0.000   0.705   0.801   0.734   0.964   1.000   22370 
+     0.0000  0.7020  0.7976  0.7312  0.9575  1.0000   22372 
 
 
 We create a plot to show the percentage of counts in the nuclei that are attributed to contamination from the ambient solution. Each point represents a gene and mitochondrial genes are highlighted in red.
@@ -718,13 +718,13 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 	<tr><th></th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>MT-ND5</th><td>0.9293207</td></tr>
-	<tr><th scope=row>MT-ND4L</th><td>0.9466647</td></tr>
-	<tr><th scope=row>MT-CO2</th><td>0.9631787</td></tr>
-	<tr><th scope=row>MT-ND3</th><td>0.9756217</td></tr>
-	<tr><th scope=row>MT-ND2</th><td>0.9840586</td></tr>
-	<tr><th scope=row>MT-ATP6</th><td>0.9853369</td></tr>
-	<tr><th scope=row>MT-CO3</th><td>0.9957482</td></tr>
+	<tr><th scope=row>MT-ND5</th><td>0.9303776</td></tr>
+	<tr><th scope=row>MT-ND4L</th><td>0.9467859</td></tr>
+	<tr><th scope=row>MT-CO2</th><td>0.9632039</td></tr>
+	<tr><th scope=row>MT-ND3</th><td>0.9747607</td></tr>
+	<tr><th scope=row>MT-ATP6</th><td>0.9849951</td></tr>
+	<tr><th scope=row>MT-ND2</th><td>0.9862413</td></tr>
+	<tr><th scope=row>MT-CO3</th><td>0.9964285</td></tr>
 	<tr><th scope=row>MT-ND1</th><td>1.0000000</td></tr>
 	<tr><th scope=row>MT-CO1</th><td>1.0000000</td></tr>
 	<tr><th scope=row>MT-ND4</th><td>1.0000000</td></tr>
@@ -736,15 +736,15 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 
 
 
-    [1] "Ambient contamination cutoff: 0.9293"
+    [1] "Ambient contamination cutoff: 0.9304"
 
 
 
        Mode   FALSE    TRUE    NA's 
-    logical    4499   11769   22370 
+    logical    4415   11851   22372 
 
 
-    [1] "Number of genes passed the ambient contamination cutoff: 11769"
+    [1] "Number of genes passed the ambient contamination cutoff: 11851"
 
 
 # 2 - Cells and genes QC plots
@@ -800,7 +800,7 @@ rowData(cdSc)$pct_dropout <- 100 - rowData(cdSc)$detected
 
     
     FALSE  TRUE 
-    11558  6571 
+    11638  6491 
 
 
 #### View information related with cells
@@ -975,11 +975,6 @@ __For scRNA-seq:__
 # Print mitochondrial proportion summary
 summary(cdSc$subsets_Mt_percent)
 
-print("Number of cells with 0% mitochondrial content:")
-data.frame(Sample = cdSc$Sample, ZeroMito = cdSc$subsets_Mt_percent == 0) %>%
-    count(Sample, ZeroMito, name = "Count") %>% group_by(Sample) %>% 
-    mutate(Percentage = round(prop.table(Count)*100, 2))
-
 # Plot histogram
 ggplot(as.data.frame(colData(cdSc)), aes(x = subsets_Mt_percent, fill = Sample)) +
     geom_histogram(color = "white", alpha = 0.6, linewidth = 0.3, bins = 50) +
@@ -994,26 +989,9 @@ ggplot(as.data.frame(colData(cdSc)), aes(x = subsets_Mt_percent, fill = Sample))
      0.1585  2.1174  2.6073  2.7434  3.1592 34.6195 
 
 
-    [1] "Number of cells with 0% mitochondrial content:"
-
-
-
-<table class="dataframe">
-<caption>A grouped_df: 1 × 4</caption>
-<thead>
-	<tr><th scope=col>Sample</th><th scope=col>ZeroMito</th><th scope=col>Count</th><th scope=col>Percentage</th></tr>
-	<tr><th scope=col>&lt;fct&gt;</th><th scope=col>&lt;lgl&gt;</th><th scope=col>&lt;int&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
-</thead>
-<tbody>
-	<tr><td>LungCancer</td><td>FALSE</td><td>15725</td><td>100</td></tr>
-</tbody>
-</table>
-
-
-
 
     
-![png](Lung_Cancer_files/Lung_Cancer_51_3.png)
+![png](Lung_Cancer_files/Lung_Cancer_51_1.png)
     
 
 
@@ -1491,20 +1469,20 @@ as.data.frame(colData(cdSc)) %>% cbind(., highcount.drop) %>%
 
 
 ```R
-print(paste("Cells removed if:"))
-print(paste("Read count below library size cutoff:", round(cut_off_reads, 2)))
-print(paste("Number of genes expressed below feature cutoff:", round(cut_off_genes, 2)))
-print(paste("MT percent above mito cutoff:", round(cut_off_MT, 2)))
-print(paste("Novelty cutoff:", round(cut_off_novelty, 2)))
-print(paste("High count cutoff:", round(cut_off_highcount, 2)))
+cat("Cells removed if:\n")
+cat(sprintf("- Read count below library size cutoff: %.2f\n", cut_off_reads))
+cat(sprintf("- Number of genes expressed below feature cutoff: %.2f\n", cut_off_genes))
+cat(sprintf("- MT percent above mito cutoff: %.2f\n", cut_off_MT))
+cat(sprintf("- Novelty cutoff: %.2f\n", cut_off_novelty))
+cat(sprintf("- High count cutoff: %d\n", cut_off_highcount))
 ```
 
-    [1] "Cells removed if:"
-    [1] "Read count below library size cutoff: 3040.07"
-    [1] "Number of genes expressed below feature cutoff: 1773.95"
-    [1] "MT percent above mito cutoff: 5.5"
-    [1] "Novelty cutoff: 0.86"
-    [1] "High count cutoff: 15000"
+    Cells removed if:
+    - Read count below library size cutoff: 3040.07
+    - Number of genes expressed below feature cutoff: 1773.95
+    - MT percent above mito cutoff: 5.50
+    - Novelty cutoff: 0.86
+    - High count cutoff: 15000
 
 
 
@@ -1513,14 +1491,15 @@ print(paste("High count cutoff:", round(cut_off_highcount, 2)))
 discard <- libsize.drop | feature.drop | mito.drop | novelty.drop | highcount.drop
 cdSc$discard <- discard
 
-venn.df <- data.frame(Sample = cdSc$Sample, LibSize = libsize.drop, FeaturesExp = feature.drop, 
-                      MitoProp = mito.drop, Novelty = novelty.drop, HighCount = highcount.drop, Total = discard)
+venn.df <- data.frame(LibSize = libsize.drop, FeaturesExp = feature.drop, MitoProp = mito.drop, 
+                      Novelty = novelty.drop, HighCount = highcount.drop, Total = discard) %>% 
+    mutate_if(is.logical, as.integer)
 
-print(paste("Total number of cells removed:"))
-DataFrame(Cells = colSums(venn.df[,2:7]))
+cat("Number of cells removed:\n")
+DataFrame(Cells = colSums(venn.df))
 ```
 
-    [1] "Total number of cells removed:"
+    Number of cells removed:
 
 
 
@@ -1537,12 +1516,22 @@ DataFrame(Cells = colSums(venn.df[,2:7]))
 
 
 ```R
-limma::vennDiagram(venn.df[,2:6], cex = c(1.5,1.2,1.0))
+fig(width = 12, height = 6)
+suppressWarnings({
+    UpSetR::upset(venn.df[,-ncol(venn.df)], sets = colnames(venn.df)[-length(colnames(venn.df))], text.scale = 2, 
+                  point.size = 4, mb.ratio = c(0.6, 0.4), keep.order = T, order.by = "degree",
+                  set_size.show = TRUE, set_size.scale_max = sum(venn.df$Total)) # size of "Set Size" panel
+})
+dev.off()
 ```
 
 
+<strong>null device:</strong> 1
+
+
+
     
-![png](Lung_Cancer_files/Lung_Cancer_80_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_80_1.png)
     
 
 
@@ -1594,33 +1583,17 @@ cdScAnnot
 
 
 ```R
-print(paste("Total cells before quality filtering =", ncol(cdSc)))
-print(paste("Total cells before quality filtering, per sample:"))
-table(cdSc$Sample)
-
-print(paste("Total cells remaining after quality filtering =", ncol(cdScAnnot)))
-print(paste("Total cells after quality filtering, per sample:"))
-table(cdScAnnot$Sample)
+cat(sprintf("Total cells before quality filtering: %d\n", ncol(cdSc)))
+cat(sprintf("\nTotal cells remaining after quality filtering: %d\n", ncol(cdScAnnot)))
+cat(sprintf("\nTotal cells removed: %d (%.2f%%)\n", ncol(cdSc) - ncol(cdScAnnot), 
+            (ncol(cdSc) - ncol(cdScAnnot))/ncol(cdSc)*100))
 ```
 
-    [1] "Total cells before quality filtering = 15725"
-    [1] "Total cells before quality filtering, per sample:"
-
-
-
+    Total cells before quality filtering: 15725
     
-    LungCancer 
-         15725 
-
-
-    [1] "Total cells remaining after quality filtering = 14037"
-    [1] "Total cells after quality filtering, per sample:"
-
-
-
+    Total cells remaining after quality filtering: 14037
     
-    LungCancer 
-         14037 
+    Total cells removed: 1688 (10.73%)
 
 
 
@@ -1675,7 +1648,7 @@ Create a `dgCMatrix` counts matrix for faster computation in some steps.
 annot_c <- as(counts(cdScAnnot, withDimnames = TRUE), "dgCMatrix")
 ```
 
-# 4 - Classification of cell cycle phase
+# 4 - Cell cycle assignment
 
 On occasion, it can be desirable to determine cell cycle activity from scRNA-seq data. In and of itself, the distribution of cells across phases of the cell cycle is not usually informative, but we can use this to determine if there are differences in proliferation between subpopulations or across treatment conditions.
 
@@ -1721,7 +1694,7 @@ assignments <- cyclone(annot_c, sample.pairs, gene.names = rowData(cdScAnnot)$ID
 ## Assigning cell-cycle stages to the scater object
 cdScAnnot$CellCycle <- factor(assignments$phases)
 
-print("Predicted phase:")
+cat("Predicted phase:\n")
 table(Sample = cdScAnnot$Sample, "Phases (cells)" = cdScAnnot$CellCycle)
 round(prop.table(table(Sample = cdScAnnot$Sample, "Phases (%)" = cdScAnnot$CellCycle))*100, 2)
 ```
@@ -1734,7 +1707,7 @@ round(prop.table(table(Sample = cdScAnnot$Sample, "Phases (%)" = cdScAnnot$CellC
     
 
 
-    [1] "Predicted phase:"
+    Predicted phase:
 
 
 
@@ -1884,10 +1857,10 @@ cdScFilt
 
 
     class: SingleCellExperiment 
-    dim: 11558 14037 
+    dim: 11638 14037 
     metadata(2): Samples cyclone
     assays(2): counts logcounts
-    rownames(11558): SAMD11 NOC2L ... KDM5D EIF1AY
+    rownames(11638): SAMD11 NOC2L ... KDM5D EIF1AY
     rowData names(11): ID Symbol ... n_cells_by_counts pct_dropout
     colnames(14037): AAACAAGCAAGGCCTGAGCTGTGA-1 AAACAAGCACCTTTGGAGCTGTGA-1 ...
       TTTGTGAGTTGAGTCTAGCTGTGA-1 TTTGTGAGTTTACGACAGCTGTGA-1
@@ -1918,14 +1891,14 @@ var.out1 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>
 ```
 
 
-    DataFrame with 11558 rows and 6 columns
+    DataFrame with 11638 rows and 6 columns
                  mean     total      tech       bio     p.value         FDR
             <numeric> <numeric> <numeric> <numeric>   <numeric>   <numeric>
-    IGHM     0.994024   4.51059  0.705956   3.80463 3.02148e-58 3.46594e-54
-    GNLY     1.826763   5.55187  0.900267   4.65160 1.04323e-53 5.98345e-50
-    CCL5     2.370283   4.97165  0.959163   4.01248 6.51189e-36 2.48993e-32
-    NKG7     1.782321   4.11507  0.893301   3.22177 3.35628e-27 9.62496e-24
-    LYZ      0.675113   2.50964  0.557583   1.95206 9.64474e-26 2.21270e-22
+    IGHM     0.994024   4.51059  0.705980   3.80461 2.32223e-58 2.68264e-54
+    GNLY     1.826763   5.55187  0.899885   4.65198 7.18736e-54 4.15142e-50
+    CCL5     2.370283   4.97165  0.958824   4.01282 5.15330e-36 1.98437e-32
+    S100A9   0.549154   2.36060  0.482062   1.87853 1.72703e-31 4.98765e-28
+    NKG7     1.782321   4.11507  0.892919   3.22215 2.78389e-27 6.43191e-24
     ...           ...       ...       ...       ...         ...         ...
     GLOD5           0         0         0         0         NaN         NaN
     LPAR4           0         0         0         0         NaN         NaN
@@ -1948,7 +1921,7 @@ var.out2 %>% as.data.frame %>% arrange(FDR, desc(bio)) %>% dplyr::select(1:6) %>
 ```
 
 
-    DataFrame with 11558 rows and 6 columns
+    DataFrame with 11638 rows and 6 columns
                  mean     total      tech       bio   p.value       FDR
             <numeric> <numeric> <numeric> <numeric> <numeric> <numeric>
     GNLY     1.826763   5.55187  0.539500   5.01237         0         0
@@ -2034,7 +2007,7 @@ reset.fig()
 
 ## Selecting highly variable genes
 
-Once the per-gene variations are quantified, the next step is to select the HVGs to be used in downstream analyses. Selecting a larger number of HVGs will allow use to retain more potentially relevant genes to capture any batch-specific variation that might be present but at the same time increasing noise from irrelevant genes that obscure interesting biological signal. There are several common methods used to guide HVG selection, which you can read more [here](https://bioconductor.org/books/3.20/OSCA.basic/feature-selection.html).
+Once the per-gene variations are quantified, the next step is to select the HVGs to be used in downstream analyses. Selecting a larger number of HVGs will allow use to retain more potentially relevant genes to capture any batch-specific variation that might be present but at the same time increasing noise from irrelevant genes that obscure interesting biological signal. There are several common methods used to guide HVG selection, which you can read more [here](https://bioconductor.org/books/3.22/OSCA.basic/feature-selection.html).
 
 ### (Option 1) Select the top N genes with the highest biological components
 
@@ -2063,7 +2036,7 @@ head(hvg.out2, 20)
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>'GNLY'</li><li>'CCL5'</li><li>'IGHM'</li><li>'CD74'</li><li>'NKG7'</li><li>'PMAIP1'</li><li>'FOS'</li><li>'LYZ'</li><li>'IRF8'</li><li>'IFIT2'</li><li>'CD83'</li><li>'H1-10'</li><li>'TRBC2'</li><li>'IL7R'</li><li>'FOSB'</li><li>'DUSP2'</li><li>'ASTL'</li><li>'CD79A'</li><li>'IGHD'</li><li>'SOCS3'</li></ol>
+<ol class=list-inline><li>'GNLY'</li><li>'CCL5'</li><li>'IGHM'</li><li>'CD74'</li><li>'NKG7'</li><li>'PMAIP1'</li><li>'FOS'</li><li>'LYZ'</li><li>'IRF8'</li><li>'S100A9'</li><li>'IFIT2'</li><li>'CD83'</li><li>'H1-10'</li><li>'TRBC2'</li><li>'IL7R'</li><li>'FOSB'</li><li>'DUSP2'</li><li>'ASTL'</li><li>'CD79A'</li><li>'IGHD'</li></ol>
 
 
 
@@ -2077,7 +2050,7 @@ head(hvg.out2, 20)
 .list-inline>li {display: inline-block}
 .list-inline>li:not(:last-child)::after {content: "\00b7"; padding: 0 .5ex}
 </style>
-<ol class=list-inline><li>'GNLY'</li><li>'CCL5'</li><li>'CD74'</li><li>'IGHM'</li><li>'NKG7'</li><li>'FOS'</li><li>'PMAIP1'</li><li>'H1-10'</li><li>'JUN'</li><li>'TRBC2'</li><li>'CD83'</li><li>'VIM'</li><li>'DUSP1'</li><li>'IRF8'</li><li>'FOSB'</li><li>'LYZ'</li><li>'TNFAIP3'</li><li>'IFIT2'</li><li>'IL7R'</li><li>'ZFP36L2'</li></ol>
+<ol class=list-inline><li>'GNLY'</li><li>'CCL5'</li><li>'CD74'</li><li>'IGHM'</li><li>'NKG7'</li><li>'FOS'</li><li>'PMAIP1'</li><li>'H1-10'</li><li>'JUN'</li><li>'TRBC2'</li><li>'CD83'</li><li>'VIM'</li><li>'DUSP1'</li><li>'IRF8'</li><li>'FOSB'</li><li>'LYZ'</li><li>'TNFAIP3'</li><li>'IFIT2'</li><li>'S100A9'</li><li>'IL7R'</li></ol>
 
 
 
@@ -2102,7 +2075,7 @@ head(hvg.out2, 20)
 
 Below we mark the selected HVG from both models in red.
 
-Trends based purely on technical noise (i.e. `modelGeneVarByPoisson`) tend to yield large biological components for highly-expressed genes, including “house-keeping” genes coding for essential cellular components such as ribosomal proteins, which are considered uninteresting for characterizing cellular heterogeneity. These observations suggest that a more accurate noise model does not necessarily yield a better ranking of HVGs, though one should keep an open mind - house-keeping genes are regularly DE in a variety of conditions, and the fact that they have large biological components indicates that there is strong variation across cells that may not be completely irrelevant. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/feature-selection.html#sec:spikeins)
+Trends based purely on technical noise (i.e. `modelGeneVarByPoisson`) tend to yield large biological components for highly-expressed genes, including “house-keeping” genes coding for essential cellular components such as ribosomal proteins, which are considered uninteresting for characterizing cellular heterogeneity. These observations suggest that a more accurate noise model does not necessarily yield a better ranking of HVGs, though one should keep an open mind - house-keeping genes are regularly DE in a variety of conditions, and the fact that they have large biological components indicates that there is strong variation across cells that may not be completely irrelevant. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/feature-selection.html#sec:spikeins)
 
 
 ```R
@@ -2224,18 +2197,12 @@ hvg %>% DataFrame
     IGHM           IGHM  0.994024   4.51059  0.586517   3.92407           0           0
     NKG7           NKG7  1.782321   4.11507  0.548074   3.56700           0           0
     ...             ...       ...       ...       ...       ...         ...         ...
-    PCM1           PCM1   1.29447  0.695698  0.609769 0.0859289 5.37096e-13 8.66896e-13
-    CCDC59       CCDC59   1.05370  0.680950  0.596998 0.0839521 5.98740e-13 9.63139e-13
-    WDR26         WDR26   1.42919  0.684437  0.600477 0.0839603 8.01993e-13 1.28218e-12
-    ANKRD44     ANKRD44   1.17972  0.692713  0.609031 0.0836818 1.92146e-12 3.02678e-12
-    CALM1         CALM1   1.16416  0.691452  0.608392 0.0830600 2.62786e-12 4.11020e-12
+    KANSL1       KANSL1   1.23746  0.696585  0.610509 0.0860765 5.23284e-13 8.43092e-13
+    PCM1           PCM1   1.29447  0.695698  0.609769 0.0859289 5.37096e-13 8.64864e-13
+    CCDC59       CCDC59   1.05370  0.680950  0.596998 0.0839521 5.98740e-13 9.60912e-13
+    WDR26         WDR26   1.42919  0.684437  0.600477 0.0839603 8.01993e-13 1.27929e-12
+    ANKRD44     ANKRD44   1.17972  0.692713  0.609031 0.0836818 1.92146e-12 3.02036e-12
 
-
-
-```R
-# Save to file
-write.table(hvg, file = "HVG.tsv", sep = "\t", quote = F, row.names = F, col.names = T)
-```
 
 
 ```R
@@ -2256,23 +2223,19 @@ __Final Notes__ There are alternative approaches for determining the HVG, especi
 However, it has been mentioned that fitting the trendline to endogenous genes might not always be a good idea.
 
 
-# 7 - Dimensionality reduction using HVG
+# 7 - Dimensionality reduction
 
-1. Principal components analysis (PCA)
-2. t-stochastic neighbor embedding (t-SNE)
-3. Uniform manifold approximation and projection (UMAP)
+<div class="alert alert-warning">
+    <strong>Warning!</strong> The PCA, TSNE, UMAP and clustering results will <strong>NOT</strong> be identical between different R versions. Make sure to use the same environment/versions to process (or re-process) data from the same project.
+</div>
 
 ## Principal components analysis
 
 We perform a PCA on the log-normalized expression values using the `calculatePCA` function from `scater` package. By default, `calculatePCA` function will compute the first 50 PCs.
 
-Here, we restricting the PCA to the HVGs selected previously (by using `subset_row`) to reduce both computational work and high-dimensional random noise. In particular, while PCA is robust to random noise, an excess of it may cause the earlier PCs to capture noise instead of biological structure.
+Here, we restricting the PCA to the **HVGs** selected previously (by using `subset_row`) to reduce both computational work and high-dimensional random noise. In particular, while PCA is robust to random noise, an excess of it may cause the earlier PCs to capture noise instead of biological structure.
 
-For large data sets, greater efficiency is obtained by using approximate SVD algorithms that only compute the top PCs. By default, most PCA-related functions in `scater` and `scran` will use methods from the `irlba` or `rsvd` packages to perform the SVD. Many of these approximate algorithms are based on randomization and thus require `set.seed()` to obtain reproducible results. See [here](https://bioconductor.org/books/3.20/OSCA.advanced/dealing-with-big-data.html#big-data-svd) more details.
-
-<div class="alert alert-warning">
-    <strong>Warning!</strong> The PCA results are slightly different from versions available in R 4.3 versus R 4.4. Therefore the TSNE, UMAP and clustering results will also be different. Make sure to use the same environment/versions to process (or re-process) data from the same project.
-</div>
+For large data sets, greater efficiency is obtained by using approximate SVD algorithms that only compute the top PCs. By default, most PCA-related functions in `scater` and `scran` will use methods from the `irlba` or `rsvd` packages to perform the SVD. Many of these approximate algorithms are based on randomization and thus require `set.seed()` to obtain reproducible results. See [here](https://bioconductor.org/books/3.22/OSCA.advanced/dealing-with-big-data.html#big-data-svd) more details.
 
 
 ```R
@@ -2316,13 +2279,13 @@ str(reducedDim(cdScAnnot, "PCA"))
 
 
 
-     num [1:14037, 1:50] -7.64 9.65 8.11 9.1 5.56 ...
+     num [1:14037, 1:50] -10.48 9.28 7.95 9.1 5.74 ...
      - attr(*, "dimnames")=List of 2
       ..$ : chr [1:14037] "AAACAAGCAAGGCCTGAGCTGTGA-1" "AAACAAGCACCTTTGGAGCTGTGA-1" "AAACAAGCAGAAAGGTAGCTGTGA-1" "AAACAAGCATAACCGAAGCTGTGA-1" ...
       ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
-     - attr(*, "varExplained")= num [1:50] 128.9 106.3 70.1 30.8 16.4 ...
-     - attr(*, "percentVar")= num [1:50] 8.59 7.09 4.67 2.06 1.09 ...
-     - attr(*, "rotation")= num [1:2000, 1:50] 0.114 0.127 -0.145 -0.161 0.104 ...
+     - attr(*, "varExplained")= num [1:50] 129.2 112.3 70.8 30.9 16.4 ...
+     - attr(*, "percentVar")= num [1:50] 8.58 7.46 4.7 2.05 1.09 ...
+     - attr(*, "rotation")= num [1:2000, 1:50] 0.113 0.126 -0.148 -0.159 0.103 ...
       ..- attr(*, "dimnames")=List of 2
       .. ..$ : chr [1:2000] "GNLY" "CCL5" "CD74" "IGHM" ...
       .. ..$ : chr [1:50] "PC1" "PC2" "PC3" "PC4" ...
@@ -2350,26 +2313,26 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 	<tr><th></th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td> 1</td><td>8.5920766</td></tr>
-	<tr><th scope=row>2</th><td> 2</td><td>7.0892162</td></tr>
-	<tr><th scope=row>3</th><td> 3</td><td>4.6736443</td></tr>
-	<tr><th scope=row>4</th><td> 4</td><td>2.0560588</td></tr>
-	<tr><th scope=row>5</th><td> 5</td><td>1.0915394</td></tr>
-	<tr><th scope=row>6</th><td> 6</td><td>0.8955726</td></tr>
-	<tr><th scope=row>7</th><td> 7</td><td>0.6748123</td></tr>
-	<tr><th scope=row>8</th><td> 8</td><td>0.5039518</td></tr>
-	<tr><th scope=row>9</th><td> 9</td><td>0.4763695</td></tr>
-	<tr><th scope=row>10</th><td>10</td><td>0.3895461</td></tr>
-	<tr><th scope=row>11</th><td>11</td><td>0.3133373</td></tr>
-	<tr><th scope=row>12</th><td>12</td><td>0.2814604</td></tr>
-	<tr><th scope=row>13</th><td>13</td><td>0.2771899</td></tr>
-	<tr><th scope=row>14</th><td>14</td><td>0.2562621</td></tr>
-	<tr><th scope=row>15</th><td>15</td><td>0.2344560</td></tr>
-	<tr><th scope=row>16</th><td>16</td><td>0.2148129</td></tr>
-	<tr><th scope=row>17</th><td>17</td><td>0.1990409</td></tr>
-	<tr><th scope=row>18</th><td>18</td><td>0.1819423</td></tr>
-	<tr><th scope=row>19</th><td>19</td><td>0.1691914</td></tr>
-	<tr><th scope=row>20</th><td>20</td><td>0.1566988</td></tr>
+	<tr><th scope=row>1</th><td> 1</td><td>8.5805713</td></tr>
+	<tr><th scope=row>2</th><td> 2</td><td>7.4582373</td></tr>
+	<tr><th scope=row>3</th><td> 3</td><td>4.7026146</td></tr>
+	<tr><th scope=row>4</th><td> 4</td><td>2.0489646</td></tr>
+	<tr><th scope=row>5</th><td> 5</td><td>1.0899312</td></tr>
+	<tr><th scope=row>6</th><td> 6</td><td>0.8899126</td></tr>
+	<tr><th scope=row>7</th><td> 7</td><td>0.6739840</td></tr>
+	<tr><th scope=row>8</th><td> 8</td><td>0.5016093</td></tr>
+	<tr><th scope=row>9</th><td> 9</td><td>0.4754458</td></tr>
+	<tr><th scope=row>10</th><td>10</td><td>0.3881599</td></tr>
+	<tr><th scope=row>11</th><td>11</td><td>0.3122877</td></tr>
+	<tr><th scope=row>12</th><td>12</td><td>0.2801446</td></tr>
+	<tr><th scope=row>13</th><td>13</td><td>0.2771368</td></tr>
+	<tr><th scope=row>14</th><td>14</td><td>0.2568527</td></tr>
+	<tr><th scope=row>15</th><td>15</td><td>0.2323061</td></tr>
+	<tr><th scope=row>16</th><td>16</td><td>0.2156176</td></tr>
+	<tr><th scope=row>17</th><td>17</td><td>0.1972796</td></tr>
+	<tr><th scope=row>18</th><td>18</td><td>0.1804791</td></tr>
+	<tr><th scope=row>19</th><td>19</td><td>0.1725158</td></tr>
+	<tr><th scope=row>20</th><td>20</td><td>0.1584343</td></tr>
 </tbody>
 </table>
 
@@ -2386,7 +2349,7 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_138_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_137_0.png)
     
 
 
@@ -2400,7 +2363,7 @@ as.data.frame(percent.var) %>% rownames_to_column(var = "PC") %>% mutate(PC = as
 
 ## Visualising with t-SNE
 
-The t-stochastic neighbor embedding (t-SNE) method attempts to find a low-dimensional representation of the data that preserves the distances between each point and its neighbors in the high-dimensional space. Unlike PCA, it is not restricted to linear transformations, nor is it obliged to accurately represent distances between distant populations. This means that it has much more freedom in how it arranges cells in low-dimensional space, enabling it to separate many distinct clusters in a complex population. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/dimensionality-reduction.html#t-stochastic-neighbor-embedding)
+The t-stochastic neighbor embedding (t-SNE) method attempts to find a low-dimensional representation of the data that preserves the distances between each point and its neighbors in the high-dimensional space. Unlike PCA, it is not restricted to linear transformations, nor is it obliged to accurately represent distances between distant populations. This means that it has much more freedom in how it arranges cells in low-dimensional space, enabling it to separate many distinct clusters in a complex population. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/dimensionality-reduction.html#t-stochastic-neighbor-embedding)
 
 #### n_dimred
 
@@ -2424,19 +2387,19 @@ cdScAnnot <- runTSNE(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "TSNE", n_
 
 fig(width = 8, height = 8)
 plotProjection(cdScAnnot, "Sample", dimname = "TSNE", feat_color = c_sample_col, 
-               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
+               point_size = 0.1, point_alpha = 0.2, legend_pos = "none")
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_141_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_140_0.png)
     
 
 
 ## Visualising with UMAP (`uwot::umap`)
 
-The uniform manifold approximation and projection (UMAP) method is an alternative to t-SNE for non-linear dimensionality reduction. It is roughly similar to t-SNE in that it also tries to find a low-dimensional representation that preserves relationships between neighbors in high-dimensional space. However, the two methods are based on different theory, represented by differences in the various graph weighting equations. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/dimensionality-reduction.html#uniform-manifold-approximation-and-projection)
+The uniform manifold approximation and projection (UMAP) method is an alternative to t-SNE for non-linear dimensionality reduction. It is roughly similar to t-SNE in that it also tries to find a low-dimensional representation that preserves relationships between neighbors in high-dimensional space. However, the two methods are based on different theory, represented by differences in the various graph weighting equations. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/dimensionality-reduction.html#uniform-manifold-approximation-and-projection)
 
 Compared to t-SNE, the UMAP visualisation tends to have more compact visual clusters with more empty space between them. It also attempts to preserve more of the global structure than t-SNE.
 
@@ -2462,10 +2425,6 @@ Note:
 - Default settings in scater/uwot: n_neighbors = 15, spread = 1, min_dist = 0.01
 - Default settings in seurat: n_neighbors = 30, spread = 1, min_dist = 0.3
 
-<div class="alert alert-warning">
-  It is arguable whether the UMAP or t-SNE visualizations are more useful or aesthetically pleasing. UMAP aims to preserve more global structure but this necessarily reduces resolution within each visual cluster. However, UMAP is unarguably much faster, and for that reason alone, it is increasingly displacing t-SNE as the method of choice for visualizing large scRNA-seq data sets.
-</div>
-
 ### Use adjusted settings
 
 
@@ -2476,15 +2435,19 @@ cdScAnnot <- runUMAP(cdScAnnot, dimred = "PCA", n_dimred = 15, name = "UMAP",
 
 fig(width = 8, height = 8)
 plotProjection(cdScAnnot, "Sample", dimname = "UMAP", feat_color = c_sample_col, 
-               point_size = 0.5, point_alpha = 0.3, legend_pos = "none")
+               point_size = 0.1, point_alpha = 0.2, legend_pos = "none")
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_143_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_142_0.png)
     
 
+
+<div class="alert alert-warning">
+  It is arguable whether the UMAP or t-SNE visualizations are more useful or aesthetically pleasing. UMAP aims to preserve more global structure but this necessarily reduces resolution within each visual cluster. However, UMAP is unarguably much faster, and for that reason alone, it is increasingly displacing t-SNE as the method of choice for visualizing large scRNA-seq data sets.
+</div>
 
 
 ```R
@@ -2549,7 +2512,7 @@ AAACGATGTCTTGAAC-1	T cell	mature T cell	428
 
 ## Predict cell type using SingleR and celldex
 
-If not, we can use of the `SingleR` method for cell type annotation. This method assigns labels to cells based on the reference samples with the highest Spearman rank correlations, using only the marker genes between pairs of labels to focus on the relevant differences between cell types. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/cell-type-annotation.html#assigning-cell-labels-from-reference-data)
+If not, we can use of the `SingleR` method for cell type annotation. This method assigns labels to cells based on the reference samples with the highest Spearman rank correlations, using only the marker genes between pairs of labels to focus on the relevant differences between cell types. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/cell-type-annotation.html#assigning-cell-labels-from-reference-data)
 
 The `celldex` package contains a number of curated reference datasets (listed below), mostly assembled from bulk RNA-seq or microarray data of sorted cell types. 
 
@@ -2654,15 +2617,15 @@ table("BlueprintEncodeData" = singler.bp$labels)
 
 
     BlueprintEncodeData
-         B-cells CD4+ T-cells CD8+ T-cells          HSC    Monocytes     NK cells 
-            2124         3781         4371            4          894         2863 
+         B-cells CD4+ T-cells CD8+ T-cells           DC          HSC    Monocytes  Neutrophils     NK cells 
+            2129         3765         4408            1            4          893            1         2836 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler.bp$labels, dimname = "TSNE", feat_desc = "BlueprintEncodeData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2679,15 +2642,17 @@ table("HumanPrimaryCellAtlasData" = singler.hpca$labels)
 
 
     HumanPrimaryCellAtlasData
-         B_cell         CMP         GMP         MEP    Monocyte Neutrophils     NK_cell     T_cells 
-           2142           1           3           1         861          28        3759        7242 
+              B_cell              GMP              MEP         Monocyte      Neutrophils          NK_cell 
+                2136                4                1              863               29             3856 
+    Pro-B_cell_CD34+          T_cells 
+                   1             7147 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler.hpca$labels, dimname = "TSNE", feat_desc = "HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2704,16 +2669,16 @@ table("BlueprintEncodeData + HumanPrimaryCellAtlasData" = singler$labels)
 
 
     BlueprintEncodeData + HumanPrimaryCellAtlasData
-         B-cells CD4+ T-cells CD8+ T-cells          HSC    Monocytes     NK cells      NK_cell 
-            2130         3776         4348            4          895         2866           18 
+         B-cells CD4+ T-cells CD8+ T-cells          HSC    Monocytes  Neutrophils     NK cells      NK_cell 
+            2130         3771         4354            4          894            1         2864           19 
 
 
 
 ```R
-fig(width = 9, height = 7)
+fig(width = 9, height = 8)
 plotProjection(cdScAnnot, singler$labels, dimname = "TSNE", 
                feat_desc = "BlueprintEncodeData + HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 0.5, point_alpha = 0.3, guides_size = 4, title = "TSNE")
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
 reset.fig()
 ```
 
@@ -2754,7 +2719,7 @@ Ideally, each cell (i.e., column of the heatmap) should have one score that is o
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 4)
 suppressWarnings(plotScoreHeatmap(singler.bp, grid.vars = list(ncol = 2), fontsize = 12, fontsize_row = 12))
 reset.fig()
 ```
@@ -2767,7 +2732,7 @@ reset.fig()
 
 
 ```R
-fig(width = 16, height = 9)
+fig(width = 16, height = 4)
 suppressWarnings(plotScoreHeatmap(singler.hpca, grid.vars = list(ncol = 2), fontsize = 12, fontsize_row = 12))
 reset.fig()
 ```
@@ -2806,11 +2771,12 @@ table(CellType = cdScAnnot$CellType, Sample = cdScAnnot$Sample)
                   Sample
     CellType       LungCancer
       B-cells            2130
-      CD4+ T-cells       3776
-      CD8+ T-cells       4348
+      CD4+ T-cells       3771
+      CD8+ T-cells       4354
       HSC                   4
-      Monocytes           895
-      NK cells           2884
+      Monocytes           894
+      Neutrophils           1
+      NK cells           2883
 
 
 
@@ -2822,10 +2788,10 @@ c_celltype_col <- choosePalette(cdScAnnot$CellType, c40)
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, 
-                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2, 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(8, 1))
 reset.fig()
 ```
 
@@ -2837,40 +2803,17 @@ reset.fig()
 
 # 9 - Cell clustering
 
-The goal is to split the cells in the dataset into clusters, such that:
+The primary purpose of clustering is to summarize complex scRNA-seq data into a digestible format for human interpretation. This allows us to describe population heterogeneity in terms of discrete labels that are easily understood. 
 
-1. The gene expression profile in the same cluster are as similar as possible,
-2. The gene expression profile in different clusters are highly distinct
-
-**Assessing cluster separation**
-
-We can perform silhouette analysis to measures how well cells are clustered and it estimates the average distance between clusters. The silhouette plot displays a measure of how close each cell in one cluster is to cells in the neighboring clusters. Ideally, each cluster would contain large positive silhouette widths $s_i$, indicating that it is well-separated from other clusters.
-
-For each observation $i$, the silhouette width $s_i$ is calculated as follows:
-
-1. For each observation $i$, calculate the average dissimalirty $\alpha_i$ between $i$ and all other points of the cluster which $i$ belongs.
-2. For all other clusters $C$, to which $i$ does not belong, calculate the average dissimilarity $d(i,C)$ of $i$ to all observations of $C$. The smallest of these $d(i,C)$ is defined as $b_i = min_C d(i,C)$. The value of $b_i$ can be seen as the dissimilarity between i and its __neighbour__ cluster, i.e. the nearest one to which it does not belong.
-3. Finally the silhouette width of the observation $i$ is defined by the formula: $S_i = \frac{(b_i - a_i)}{max(a_i,b_i)}$
-
-Silhouette width $s_i$ can be interpreted as follows:
-
-- Cells with a large $s_i$ (almost 1) are very well clustered.
-- A small $s_i$ (around 0) means that the observation lies between two clusters.
-- Cells with a negative $s_i$ are probably placed in the wrong cluster. (so cluster is less stable and trustworthy)
+After annotation based on marker genes, the clusters can be treated as proxies for more abstract biological concepts such as cell types or states.
 
 
-```R
-# Stores clustering labels
-my.clusters <- vector(mode = "list")
-communities <- vector(mode = "list") # walktrap, louvain
-```
-
-## Use graph-based clustering
+## Graph-based clustering
 
 Popularized by its use in Seurat, graph-based clustering is a flexible and scalable technique for clustering large scRNA-seq datasets. The major advantage of graph-based clustering lies in its scalability. It only requires a  
 k-nearest neighbor search that can be done in log-linear time on average. Graph construction avoids making strong assumptions about the shape of the clusters or the distribution of cells within each cluster.
 
-From a practical perspective, each cell is forcibly connected to a minimum number of neighboring cells, which reduces the risk of generating many uninformative clusters consisting of one or two outlier cells. The main drawback of graph-based methods is that, after graph construction, no information is retained about relationships beyond the neighboring cells. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.basic/clustering.html#clustering-graph)
+From a practical perspective, each cell is forcibly connected to a minimum number of neighboring cells, which reduces the risk of generating many uninformative clusters consisting of one or two outlier cells. The main drawback of graph-based methods is that, after graph construction, no information is retained about relationships beyond the neighboring cells. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.basic/clustering.html#clustering-graph)
 
 #### About `k`
 
@@ -2878,17 +2821,24 @@ Set `k` to specify the number of nearest neighbors to consider during graph cons
 
 #### Different methods for finding communities in `igraph`
 
-In this notebook, we use the **Walktrap**, **Louvain** and **Leiden** algorithms to detect community structure. This is also the method demonstrated in [OSCA](https://bioconductor.org/books/3.20/OSCA.basic/clustering.html#implementation). There are other methods in `igraph` ([doc](https://igraph.org/r/doc/communities.html)): 
+This notebook shows how to use the **Walktrap**, **Louvain** and **Leiden** algorithms to detect community structure. This is also the method demonstrated in [OSCA](https://bioconductor.org/books/3.22/OSCA.basic/clustering.html#implementation). There are other methods in `igraph` ([doc](https://igraph.org/r/doc/communities.html)): 
 
 - cluster_edge_betweenness: Community structure detection based on edge betweenness.
 - cluster_fast_greedy: Community structure via greedy optimization of modularity.
 - cluster_label_prop: Finding communities based on propagating labels.
 - cluster_leading_eigen: Community structure detecting based on the leading eigenvector of the community matrix.
-- **cluster_louvain \***: Finding community structure by multi-level optimization of modularity
-- **cluster_leiden (new)**: Finding community structure of a graph using the Leiden algorithm of Traag, van Eck & Waltman. 
+- **cluster_louvain**: Finding community structure by multi-level optimization of modularity
+- **cluster_leiden**: Finding community structure of a graph using the Leiden algorithm of Traag, van Eck & Waltman. 
 - cluster_optimal: Optimal community structure
 - cluster_spinglass: Finding communities in graphs based on statistical meachanics
-- **cluster_walktrap \***: Community strucure via short random walks
+- **cluster_walktrap**: Community strucure via short random walks
+
+
+```R
+# Stores clustering labels
+my.clusters <- vector(mode = "list")
+communities <- vector(mode = "list") # walktrap, louvain
+```
 
 ### Using 'walktrap' algorithm
 
@@ -2913,34 +2863,36 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Walktrap cluster assignments:"
-                walktrap
+    Cluster assignments using Walktrap:
+                
                     1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19
-      LungCancer 1858 2432 3421 1063 1616  283 1220  100   38   51  785  211  166  138   80  171  366   24   14
+      LungCancer 1072  298 3228 1371 1024 1538   95  861  173  784  212   53 1435  312  377  156   78  167   28
+                
+                   20   21   22   23   24
+      LungCancer   32  349  369   11   14
 
 
     Silhouette width summary:
 
 
-        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -0.46962  0.07029  0.18713  0.18976  0.31548  0.62303 
+         Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    -0.439556  0.008351  0.142289  0.145456  0.271919  0.610683 
 
 
 #### Manually tuning walktrap clustering resolution
 
 You can increase `k` to obtain less resolved clusters or descrease `k` to obtain more resolved clusters. However it will be increasingly slow with higher `k`. 
 
-The `igraph`'s Walktrap community finding algorithm is a hierarchical algorithm. This implies that there is an underlying hierarchy in the communities object, and we can use the `cut_at` function to cut the merge tree at the desired place and returns a membership vector. The desired place can be expressed as the desired number of communities (e.g. `no=10`) or as the number of merge steps to make (e.g. `steps = 5`). The function gives an error message if called with a non-hierarchical method.
+The `igraph`'s Walktrap community finding algorithm is a hierarchical algorithm. This implies that there is an underlying hierarchy in the communities object, and we can use the `cut_at` function to cut the merge tree at the desired place and returns a membership vector. The desired place can be expressed as the desired number of communities (e.g. `no = 10`) or as the number of merge steps to make (e.g. `steps = 5`). The function gives an error message if called with a non-hierarchical method.
 
 
 ```R
@@ -2950,90 +2902,50 @@ n <- 16
 my.clusters[[method]][[dimname]] <- igraph::cut_at(communities[[method]][[dimname]]$objects$communities, n = n)
 my.clusters[[method]][[dimname]] <- as.factor(my.clusters[[method]][[dimname]])
 
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Walktrap cluster assignments:"
-                walktrap
+    Cluster assignments using Walktrap:
+                
                     1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      LungCancer 1234 2836 3787 1858 2432  283  100   38   51  785  211  166  138   80   24   14
+      LungCancer 1239 1812 3946 2395 2711   39  298   95  173  784  212   53  156   78   32   14
 
 
     Silhouette width summary:
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4017  0.1521  0.2592  0.2445  0.3452  0.6230 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4017  0.1521  0.2592  0.2445  0.3452  0.6230 
-    [90m# A tibble: 16 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1               10.0 
-    [90m 2[39m 2               25.6 
-    [90m 3[39m 3                3.51
-    [90m 4[39m 4                3.66
-    [90m 5[39m 5                2.71
-    [90m 6[39m 6                4.24
-    [90m 7[39m 7                4   
-    [90m 8[39m 8                0   
-    [90m 9[39m 9                0   
-    [90m10[39m 10               1.66
-    [90m11[39m 11               1.42
-    [90m12[39m 12              10.2 
-    [90m13[39m 13               1.45
-    [90m14[39m 14               0   
-    [90m15[39m 15               0   
-    [90m16[39m 16               0   
-
-
-
-    
-![png](Lung_Cancer_files/Lung_Cancer_178_2.png)
-    
+    -0.3937  0.1545  0.2651  0.2535  0.3535  0.6307 
 
 
 #### Show assigned walktrap clusters
 
-We add the cluster assignments back into the `sce` object as a factor in the column metadata (`label`). This allows us to visualise the distribution of clusters in a t-SNE plot.
+We view the cluster assignment `my.clusters[["walktrap"]][["PCA"]]` using `plotProjections()`.
 
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_180_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_178_0.png)
     
 
 
@@ -3061,87 +2973,50 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Louvain cluster assignments:"
-                louvain
+    Cluster assignments using Louvain:
+                
                     1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
-      LungCancer  823 1219 1258 1776 1734 1788  256 1576 1675  867  163  284  463   89   66
+      LungCancer  837 1322 1175 1405 2088 1790  258 1598 1137  883  137  281  472  602   52
 
 
     Silhouette width summary:
 
 
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4388  0.0717  0.1641  0.1891  0.2844  0.6044 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-       Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    -0.4388  0.0717  0.1641  0.1891  0.2844  0.6044 
-    [90m# A tibble: 15 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1                2.31
-    [90m 2[39m 2                8.2 
-    [90m 3[39m 3               31.1 
-    [90m 4[39m 4               21   
-    [90m 5[39m 5               11.3 
-    [90m 6[39m 6                0.17
-    [90m 7[39m 7               10.6 
-    [90m 8[39m 8               16.2 
-    [90m 9[39m 9                7.1 
-    [90m10[39m 10               5.88
-    [90m11[39m 11               1.23
-    [90m12[39m 12              13.4 
-    [90m13[39m 13              33.9 
-    [90m14[39m 14               0   
-    [90m15[39m 15               6.06
-
-
-
-    
-![png](Lung_Cancer_files/Lung_Cancer_184_2.png)
-    
+        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+    -0.45959  0.06865  0.16203  0.18945  0.29345  0.58861 
 
 
 #### Show assigned louvain clusters
 
+We view the cluster assignment `my.clusters[["louvain"]][["PCA"]]` using `plotProjections()`.
+
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_186_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_183_0.png)
     
 
 
@@ -3169,88 +3044,50 @@ my.clusters[[method]][[dimname]] <- factor(communities[[method]][[dimname]]$clus
 
 
 ```R
-print(paste(stringr::str_to_title(method), "cluster assignments:"))
+cat(sprintf("Cluster assignments using %s:\n", stringr::str_to_title(method)))
 for(i in 1:length(my.clusters[[method]])) {
     tab <- table(cdScAnnot$Sample, my.clusters[[method]][[i]])
-    names(dimnames(tab))[2] <- method
     print(tab)
 
     plotSilhouette(mat, my.clusters[[method]][[i]], printDiff = FALSE, plot = FALSE)
 }
 ```
 
-    [1] "Leiden cluster assignments:"
-                leiden
+    Cluster assignments using Leiden:
+                
                     1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16
-      LungCancer  785 1203 1152 1741 1719 1795  253  909 1284 1607  102  276  450  545  112  104
+      LungCancer  792 1128 1145 1511 1935 1794  254  868 1302 1635  188  123  279  451  535   97
 
 
     Silhouette width summary:
 
 
         Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -0.40095  0.09527  0.20453  0.21532  0.32067  0.63821 
-
-
-
-```R
-fig(width = 16, height = 6)
-plotSilhouette(mat, my.clusters[[method]][[dimname]])
-reset.fig()
-```
-
-    Silhouette width summary:
-
-
-        Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-    -0.40095  0.09527  0.20453  0.21532  0.32067  0.63821 
-    [90m# A tibble: 16 × 2[39m
-       cluster `% Different`
-       [3m[90m<fct>[39m[23m           [3m[90m<dbl>[39m[23m
-    [90m 1[39m 1                0   
-    [90m 2[39m 2                5.99
-    [90m 3[39m 3               25.7 
-    [90m 4[39m 4               19.8 
-    [90m 5[39m 5               16.2 
-    [90m 6[39m 6                0.06
-    [90m 7[39m 7                9.49
-    [90m 8[39m 8               10.3 
-    [90m 9[39m 9                0.62
-    [90m10[39m 10               7.22
-    [90m11[39m 11               0   
-    [90m12[39m 12               9.78
-    [90m13[39m 13              34   
-    [90m14[39m 14              13.6 
-    [90m15[39m 15               0   
-    [90m16[39m 16              11.5 
-
-
-
-    
-![png](Lung_Cancer_files/Lung_Cancer_190_2.png)
-    
+    -0.40738  0.09789  0.20522  0.21858  0.31855  0.64113 
 
 
 #### Show assigned leiden clusters
 
+We view the cluster assignment `my.clusters[["leiden"]][["PCA"]]` using `plotProjections()`.
+
 
 ```R
 p1 <- plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3,
+                      feat_desc = "Cell Type", feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2,
                       text_by = my.clusters[[method]][[dimname]], legend_pos = "none", add_void = TRUE)
 
 p2 <- plotProjections(cdScAnnot, my.clusters[[method]][[dimname]], dimnames = c("TSNE", "UMAP"), 
-                      feat_desc = method, feat_color = c30(), point_size = 0.5, point_alpha = 0.3, 
+                      feat_desc = method, feat_color = c30(), point_size = 0.1, point_alpha = 0.2, 
                       text_by = my.clusters[[method]][[dimname]], guides_size = 4, guides_ncol = 1)
 
-fig(width = 16, height = 14)
+fig(width = 16, height = 15)
 plot_grid(p1, p2, ncol = 1)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_192_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_188_0.png)
     
 
 
@@ -3297,7 +3134,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_197_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_193_0.png)
     
 
 
@@ -3330,7 +3167,7 @@ table_samples_by_clusters
 
                 Cluster
     Sample          1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
-      LungCancer  823 1219 1258 1776 1734 1788  256 1576 1675  867  163  284  463   89   66
+      LungCancer  837 1322 1175 1405 2088 1790  258 1598 1137  883  137  281  472  602   52
 
 
 
@@ -3346,7 +3183,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_202_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_198_0.png)
     
 
 
@@ -3363,7 +3200,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_203_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_199_0.png)
     
 
 
@@ -3375,29 +3212,29 @@ reset.fig()
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "label", dimnames = c("TSNE", "UMAP"), feat_desc = "Cluster", 
-                feat_color = c_clust_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
+                feat_color = c_clust_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_205_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_201_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellCycle", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Cycle Phases", 
-                feat_color = c_phase_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", guides_size = 4)
+                feat_color = c_phase_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_size = 4)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_206_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_202_0.png)
     
 
 
@@ -3409,37 +3246,37 @@ cdScAnnot$log10Sum <- log10(cdScAnnot$sum+1)
 bk <- seq(min(cdScAnnot$log10Sum), max(cdScAnnot$log10Sum), max(cdScAnnot$log10Sum)/20)
 bk <- round(bk, 2)
 
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "log10Sum", dimnames = c("TSNE", "UMAP"), feat_desc = "log10(Sum)", 
-                feat_color = rev(rainbow(5)), color_breaks = bk, point_size = 0.5, point_alpha = 0.3, 
-                text_by = "label", guides_barheight = 10, rel_widths = c(8, 1))
+                feat_color = rev(rainbow(5)), color_breaks = bk, point_size = 0.1, point_alpha = 0.2, 
+                text_by = "label", guides_barheight = 15)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_207_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_203_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, "CellType", dimnames = c("TSNE", "UMAP"), feat_desc = "Cell Type", 
-                feat_color = c_celltype_col, point_size = 0.5, point_alpha = 0.3, text_by = "label", 
-                guides_size = 4, guides_ncol = 1, rel_widths = c(6, 1))
+                feat_color = c_celltype_col, point_size = 0.1, point_alpha = 0.2, text_by = "label", 
+                guides_size = 4, guides_ncol = 1, rel_widths = c(8, 1))
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_208_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_204_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 5)
+fig(width = 16, height = 6)
 ggplot(data.frame(table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)), 
        aes(Cluster, Freq, fill = CellType)) +
     geom_bar(position = "fill", stat = "identity", linewidth = 0.2, color = "black") + coord_flip() +
@@ -3450,7 +3287,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_209_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_205_0.png)
     
 
 
@@ -3467,7 +3304,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_210_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_206_0.png)
     
 
 
@@ -3479,12 +3316,13 @@ table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)
 
                   Cluster
     CellType          1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
-      B-cells         0    0    0    0    0 1788   65    0    0    0    0  277    0    0    0
-      CD4+ T-cells    0    0   22  619 1314    0   57    0 1605    0    1    0  158    0    0
-      CD8+ T-cells    0    0 1002 1155  420    0   65 1256   69   36  145    0  200    0    0
+      B-cells         0    0    0    0    0 1790   66    0    0    0    0  274    0    0    0
+      CD4+ T-cells    0    0   22  304 1638    0   56    0 1118    0    1    0  159  473    0
+      CD8+ T-cells    0    3  958 1099  450    0   67 1270   18   36  118    0  206  129    0
       HSC             0    0    0    0    0    0    0    0    0    0    0    4    0    0    0
-      Monocytes     823    0    0    0    0    0    0    0    1    0    0    3    2    0   66
-      NK cells        0 1219  234    2    0    0   69  320    0  831   17    0  103   89    0
+      Monocytes     837    0    0    0    0    0    0    0    1    0    0    3    1    0   52
+      Neutrophils     0    0    0    0    0    0    0    0    0    0    0    0    1    0    0
+      NK cells        0 1319  195    2    0    0   69  328    0  847   18    0  105    0    0
 
 
 ## Visualising gene expressions in cells
@@ -3507,7 +3345,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_213_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_209_0.png)
     
 
 
@@ -3536,14 +3374,14 @@ file_id
 
 ```R
 # Use logcounts from cdScAnnot
-ave.expr.label <- sumCountsAcrossCells(annot_l, ids = DataFrame(cluster = cdScAnnot$label), average = TRUE, 
-                                       BPPARAM = bpp) %>% 
+ave.expr <- sumCountsAcrossCells(annot_l, ids = DataFrame(cluster = cdScAnnot$label), 
+                                 average = TRUE, BPPARAM = bpp) %>% 
     `colnames<-`(paste0("Cluster", .$cluster)) %>% assay %>% as.data.frame %>% rownames_to_column("Symbol")
-head(ave.expr.label)
+head(ave.expr)
 
 outfile <- paste0(file_id, "_average_logcounts_in_clusters.tsv")
-print(paste("Write to file:", outfile))
-write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F, col.names = T)
+cat(sprintf("Write to file: %s\n", outfile))
+write.table(ave.expr, file = outfile, sep = "\t", quote = F, row.names = F, col.names = T)
 ```
 
 
@@ -3554,29 +3392,27 @@ write.table(ave.expr.label, file = outfile, sep = "\t", quote = F, row.names = F
 	<tr><th></th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.001722458</td><td>0.000000000</td><td>0.000000000</td><td>0.0005749891</td><td>0.000533533</td><td>0.0011268271</td><td>0.000000000</td><td>0.0000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td></tr>
-	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.354921174</td><td>0.305918676</td><td>0.270131893</td><td>0.2489646493</td><td>0.249304869</td><td>0.3087275426</td><td>0.334259219</td><td>0.2226974275</td><td>0.246327933</td><td>0.271692808</td><td>0.307102211</td><td>0.292647583</td><td>0.28909153</td><td>0.27086811</td><td>0.36859113</td></tr>
-	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.105883008</td><td>0.073465253</td><td>0.051600703</td><td>0.0608905685</td><td>0.046817751</td><td>0.0345678965</td><td>0.080181666</td><td>0.0661575130</td><td>0.056925033</td><td>0.075285442</td><td>0.081860532</td><td>0.070266638</td><td>0.11340322</td><td>0.05681578</td><td>0.08566660</td></tr>
-	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.023764832</td><td>0.003846448</td><td>0.008295368</td><td>0.0210484727</td><td>0.009012687</td><td>0.0007064821</td><td>0.008031126</td><td>0.0138375820</td><td>0.010518118</td><td>0.006762775</td><td>0.009927593</td><td>0.004439844</td><td>0.02087731</td><td>0.01950559</td><td>0.04962542</td></tr>
-	<tr><th scope=row>5</th><td>PERM1  </td><td>0.004702384</td><td>0.009036110</td><td>0.001966809</td><td>0.0035098008</td><td>0.002585221</td><td>0.0027618965</td><td>0.000000000</td><td>0.0006218714</td><td>0.004843217</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.00000000</td><td>0.00000000</td></tr>
-	<tr><th scope=row>6</th><td>HES4   </td><td>0.135600930</td><td>0.095378539</td><td>0.027734791</td><td>0.0132833502</td><td>0.013742985</td><td>0.0265820928</td><td>0.034387760</td><td>0.0085695999</td><td>0.005301727</td><td>0.016967401</td><td>0.021846942</td><td>0.038752352</td><td>0.02513340</td><td>0.05639354</td><td>0.04361566</td></tr>
+	<tr><th scope=row>1</th><td>SAMD11 </td><td>0.001693647</td><td>0.000000000</td><td>0.000000000</td><td>0.000726819</td><td>0.0004430777</td><td>0.0011255681</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td></tr>
+	<tr><th scope=row>2</th><td>NOC2L  </td><td>0.354614356</td><td>0.301540269</td><td>0.276608903</td><td>0.252187362</td><td>0.2458501792</td><td>0.3083825956</td><td>0.331668062</td><td>0.220967420</td><td>0.251038239</td><td>0.269926239</td><td>0.30355193</td><td>0.295771934</td><td>0.28725689</td><td>0.247468076</td><td>0.37721010</td></tr>
+	<tr><th scope=row>3</th><td>KLHL17 </td><td>0.105334018</td><td>0.072179084</td><td>0.053275584</td><td>0.062351147</td><td>0.0479853684</td><td>0.0345292731</td><td>0.079560103</td><td>0.067749705</td><td>0.055391195</td><td>0.071039802</td><td>0.07839513</td><td>0.071016816</td><td>0.11124087</td><td>0.060712642</td><td>0.08906035</td></tr>
+	<tr><th scope=row>4</th><td>PLEKHN1</td><td>0.023367332</td><td>0.004859923</td><td>0.006379875</td><td>0.022072332</td><td>0.0109373932</td><td>0.0007056927</td><td>0.007968869</td><td>0.014294706</td><td>0.009557281</td><td>0.006640234</td><td>0.01181166</td><td>0.004487244</td><td>0.02273662</td><td>0.011214650</td><td>0.06298611</td></tr>
+	<tr><th scope=row>5</th><td>PERM1  </td><td>0.004623730</td><td>0.008332086</td><td>0.002937075</td><td>0.004436588</td><td>0.0021469222</td><td>0.0027588106</td><td>0.000000000</td><td>0.000000000</td><td>0.004443422</td><td>0.001109931</td><td>0.00000000</td><td>0.000000000</td><td>0.00000000</td><td>0.003460801</td><td>0.00000000</td></tr>
+	<tr><th scope=row>6</th><td>HES4   </td><td>0.133332814</td><td>0.091343207</td><td>0.026951530</td><td>0.016457687</td><td>0.0136123234</td><td>0.0265523921</td><td>0.034121188</td><td>0.007872183</td><td>0.005788164</td><td>0.018289456</td><td>0.02599308</td><td>0.039166078</td><td>0.02465416</td><td>0.002349480</td><td>0.05535834</td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Write to file: 160k_LungCancer_average_logcounts_in_clusters.tsv"
+    Write to file: 160k_LungCancer_average_logcounts_in_clusters.tsv
 
 
 # 10 - Marker gene detection
 
-Potential marker genes are identified by taking the top set of DE genes from each pairwise comparison between clusters. The results are arranged into a single output table that allows a marker set to be easily defined for a user-specified size of the top set. For example, to construct a marker set from the top 10 genes of each comparison, one would filter `marker.set` to retain rows with Top less than or equal to 10.
+To interpret the clustering results, we can perform marker gene detection to identify the genes that drive separation between clusters, and help us to assign biological meaning to each cluster. 
 
-<div class="alert alert-warning">
-  <strong>Warning!</strong> Take note of any poor clusters in the silhouette plot and consider how trustworthy the marker genes actually are.
-</div>
+In the simplest case, we have a priori knowledge of the marker genes associated with particular cell types, allowing us to treat the clustering as a proxy for cell type identity. The same principle can be applied to discover more subtle differences between clusters (e.g., changes in activation or differentiation state) based on the behavior of genes in the affected pathways.
 
-Here we are going to use `findMarkers` from `scran` package as this is much faster. 
+The most straightforward approach to marker gene detection involves testing for differential expression between clusters. If a gene is strongly DE between clusters, it is likely to have driven the separation of cells in the clustering algorithm. Here we are using `findMarkers()` from the `scran` package. 
 
 ## Decided the `pval.type` and `min.prop` settings
 
@@ -3638,21 +3474,21 @@ printMarkerStats(marker.genes.cluster, pval.type = pval.type, min.prop = min.pro
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 228; Up = 177; Down = 51; Max. P-value = 6.4e-283.
-    - Cluster2: 199; Up = 118; Down = 81; Max. P-value = 3.6e-198.
-    - Cluster3: 167; Up = 110; Down = 57; Max. P-value = 1.4e-134.
-    - Cluster4: 168; Up = 106; Down = 62; Max. P-value = 1.3e-288.
-    - Cluster5: 167; Up = 98; Down = 69; Max. P-value = 2.8e-123.
-    - Cluster6: 212; Up = 115; Down = 97; Max. P-value = 0.
-    - Cluster7: 183; Up = 135; Down = 48; Max. P-value = 2.9e-50.
-    - Cluster8: 163; Up = 94; Down = 69; Max. P-value = 0.
-    - Cluster9: 180; Up = 72; Down = 108; Max. P-value = 1.2e-139.
-    - Cluster10: 186; Up = 98; Down = 88; Max. P-value = 7.5e-110.
-    - Cluster11: 138; Up = 89; Down = 49; Max. P-value = 3.3e-37.
-    - Cluster12: 197; Up = 40; Down = 157; Max. P-value = 1.4e-81.
-    - Cluster13: 183; Up = 17; Down = 166; Max. P-value = 7.6e-90.
-    - Cluster14: 169; Up = 38; Down = 131; Max. P-value = 2.8e-21.
-    - Cluster15: 198; Up = 191; Down = 7; Max. P-value = 8.6e-19.
+    - Cluster1: 227; Up = 177; Down = 50; Max. P-value = 2.9e-309.
+    - Cluster2: 200; Up = 117; Down = 83; Max. P-value = 0.
+    - Cluster3: 169; Up = 111; Down = 58; Max. P-value = 3.4e-318.
+    - Cluster4: 171; Up = 105; Down = 66; Max. P-value = 8.3e-169.
+    - Cluster5: 167; Up = 99; Down = 68; Max. P-value = 3.1e-213.
+    - Cluster6: 210; Up = 115; Down = 95; Max. P-value = 0.
+    - Cluster7: 179; Up = 132; Down = 47; Max. P-value = 1.8e-54.
+    - Cluster8: 170; Up = 94; Down = 76; Max. P-value = 1.1e-225.
+    - Cluster9: 187; Up = 67; Down = 120; Max. P-value = 2.6e-301.
+    - Cluster10: 185; Up = 100; Down = 85; Max. P-value = 3.9e-223.
+    - Cluster11: 131; Up = 80; Down = 51; Max. P-value = 1.1e-69.
+    - Cluster12: 205; Up = 46; Down = 159; Max. P-value = 1.3e-76.
+    - Cluster13: 182; Up = 16; Down = 166; Max. P-value = 5e-126.
+    - Cluster14: 161; Up = 52; Down = 109; Max. P-value = 9.2e-106.
+    - Cluster15: 188; Up = 174; Down = 14; Max. P-value = 2.4e-20.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3715,21 +3551,21 @@ printMarkerStats(marker.genes.cluster.up, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 228; Up = 228; Down = 0; Max. P-value = 3e-215.
-    - Cluster2: 243; Up = 243; Down = 0; Max. P-value = 2.9e-09.
-    - Cluster3: 240; Up = 240; Down = 0; Max. P-value = 1.8e-12.
-    - Cluster4: 232; Up = 232; Down = 0; Max. P-value = 3.6e-46.
-    - Cluster5: 242; Up = 242; Down = 0; Max. P-value = 3.7e-19.
-    - Cluster6: 220; Up = 220; Down = 0; Max. P-value = 3.6e-74.
-    - Cluster7: 212; Up = 212; Down = 0; Max. P-value = 1.8e-13.
-    - Cluster8: 242; Up = 242; Down = 0; Max. P-value = 6.1e-14.
-    - Cluster9: 240; Up = 240; Down = 0; Max. P-value = 3.9e-27.
-    - Cluster10: 221; Up = 221; Down = 0; Max. P-value = 3e-55.
-    - Cluster11: 232; Up = 232; Down = 0; Max. P-value = 2.3e-31.
-    - Cluster12: 224; Up = 224; Down = 0; Max. P-value = 0.0011.
-    - Cluster13: 255; Up = 255; Down = 0; Max. P-value = 3.1e-09.
-    - Cluster14: 236; Up = 236; Down = 0; Max. P-value = 0.92.
-    - Cluster15: 222; Up = 222; Down = 0; Max. P-value = 6.2e-11.
+    - Cluster1: 228; Up = 228; Down = 0; Max. P-value = 1.1e-143.
+    - Cluster2: 236; Up = 236; Down = 0; Max. P-value = 1.2e-237.
+    - Cluster3: 237; Up = 237; Down = 0; Max. P-value = 4.2e-19.
+    - Cluster4: 232; Up = 232; Down = 0; Max. P-value = 0.
+    - Cluster5: 242; Up = 242; Down = 0; Max. P-value = 4e-40.
+    - Cluster6: 217; Up = 217; Down = 0; Max. P-value = 2.5e-41.
+    - Cluster7: 213; Up = 213; Down = 0; Max. P-value = 8.1e-11.
+    - Cluster8: 242; Up = 242; Down = 0; Max. P-value = 1.5e-52.
+    - Cluster9: 237; Up = 237; Down = 0; Max. P-value = 3.9e-05.
+    - Cluster10: 221; Up = 221; Down = 0; Max. P-value = 0.18.
+    - Cluster11: 228; Up = 228; Down = 0; Max. P-value = 1e-08.
+    - Cluster12: 219; Up = 219; Down = 0; Max. P-value = 0.038.
+    - Cluster13: 244; Up = 244; Down = 0; Max. P-value = 8.9e-30.
+    - Cluster14: 243; Up = 243; Down = 0; Max. P-value = 2.3e-28.
+    - Cluster15: 216; Up = 216; Down = 0; Max. P-value = 9.4e-07.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3792,21 +3628,21 @@ printMarkerStats(marker.genes.cluster.dn, pval.type = pval.type, min.prop = min.
 ```
 
     Number of selected markers (Top 200 genes of at least 30.0% comparisons):
-    - Cluster1: 218; Up = 0; Down = 218; Max. P-value = 2.6e-142.
-    - Cluster2: 199; Up = 0; Down = 199; Max. P-value = 1.4e-47.
-    - Cluster3: 122; Up = 0; Down = 122; Max. P-value = 1.2e-232.
-    - Cluster4: 137; Up = 0; Down = 137; Max. P-value = 1.7e-50.
-    - Cluster5: 155; Up = 0; Down = 155; Max. P-value = 4.3e-07.
-    - Cluster6: 210; Up = 0; Down = 210; Max. P-value = 3.9e-184.
-    - Cluster7: 153; Up = 0; Down = 153; Max. P-value = 1.
-    - Cluster8: 164; Up = 0; Down = 164; Max. P-value = 2.3e-36.
-    - Cluster9: 198; Up = 0; Down = 198; Max. P-value = 3.9e-37.
-    - Cluster10: 180; Up = 0; Down = 180; Max. P-value = 0.
-    - Cluster11: 69; Up = 0; Down = 69; Max. P-value = 3.6e-50.
-    - Cluster12: 212; Up = 0; Down = 212; Max. P-value = 1.6e-16.
-    - Cluster13: 190; Up = 0; Down = 190; Max. P-value = 3.5e-123.
-    - Cluster14: 185; Up = 0; Down = 185; Max. P-value = 3.8e-37.
-    - Cluster15: 173; Up = 0; Down = 173; Max. P-value = 0.19.
+    - Cluster1: 226; Up = 0; Down = 226; Max. P-value = 1e-217.
+    - Cluster2: 195; Up = 0; Down = 195; Max. P-value = 0.0042.
+    - Cluster3: 129; Up = 0; Down = 129; Max. P-value = 2.9e-134.
+    - Cluster4: 122; Up = 0; Down = 122; Max. P-value = 5.1e-274.
+    - Cluster5: 146; Up = 0; Down = 146; Max. P-value = 0.
+    - Cluster6: 220; Up = 0; Down = 220; Max. P-value = 1.6e-35.
+    - Cluster7: 156; Up = 0; Down = 156; Max. P-value = 1.3e-12.
+    - Cluster8: 170; Up = 0; Down = 170; Max. P-value = 1.8e-15.
+    - Cluster9: 202; Up = 0; Down = 202; Max. P-value = 0.
+    - Cluster10: 181; Up = 0; Down = 181; Max. P-value = 5.7e-108.
+    - Cluster11: 78; Up = 0; Down = 78; Max. P-value = 8.3e-87.
+    - Cluster12: 211; Up = 0; Down = 211; Max. P-value = 2e-122.
+    - Cluster13: 191; Up = 0; Down = 191; Max. P-value = 0.00025.
+    - Cluster14: 172; Up = 0; Down = 172; Max. P-value = 3.1e-169.
+    - Cluster15: 168; Up = 0; Down = 168; Max. P-value = 0.00081.
     * Upregulated when logFC > 0.0 and downregulated when logFC < 0.0.
 
 
@@ -3865,25 +3701,24 @@ nGene <- 250
 geneNames <- sapply(marker.genes.cluster, function(x) rownames(x[1:nGene,]))
 
 geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
-print(paste("Number of genes to plot:", length(geneNames)))
+cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
-    [1] "Number of genes to plot: 1122"
-
+    Number of genes to plot: 1103
 
 
 ```R
 fig(width = 16, height = 7)
 plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clustering_method = "ward.D2", 
                    border_color = "black", color = c_heatmap_col2, fontsize = 14, angle_col = 0,
-                   center = TRUE, scale = TRUE, zlim = c(-3, 3), 
+                   center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), 
                    main = "Row-scaled", show_rownames = FALSE)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_237_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_233_0.png)
     
 
 
@@ -3897,40 +3732,39 @@ Use `findMarkers` result from both directions. We aimed to present between 50 to
 
 
 ```R
-nGene <- 9
+nGene <- 10
 geneNames <- sapply(marker.genes.cluster, function(x) rownames(x[1:nGene,]))
 t(geneNames) # A matrix
 
 geneNames <- unique(as.character(geneNames)) # Remove duplicated genes
-print(paste("Number of genes to plot:", length(geneNames)))
+cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
 
 <table class="dataframe">
-<caption>A matrix: 15 × 9 of type chr</caption>
+<caption>A matrix: 15 × 10 of type chr</caption>
 <tbody>
-	<tr><th scope=row>1</th><td>SPI1</td><td>PSAP  </td><td>SPOCK2 </td><td>CTSS </td><td>FTH1  </td><td>LYZ   </td><td>CLEC7A  </td><td>ETS1  </td><td>FTL      </td></tr>
-	<tr><th scope=row>2</th><td>CD3E</td><td>NKG7  </td><td>GNLY   </td><td>IL2RB</td><td>SPON2 </td><td>KLRF1 </td><td>IL7R    </td><td>CTSW  </td><td>CST7     </td></tr>
-	<tr><th scope=row>3</th><td>GZMK</td><td>CST7  </td><td>CCL5   </td><td>NKG7 </td><td>CTSW  </td><td>DUSP2 </td><td>LAPTM5  </td><td>CD3E  </td><td>SLC7A5   </td></tr>
-	<tr><th scope=row>4</th><td>NKG7</td><td>IL7R  </td><td>CD4    </td><td>ZEB2 </td><td>CD3E  </td><td>CST7  </td><td>CTSW    </td><td>SYNE1 </td><td>KLRK1    </td></tr>
-	<tr><th scope=row>5</th><td>CCL5</td><td>NKG7  </td><td>EFHD2  </td><td>CST7 </td><td>CCR4  </td><td>CD3E  </td><td>IL7R    </td><td>LTB   </td><td>CTSW     </td></tr>
-	<tr><th scope=row>6</th><td>IGHM</td><td>IGHD  </td><td>IRF8   </td><td>CD79A</td><td>LAPTM5</td><td>MS4A1 </td><td>NIBAN3  </td><td>FCRL1 </td><td>TNFRSF13C</td></tr>
-	<tr><th scope=row>7</th><td>CD74</td><td>CD83  </td><td>CD37   </td><td>IRF8 </td><td>LAPTM5</td><td>IGHM  </td><td>CD79A   </td><td>MS4A1 </td><td>TNFRSF13C</td></tr>
-	<tr><th scope=row>8</th><td>GNLY</td><td>GZMH  </td><td>CCL5   </td><td>NKG7 </td><td>CST7  </td><td>CTSW  </td><td>ADGRG1  </td><td>FGFBP2</td><td>IRS2     </td></tr>
-	<tr><th scope=row>9</th><td>CCL5</td><td>CTSW  </td><td>NKG7   </td><td>EFHD2</td><td>CST7  </td><td>CD3E  </td><td>ZEB2    </td><td>SYNE1 </td><td>CD74     </td></tr>
-	<tr><th scope=row>10</th><td>GNLY</td><td>NKG7  </td><td>IL7R   </td><td>CST7 </td><td>CTSW  </td><td>GZMB  </td><td>GZMH    </td><td>EFHD2 </td><td>TCF7     </td></tr>
-	<tr><th scope=row>11</th><td>NKG7</td><td>CTSW  </td><td>GNLY   </td><td>GZMH </td><td>IL7R  </td><td>CCL5  </td><td>LDHB    </td><td>SYNE1 </td><td>CST7     </td></tr>
-	<tr><th scope=row>12</th><td>CD3E</td><td>IL32  </td><td>CD3G   </td><td>ZAP70</td><td>BLK   </td><td>CTSW  </td><td>CD6     </td><td>NKG7  </td><td>CD74     </td></tr>
-	<tr><th scope=row>13</th><td>CD48</td><td>TOMM7 </td><td>B2M    </td><td>UBA52</td><td>EEF1G </td><td>CTSW  </td><td>SH3BGRL3</td><td>CD3E  </td><td>H1-2     </td></tr>
-	<tr><th scope=row>14</th><td>CD6 </td><td>BCL11B</td><td>ZFYVE28</td><td>CD3G </td><td>CD4   </td><td>THEMIS</td><td>ADAM19  </td><td>CD5   </td><td>ENO2     </td></tr>
-	<tr><th scope=row>15</th><td>FTH1</td><td>SPI1  </td><td>LYZ    </td><td>ARRB2</td><td>PSAP  </td><td>VIM   </td><td>VCAN    </td><td>FOS   </td><td>CTSS     </td></tr>
+	<tr><th scope=row>1</th><td>SPI1</td><td>IFI30</td><td>PSAP </td><td>CST3 </td><td>CTSS  </td><td>SPOCK2</td><td>FTH1     </td><td>LYZ   </td><td>SYNE2    </td><td>CD68  </td></tr>
+	<tr><th scope=row>2</th><td>NKG7</td><td>GNLY </td><td>CD3E </td><td>IL2RB</td><td>CTSW  </td><td>KLRF1 </td><td>KLRD1    </td><td>SPON2 </td><td>IL32     </td><td>CD7   </td></tr>
+	<tr><th scope=row>3</th><td>GZMK</td><td>CCL5 </td><td>CST7 </td><td>CTSW </td><td>NKG7  </td><td>DUSP2 </td><td>SLC7A5   </td><td>CD4   </td><td>CD74     </td><td>SMAD7 </td></tr>
+	<tr><th scope=row>4</th><td>NKG7</td><td>GZMK </td><td>IL7R </td><td>ZEB2 </td><td>CTSW  </td><td>CD3E  </td><td>EFHD2    </td><td>SYNE1 </td><td>KLRD1    </td><td>CCL5  </td></tr>
+	<tr><th scope=row>5</th><td>CCL5</td><td>NKG7 </td><td>IL7R </td><td>EFHD2</td><td>LTB   </td><td>CD3E  </td><td>CTSW     </td><td>SYNE1 </td><td>MYC      </td><td>CST7  </td></tr>
+	<tr><th scope=row>6</th><td>IGHM</td><td>IGHD </td><td>IRF8 </td><td>CD79A</td><td>MS4A1 </td><td>FCRL1 </td><td>TNFRSF13C</td><td>NIBAN3</td><td>LAPTM5   </td><td>CD22  </td></tr>
+	<tr><th scope=row>7</th><td>CD74</td><td>CD83 </td><td>CD37 </td><td>IRF8 </td><td>LAPTM5</td><td>IGHM  </td><td>CD79A    </td><td>MS4A1 </td><td>TNFRSF13C</td><td>FCRL1 </td></tr>
+	<tr><th scope=row>8</th><td>GNLY</td><td>GZMH </td><td>NKG7 </td><td>CCL5 </td><td>CTSW  </td><td>ADGRG1</td><td>CST7     </td><td>FGFBP2</td><td>EFHD2    </td><td>FCRL6 </td></tr>
+	<tr><th scope=row>9</th><td>CCL5</td><td>NKG7 </td><td>EFHD2</td><td>CTSW </td><td>CD74  </td><td>CST7  </td><td>TCF7     </td><td>SYNE1 </td><td>FOSL2    </td><td>ZEB2  </td></tr>
+	<tr><th scope=row>10</th><td>GNLY</td><td>GZMH </td><td>NKG7 </td><td>IL7R </td><td>CTSW  </td><td>CCL5  </td><td>CST7     </td><td>TCF7  </td><td>EFHD2    </td><td>ADGRG1</td></tr>
+	<tr><th scope=row>11</th><td>GNLY</td><td>NKG7 </td><td>CST7 </td><td>EFHD2</td><td>CCL5  </td><td>ADGRG1</td><td>CTSW     </td><td>ITGAL </td><td>GZMH     </td><td>ZEB2  </td></tr>
+	<tr><th scope=row>12</th><td>CD3E</td><td>IL32 </td><td>CD3G </td><td>ZAP70</td><td>NKG7  </td><td>CD6   </td><td>BLK      </td><td>CD74  </td><td>BCL11B   </td><td>AAK1  </td></tr>
+	<tr><th scope=row>13</th><td>B2M </td><td>TOMM7</td><td>CD48 </td><td>UBA52</td><td>CD3E  </td><td>EEF1G </td><td>SH3BGRL3 </td><td>EIF1  </td><td>H1-2     </td><td>CD52  </td></tr>
+	<tr><th scope=row>14</th><td>NKG7</td><td>CTSW </td><td>ZEB2 </td><td>CCL5 </td><td>MATK  </td><td>SYNE1 </td><td>PLAC8    </td><td>KLRK1 </td><td>KLRD1    </td><td>EFHD2 </td></tr>
+	<tr><th scope=row>15</th><td>SPI1</td><td>FTH1 </td><td>LYZ  </td><td>IFI30</td><td>ARRB2 </td><td>CST3  </td><td>ZNF385A  </td><td>PSAP  </td><td>VCAN     </td><td>FOS   </td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 70"
-
+    Number of genes to plot: 75
 
 Alternatively, use genes identified from up- and downregulated `findMarkers` results.
 
@@ -3944,7 +3778,7 @@ Alternatively, use genes identified from up- and downregulated `findMarkers` res
 #geneNames2 # A matrix
 
 #geneNames <- unique(c(as.character(geneNames1), as.character(geneNames2))) # Remove duplicated genes
-#print(paste("Number of genes to plot:", length(geneNames)))
+#cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
 
@@ -3955,7 +3789,7 @@ p1 <- plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clust
 
 p2 <- plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clustering_method = "ward.D2", 
                          border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0, 
-                         center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
+                         center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), main = "Row-scaled", silent = T)
 
 fig(width = 16, height = 18)
 plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h")
@@ -3964,7 +3798,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_243_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_239_0.png)
     
 
 
@@ -3975,7 +3809,7 @@ The mean expression of each gene is centered at zero with `center = TRUE`. The e
 
 ```R
 fig(width = 9, height = 20)
-plotDots(cdScAnnot, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3, 3), 
+plotDots(cdScAnnot, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     scale_y_discrete(limits = geneNames[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
@@ -3993,7 +3827,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_245_1.png)
+![png](Lung_Cancer_files/Lung_Cancer_241_1.png)
     
 
 
@@ -4010,7 +3844,7 @@ geneExprs <- pivot_longer(geneExprs, cols = -c(Cell, Cluster), names_to = "Gene"
     mutate(Cluster = fct_rev(Cluster), Gene = factor(Gene, levels = geneNames))
 
 # Plot
-fig(width = 16, height = 8)
+fig(width = 16, height = 9)
 ggplot(geneExprs, aes(Gene, Expression, fill = Gene)) + 
     geom_violin(scale = "width", adjust = 1, trim = TRUE) +
     scale_y_continuous(expand = c(0, 0), position = "right", 
@@ -4026,7 +3860,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_246_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_242_0.png)
     
 
 
@@ -4042,35 +3876,33 @@ summarise(cluster = paste(cluster, collapse = ",")) %>%
 mutate(order = as.numeric(str_replace(cluster, ",.*", ""))) %>% arrange(order)
 df
 
-print(paste("Number of genes to plot:", nrow(df)))
+cat(sprintf("Number of genes to plot: %d", nrow(df)))
 ```
 
 
 <table class="dataframe">
-<caption>A tibble: 11 × 3</caption>
+<caption>A tibble: 10 × 3</caption>
 <thead>
 	<tr><th scope=col>gene</th><th scope=col>cluster</th><th scope=col>order</th></tr>
 	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>SPI1 </td><td>1,15 </td><td> 1</td></tr>
-	<tr><td>GNLY </td><td>2,8  </td><td> 2</td></tr>
-	<tr><td>DUSP2</td><td>3    </td><td> 3</td></tr>
-	<tr><td>IL7R </td><td>4    </td><td> 4</td></tr>
-	<tr><td>CCR4 </td><td>5    </td><td> 5</td></tr>
-	<tr><td>IGHM </td><td>6    </td><td> 6</td></tr>
-	<tr><td>CD74 </td><td>7,12 </td><td> 7</td></tr>
-	<tr><td>LTB  </td><td>9    </td><td> 9</td></tr>
-	<tr><td>NKG7 </td><td>10,11</td><td>10</td></tr>
-	<tr><td>RSRP1</td><td>13   </td><td>13</td></tr>
-	<tr><td>CTSW </td><td>14   </td><td>14</td></tr>
+	<tr><td>SPI1 </td><td>1,15</td><td> 1</td></tr>
+	<tr><td>NKG7 </td><td>2,11</td><td> 2</td></tr>
+	<tr><td>GZMK </td><td>3   </td><td> 3</td></tr>
+	<tr><td>IL7R </td><td>4,5 </td><td> 4</td></tr>
+	<tr><td>IGHM </td><td>6   </td><td> 6</td></tr>
+	<tr><td>CD74 </td><td>7,12</td><td> 7</td></tr>
+	<tr><td>GNLY </td><td>8,10</td><td> 8</td></tr>
+	<tr><td>TCF7 </td><td>9   </td><td> 9</td></tr>
+	<tr><td>RSRP1</td><td>13  </td><td>13</td></tr>
+	<tr><td>LTB  </td><td>14  </td><td>14</td></tr>
 </tbody>
 </table>
 
 
 
-    [1] "Number of genes to plot: 11"
-
+    Number of genes to plot: 10
 
 
 ```R
@@ -4080,7 +3912,7 @@ p1 <- plotGroupedHeatmap(cdScAnnot, features = df$gene, group = "label", cluster
 
 p2 <- plotGroupedHeatmap(cdScAnnot, features = df$gene, group = "label", clustering_method = "ward.D2", 
                          border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0, 
-                         center = TRUE, scale = TRUE, zlim = c(-3, 3), main = "Row-scaled", silent = T)
+                         center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), main = "Row-scaled", silent = T)
 
 fig(width = 16, height = 6)
 plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h")
@@ -4089,14 +3921,14 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_249_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_245_0.png)
     
 
 
 
 ```R
 fig(width = 9, height = 6)
-plotDots(cdScAnnot, features = df$gene[p2$tree_row$order], group = "label", zlim = c(-3, 3), 
+plotDots(cdScAnnot, features = df$gene[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
     scale_y_discrete(limits = df$gene[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
@@ -4114,13 +3946,13 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_250_1.png)
+![png](Lung_Cancer_files/Lung_Cancer_246_1.png)
     
 
 
 
 ```R
-fig(width = 16, height = 9)
+fig(width = 16, height = 7)
 plotExpression(cdScAnnot, x = "label", colour_by = "label", features = df$gene, point_size = 0.5, 
                theme_size = 16, ncol = 3) + scale_color_manual(values = c_clust_col) + 
     theme(legend.position = "none") + labs(x = "Cluster")
@@ -4133,7 +3965,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_251_1.png)
+![png](Lung_Cancer_files/Lung_Cancer_247_1.png)
     
 
 
@@ -4141,12 +3973,12 @@ reset.fig()
 ```R
 dimname <- "TSNE"
 
-fig(width = 16, height = 9)
+fig(width = 16, height = 7)
 as.data.frame(reducedDim(cdScAnnot, dimname)) %>% `colnames<-`(c("V1","V2")) %>%
     bind_cols(as_tibble(t(logcounts(cdScAnnot[df$gene,])))) %>%
     gather(., key = "Symbol", value = "Expression", -c(V1, V2) ) %>% 
     mutate_at(vars(Symbol), factor) %>% mutate(Symbol = factor(Symbol, levels = df$gene)) %>% 
-    ggplot(aes(x = V1, y = V2, color = Expression)) + geom_point(size = 0.3, alpha = 0.3) + 
+    ggplot(aes(x = V1, y = V2, color = Expression)) + geom_point(size = 0.1, alpha = 0.2) + 
     facet_wrap(~ Symbol, ncol = 5, 
                labeller = as_labeller(function(x) paste0(df$cluster,": ", x))) + # add cluster id
     scale_color_viridis(option = "plasma", direction = -1) +
@@ -4156,7 +3988,7 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_252_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_248_0.png)
     
 
 
@@ -4174,12 +4006,11 @@ All the available gene-set libraries are listed in `dbs`
 ```R
 # This function generates the whole list of database for the enrichR. 
 dbs <- listEnrichrDbs()
-print(paste("Number of available databases from Enrichr:", nrow(dbs)))
 #head(dbs)
+cat(sprintf("Number of available databases from Enrichr: %d", nrow(dbs)))
 ```
 
-    [1] "Number of available databases from Enrichr: 218"
-
+    Number of available databases from Enrichr: 225
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
 
@@ -4189,8 +4020,9 @@ Change `dbsSel` to remove or include more gene-set libraries in the enrichment a
 dbsSel <- c("GO_Biological_Process_2025", # Ontologies
 #            "GO_Molecular_Function_2025", # Ontologies
 #            "GO_Cellular_Component_2025", # Ontologies
-            "Reactome_Pathways_2024",     # Pathways
-            "WikiPathways_2024_Human",    # Pathways
+#            "Reactome_Pathways_2024",     # Pathways
+#            "WikiPathways_2024_Human",    # Pathways
+#            "KEGG_2026",                  # Pathways
             "CellMarker_2024")            # Cell types
 
 # Mouse
@@ -4199,6 +4031,7 @@ dbsSel <- c("GO_Biological_Process_2025", # Ontologies
 #            "GO_Cellular_Component_2025", # Ontologies
 #            "Reactome_Pathways_2024",     # Pathways
 #            "WikiPathways_2024_Mouse",    # Pathways
+#            "KEGG_2026",                  # Pathways
 #            "CellMarker_2024")            # Cell types
 ```
 
@@ -4223,30 +4056,24 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster2' with 243 up-regulated genes.
+    Running enrichR on 'Cluster2' with 236 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster3' with 240 up-regulated genes.
+    Running enrichR on 'Cluster3' with 237 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4256,8 +4083,6 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4267,30 +4092,24 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster6' with 220 up-regulated genes.
+    Running enrichR on 'Cluster6' with 217 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster7' with 212 up-regulated genes.
+    Running enrichR on 'Cluster7' with 213 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4300,19 +4119,15 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster9' with 240 up-regulated genes.
+    Running enrichR on 'Cluster9' with 237 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4322,63 +4137,51 @@ metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']] <- runEnrichR(input, dbs
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster11' with 232 up-regulated genes.
+    Running enrichR on 'Cluster11' with 228 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster12' with 224 up-regulated genes.
+    Running enrichR on 'Cluster12' with 219 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster13' with 255 up-regulated genes.
+    Running enrichR on 'Cluster13' with 244 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster14' with 236 up-regulated genes.
+    Running enrichR on 'Cluster14' with 243 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
 
-    Running enrichR on 'Cluster15' with 222 up-regulated genes.
+    Running enrichR on 'Cluster15' with 216 up-regulated genes.
 
 
     Uploading data to Enrichr... Done.
       Querying GO_Biological_Process_2025... Done.
-      Querying Reactome_Pathways_2024... Done.
-      Querying WikiPathways_2024_Human... Done.
       Querying CellMarker_2024... Done.
     Parsing results... Done.
 
@@ -4402,95 +4205,91 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_1.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_1.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_2.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_2.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_3.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_3.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_4.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_4.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_5.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_5.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_6.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_6.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_7.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_7.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_8.png)
-    
-
-
-    Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
-    "There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting."
-
-
-
-    
-![png](Lung_Cancer_files/Lung_Cancer_260_10.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_8.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_11.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_9.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_12.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_10.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_13.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_11.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_14.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_12.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_15.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_13.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_260_16.png)
+![png](Lung_Cancer_files/Lung_Cancer_256_14.png)
+    
+
+
+
+    
+![png](Lung_Cancer_files/Lung_Cancer_256_15.png)
     
 
 
@@ -4512,70 +4311,36 @@ printEnrichR(metadata(cdScAnnot)[["enrichR_findMarkers_Cluster_up"]],
 ```
 
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster1_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster1_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster1_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster1_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster2_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster2_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster2_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster2_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster3_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster3_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster3_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster3_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster4_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster4_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster4_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster4_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster5_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster5_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster5_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster5_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster6_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster6_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster6_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster6_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster7_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster7_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster7_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster7_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster8_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster8_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster8_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster8_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster9_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster9_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster9_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster9_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster10_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster10_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster10_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster10_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster11_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster11_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster11_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster11_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster12_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster12_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster12_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster12_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster13_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster13_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster13_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster13_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster14_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster14_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster14_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster14_CellMarker_2024.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster15_GO_Biological_Process_2025.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster15_Reactome_Pathways_2024.tsv
-    Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster15_WikiPathways_2024_Human.tsv
     Creating file: Enrichr/160k_LungCancer_findMarkers_upregulated_Cluster15_CellMarker_2024.tsv
 
-
-## Ingenuity Pathway Analysis (IPA)
-
-Here we generate a file that can be imported directly into IPA for downstream analysis.
 
 ### Concatenate `findMarkers` 'Cluster' marker gene results
 
@@ -4591,7 +4356,7 @@ exportResList(metadata(cdScAnnot)[['findMarkers_Cluster']], concatenate = TRUE, 
 
 # 12 - Doublet detection
 
-In single-cell RNA sequencing (scRNA-seq) experiments, doublets are artifactual libraries generated from two cells. They typically arise due to errors in cell sorting or capture, especially in droplet-based protocols involving thousands of cells. Doublets are obviously undesirable when the aim is to characterize populations at the single-cell level. In particular, doublets can be mistaken for intermediate populations or transitory states that do not actually exist. Thus, it is desirable to identify and remove doublet libraries so that they do not compromise interpretation of the results. See [OSCA reference](https://bioconductor.org/books/3.20/OSCA.advanced/doublet-detection.html#doublet-detection)
+In single-cell RNA sequencing (scRNA-seq) experiments, doublets are artifactual libraries generated from two cells. They typically arise due to errors in cell sorting or capture, especially in droplet-based protocols involving thousands of cells. Doublets are obviously undesirable when the aim is to characterize populations at the single-cell level. In particular, doublets can be mistaken for intermediate populations or transitory states that do not actually exist. Thus, it is desirable to identify and remove doublet libraries so that they do not compromise interpretation of the results. See [OSCA reference](https://bioconductor.org/books/3.22/OSCA.advanced/doublet-detection.html#doublet-detection)
 
 ## Doublet detection by simulation
 
@@ -4608,46 +4373,47 @@ set.seed(12345)
 # Use counts from cdScAnnot
 dbl.dens <- scDblFinder::computeDoubletDensity(annot_c, size.factors.norm = sizeFactors(cdScAnnot), 
                                                subset.row = hvg_genes)
-summary(dbl.dens)
 
-# Save detection results to metadata
-metadata(cdScAnnot)[['DoubletDensity']] <- setNames(dbl.dens, colnames(cdScAnnot))
+# Save detection results to colData
+cdScAnnot$DoubletDensity <- dbl.dens
+
+summary(dbl.dens)
 ```
 
 
        Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-     0.0000  0.0600  0.2000  0.9135  0.5400 25.4400 
+     0.0000  0.0600  0.2000  0.9125  0.5400 25.3000 
 
 
 
 ```R
 fig(width = 16, height = 6)
 plyr::ldply(split(log1p(dbl.dens), cdScAnnot$label), cbind, .id = c("Cluster")) %>% 
-    rename_at(2, ~ "dbl") %>% ggplot(aes(Cluster, dbl, color = Cluster)) + 
-    geom_violin(linewidth = 1, width = 1) +
-    geom_boxplot(size = 0.5, width = 0.1, color = "black") + guides(color = guide_legend(ncol = 1)) +
-    scale_color_manual(values = c_clust_col) + theme_cowplot(20) + ylab("log Score")
+    rename_at(2, ~ "dbl") %>% ggplot(aes(Cluster, dbl, fill = Cluster)) + 
+    geom_violin(scale = "width", linewidth = 0.5, width = 0.9, alpha = 0.7) + 
+    geom_boxplot(width = 0.1, linewidth = 0.5, size = 1, color = "black", fill = "white") + 
+    guides(fill = "none") + scale_fill_manual(values = c_clust_col) + theme_cowplot(20) + ylab("log1p(Score)")
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_270_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_265_0.png)
     
 
 
 
 ```R
-fig(width = 16, height = 7)
+fig(width = 16, height = 8)
 plotProjections(cdScAnnot, log1p(dbl.dens), dimnames = c("TSNE", "UMAP"), 
                 feat_desc = "Doublet Score (log1p)", feat_color = plasma(256, direction = -1), 
-                point_size = 0.5, point_alpha = 0.3, text_by = "label")
+                point_size = 0.1, point_alpha = 0.2, text_by = "label", guides_barheight = 15)
 reset.fig()
 ```
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_271_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_266_0.png)
     
 
 
@@ -4670,7 +4436,7 @@ for(ID in chosen.doublet) {
 
     p2 <- plotGroupedHeatmap(cdScAnnot, features = chosen, group = "label", clustering_method = "ward.D2", 
                              border_color = "black", color = c_heatmap_col2, fontsize = 11, angle_col = 0,
-                             center = TRUE, scale = TRUE, zlim = c(-3, 3),
+                             center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5),
                              main = paste(title, "Row-scaled"), silent = T)
 
     print(plot_grid(p1$gtable, p2$gtable, ncol = 2, align = "h"))
@@ -4680,19 +4446,19 @@ reset.fig()
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_273_0.png)
+![png](Lung_Cancer_files/Lung_Cancer_268_0.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_273_1.png)
+![png](Lung_Cancer_files/Lung_Cancer_268_1.png)
     
 
 
 
     
-![png](Lung_Cancer_files/Lung_Cancer_273_2.png)
+![png](Lung_Cancer_files/Lung_Cancer_268_2.png)
     
 
 
@@ -4711,13 +4477,13 @@ cdScAnnot
 
     class: SingleCellExperiment 
     dim: 18129 14037 
-    metadata(8): Samples cyclone ... DoubletDensity runInfo
+    metadata(7): Samples cyclone ... enrichR_findMarkers_Cluster_up runInfo
     assays(2): counts logcounts
     rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
     rowData names(12): ID Symbol ... pct_dropout is_hvg
     colnames(14037): AAACAAGCAAGGCCTGAGCTGTGA-1 AAACAAGCACCTTTGGAGCTGTGA-1 ...
       TTTGTGAGTTGAGTCTAGCTGTGA-1 TTTGTGAGTTTACGACAGCTGTGA-1
-    colData names(23): Sample Barcode ... label log10Sum
+    colData names(24): Sample Barcode ... log10Sum DoubletDensity
     reducedDimNames(3): PCA TSNE UMAP
     mainExpName: Gene Expression
     altExpNames(1): Antibody Capture
@@ -4734,22 +4500,19 @@ cdScAnnot
 
 
 ```R
+outfile <- paste0(sample_name, "_h5_sce")
+cat(sprintf("h5 output folder: %s\n", outfile))
+
 # For HDF5-based SummarizedExperiment object
-HDF5Array::saveHDF5SummarizedExperiment(cdScAnnot, dir = paste0(sample_name, "_h5_sce"), replace = TRUE, verbose = FALSE)
+HDF5Array::saveHDF5SummarizedExperiment(cdScAnnot, dir = outfile, replace = TRUE, verbose = FALSE)
 
 # Print file size
-paste("Folder:", paste0(sample_name, "_h5_sce"))
-paste("Size:", utils:::format.object_size(file.info(paste0(sample_name, "_h5_sce", "/assays.h5"))$size + 
-                                          file.info(paste0(sample_name, "_h5_sce", "/se.rds"))$size, "auto"))
+cat(sprintf("h5 output size: %s", utils:::format.object_size(file.info(paste0(outfile, "/assays.h5"))$size + 
+                                                      file.info(paste0(outfile, "/se.rds"))$size, "auto")))
 ```
 
-
-'Folder: LungCancer_h5_sce'
-
-
-
-'Size: 493.5 Mb'
-
+    h5 output folder: LungCancer_h5_sce
+    h5 output size: 493.2 Mb
 
 # Session Info
 
@@ -4760,12 +4523,12 @@ sessionInfo()
 ```
 
 
-    R version 4.4.3 (2025-02-28)
+    R version 4.5.2 (2025-10-31)
     Platform: x86_64-conda-linux-gnu
     Running under: Ubuntu 20.04.6 LTS
     
     Matrix products: default
-    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.29.so;  LAPACK version 3.12.0
+    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.30.so;  LAPACK version 3.12.0
     
     locale:
      [1] LC_CTYPE=en_GB.UTF-8       LC_NUMERIC=C               LC_TIME=en_GB.UTF-8       
@@ -4780,60 +4543,61 @@ sessionInfo()
     [1] grid      stats4    stats     graphics  grDevices utils     datasets  methods   base     
     
     other attached packages:
-     [1] ensembldb_2.30.0            AnnotationFilter_1.30.0     GenomicFeatures_1.58.0     
-     [4] AnnotationDbi_1.68.0        lubridate_1.9.4             forcats_1.0.0              
-     [7] stringr_1.5.1               dplyr_1.1.4                 purrr_1.1.0                
-    [10] readr_2.1.5                 tidyr_1.3.1                 tibble_3.3.0               
-    [13] tidyverse_2.0.0             scRUtils_0.3.8              viridis_0.6.5              
-    [16] viridisLite_0.4.2           SingleR_2.8.0               scran_1.34.0               
-    [19] scater_1.34.1               scuttle_1.16.0              scales_1.4.0               
-    [22] ggforce_0.5.0               ggplot2_3.5.2               enrichR_3.4                
-    [25] DropletUtils_1.26.0         SingleCellExperiment_1.28.1 SummarizedExperiment_1.36.0
-    [28] Biobase_2.66.0              GenomicRanges_1.58.0        GenomeInfoDb_1.42.3        
-    [31] IRanges_2.40.1              S4Vectors_0.44.0            MatrixGenerics_1.18.1      
-    [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.16.0             
-    [37] BiocParallel_1.40.2         BiocNeighbors_2.0.1         AnnotationHub_3.14.0       
-    [40] BiocFileCache_2.14.0        dbplyr_2.5.0                BiocGenerics_0.52.0        
-    [43] kableExtra_1.4.0           
+     [1] ensembldb_2.34.0            AnnotationFilter_1.34.0     GenomicFeatures_1.62.0     
+     [4] AnnotationDbi_1.72.0        lubridate_1.9.5             forcats_1.0.1              
+     [7] stringr_1.6.0               dplyr_1.2.0                 purrr_1.2.1                
+    [10] readr_2.1.6                 tidyr_1.3.2                 tibble_3.3.1               
+    [13] tidyverse_2.0.0             scRUtils_0.4.0              viridis_0.6.5              
+    [16] viridisLite_0.4.3           SingleR_2.12.0              scran_1.38.0               
+    [19] scater_1.38.0               scuttle_1.20.0              scales_1.4.0               
+    [22] ggforce_0.5.0               ggplot2_4.0.2               enrichR_3.4                
+    [25] DropletUtils_1.30.0         SingleCellExperiment_1.32.0 SummarizedExperiment_1.40.0
+    [28] Biobase_2.70.0              GenomicRanges_1.62.1        Seqinfo_1.0.0              
+    [31] IRanges_2.44.0              S4Vectors_0.48.0            MatrixGenerics_1.22.0      
+    [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.20.0             
+    [37] BiocParallel_1.44.0         BiocNeighbors_2.4.0         AnnotationHub_4.0.0        
+    [40] BiocFileCache_3.0.0         dbplyr_2.5.2                BiocGenerics_0.56.0        
+    [43] generics_0.1.4              kableExtra_1.4.0           
     
     loaded via a namespace (and not attached):
-      [1] RcppAnnoy_0.0.22          BiocIO_1.16.0             pbdZMQ_0.3-14             bitops_1.0-9             
-      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.18            
-      [9] httr2_1.2.1               lifecycle_1.0.4           scDblFinder_1.20.2        edgeR_4.4.2              
-     [13] doParallel_1.0.17         lattice_0.22-7            MASS_7.3-65               alabaster.base_1.6.1     
-     [17] magrittr_2.0.3            limma_3.62.2              rmarkdown_2.29            yaml_2.3.10              
-     [21] metapod_1.14.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
-     [25] zlibbioc_1.52.0           Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17          
-     [29] WriteXLS_6.8.0            tweenr_2.0.3              rappdirs_0.3.3            circlize_0.4.16          
-     [33] GenomeInfoDbData_1.2.13   ggrepel_0.9.6             irlba_2.3.5.1             pheatmap_1.0.13          
-     [37] dqrng_0.4.1               svglite_2.2.1             DelayedMatrixStats_1.28.1 codetools_0.2-20         
-     [41] DelayedArray_0.32.0       xml2_1.3.8                tidyselect_1.2.1          shape_1.4.6.1            
-     [45] UCSC.utils_1.2.0          farver_2.1.2              ScaledMatrix_1.14.0       base64enc_0.1-3          
-     [49] GenomicAlignments_1.42.0  jsonlite_2.0.0            GetoptLong_1.0.5          iterators_1.0.14         
-     [53] systemfonts_1.2.3         foreach_1.5.2             tools_4.4.3               ggnewscale_0.5.2         
-     [57] ragg_1.4.0                Rcpp_1.1.0                glue_1.8.0                gridExtra_2.3            
-     [61] SparseArray_1.6.2         xfun_0.52                 IRdisplay_1.1             gypsum_1.2.0             
-     [65] HDF5Array_1.34.0          withr_3.0.2               BiocManager_1.30.26       fastmap_1.2.0            
-     [69] rhdf5filters_1.18.1       digest_0.6.37             rsvd_1.0.5                timechange_0.3.0         
-     [73] R6_2.6.1                  mime_0.13                 textshaping_1.0.1         colorspace_2.1-1         
-     [77] Cairo_1.6-2               gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.2            
-     [81] R.methodsS3_1.8.2         celldex_1.16.0            utf8_1.2.6                generics_0.1.4           
-     [85] data.table_1.17.8         rtracklayer_1.66.0        httr_1.4.7                S4Arrays_1.6.0           
-     [89] uwot_0.2.3                pkgconfig_2.0.3           gtable_0.3.6              blob_1.2.4               
-     [93] ComplexHeatmap_2.22.0     XVector_0.46.0            htmltools_0.5.8.1         ProtGenerics_1.38.0      
-     [97] clue_0.3-66               alabaster.matrix_1.6.1    png_0.1-8                 knitr_1.50               
-    [101] rstudioapi_0.17.1         tzdb_0.5.0                rjson_0.2.23              uuid_1.2-1               
-    [105] curl_6.4.0                repr_1.1.7                cachem_1.1.0              rhdf5_2.50.2             
-    [109] GlobalOptions_0.1.2       BiocVersion_3.20.0        parallel_4.4.3            vipor_0.4.7              
-    [113] restfulr_0.0.16           alabaster.schemas_1.6.0   pillar_1.11.0             vctrs_0.6.5              
-    [117] BiocSingular_1.22.0       beachmat_2.22.0           cluster_2.1.8.1           beeswarm_0.4.0           
-    [121] evaluate_1.0.4            Rsamtools_2.22.0          cli_3.6.5                 locfit_1.5-9.12          
-    [125] compiler_4.4.3            rlang_1.1.6               crayon_1.5.3              labeling_0.4.3           
-    [129] plyr_1.8.9                ggbeeswarm_0.7.2          stringi_1.8.7             alabaster.se_1.6.0       
-    [133] Biostrings_2.74.1         lazyeval_0.2.2            Matrix_1.7-3              ExperimentHub_2.14.0     
-    [137] IRkernel_1.3.2            hms_1.1.3                 sparseMatrixStats_1.18.0  bit64_4.6.0-1            
-    [141] Rhdf5lib_1.28.0           KEGGREST_1.46.0           statmod_1.5.0             alabaster.ranges_1.6.0   
-    [145] igraph_2.1.4              memoise_2.0.1             xgboost_1.7.11.1          bit_4.6.0                
+      [1] RcppAnnoy_0.0.23          BiocIO_1.20.0             pbdZMQ_0.3-14             bitops_1.0-9             
+      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.22            
+      [9] lifecycle_1.0.5           httr2_1.2.2               scDblFinder_1.24.0        edgeR_4.8.2              
+     [13] doParallel_1.0.17         lattice_0.22-9            MASS_7.3-65               alabaster.base_1.10.0    
+     [17] magrittr_2.0.4            limma_3.66.0              rmarkdown_2.30            yaml_2.3.12              
+     [21] metapod_1.18.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
+     [25] Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17           WriteXLS_6.8.0           
+     [29] tweenr_2.0.3              rappdirs_0.3.4            circlize_0.4.17           ggrepel_0.9.6            
+     [33] irlba_2.3.7               pheatmap_1.0.13           RSpectra_0.16-2           dqrng_0.4.1              
+     [37] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.0      
+     [41] xml2_1.5.2                tidyselect_1.2.1          shape_1.4.6.1             UCSC.utils_1.6.1         
+     [45] farver_2.1.2              ScaledMatrix_1.18.0       base64enc_0.1-6           GenomicAlignments_1.46.0 
+     [49] jsonlite_2.0.0            GetoptLong_1.1.0          iterators_1.0.14          systemfonts_1.3.1        
+     [53] foreach_1.5.2             tools_4.5.2               ggnewscale_0.5.2          ragg_1.5.0               
+     [57] Rcpp_1.1.1                glue_1.8.0                gridExtra_2.3             SparseArray_1.10.8       
+     [61] xfun_0.56                 GenomeInfoDb_1.46.2       IRdisplay_1.1             gypsum_1.6.0             
+     [65] HDF5Array_1.38.0          withr_3.0.2               BiocManager_1.30.27       fastmap_1.2.0            
+     [69] rhdf5filters_1.22.0       digest_0.6.39             rsvd_1.0.5                timechange_0.4.0         
+     [73] R6_2.6.1                  textshaping_1.0.4         colorspace_2.1-2          Cairo_1.7-0              
+     [77] gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.6             cigarillo_1.0.0          
+     [81] R.methodsS3_1.8.2         h5mread_1.2.1             celldex_1.20.0            UpSetR_1.4.0             
+     [85] data.table_1.18.2.1       rtracklayer_1.70.1        httr_1.4.8                S4Arrays_1.10.1          
+     [89] uwot_0.2.4                pkgconfig_2.0.3           gtable_0.3.6              blob_1.3.0               
+     [93] ComplexHeatmap_2.26.1     S7_0.2.1                  XVector_0.50.0            htmltools_0.5.9          
+     [97] ProtGenerics_1.42.0       clue_0.3-66               alabaster.matrix_1.10.0   png_0.1-8                
+    [101] knitr_1.51                rstudioapi_0.18.0         tzdb_0.5.0                rjson_0.2.23             
+    [105] uuid_1.2-2                curl_7.0.0                repr_1.1.7                cachem_1.1.0             
+    [109] rhdf5_2.54.1              GlobalOptions_0.1.3       BiocVersion_3.22.0        parallel_4.5.2           
+    [113] vipor_0.4.7               restfulr_0.0.16           alabaster.schemas_1.10.0  pillar_1.11.1            
+    [117] vctrs_0.7.1               BiocSingular_1.26.1       beachmat_2.26.0           cluster_2.1.8.2          
+    [121] beeswarm_0.4.0            evaluate_1.0.5            Rsamtools_2.26.0          cli_3.6.5                
+    [125] locfit_1.5-9.12           compiler_4.5.2            rlang_1.1.7               crayon_1.5.3             
+    [129] labeling_0.4.3            plyr_1.8.9                ggbeeswarm_0.7.3          stringi_1.8.7            
+    [133] alabaster.se_1.10.0       Biostrings_2.78.0         lazyeval_0.2.2            Matrix_1.7-4             
+    [137] ExperimentHub_3.0.0       IRkernel_1.3.2            hms_1.1.4                 sparseMatrixStats_1.22.0 
+    [141] bit64_4.6.0-1             Rhdf5lib_1.32.0           KEGGREST_1.50.0           statmod_1.5.1            
+    [145] alabaster.ranges_1.10.0   igraph_2.2.2              memoise_2.0.1             xgboost_3.2.0.1          
+    [149] bit_4.6.0                
 
 
 # References
