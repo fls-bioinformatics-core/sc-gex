@@ -4,7 +4,7 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 
 ## Set up
 
-1. The App has been tested on R version 4.4 and Bioconductor version 3.20.
+1. The App has been tested on R version 4.5 and Bioconductor version 3.22.
 2. Required R packages (other dependencies not shown):
 
 | Package | Source |
@@ -27,21 +27,28 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 | shinyWidgets | CRAN |
 | tidyr | CRAN |
 
-3. Optional: DESeq2 (if DESeq2 is used and `DESeqResults` objects are stored as part of the analysis)
+3. Optional: DESeq2 (if DESeq2 is used during the analysis and `DESeqResults` objects are stored in the R data output)
 
-Set up a Shiny environment using `mamba` (or `conda`):
-
-```
-mamba create -n shiny -c conda-forge -c bioconda r-base=4.4 r-shiny r-shinycssloaders \
-r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly bioconductor-scater r-cowplot \
-bioconductor-edger bioconductor-hdf5array r-htmlwidgets r-pals r-tidyr r-pheatmap  \
-r-gtools r-fontawesome
-```
-
-To also install DESeq2:
+To set up an environment using `mamba` (or `conda`):
 
 ```
-mamba install -c bioconda bioconductor-deseq2
+mamba create -n shiny -c conda-forge -c bioconda r-base=4.5 zlib r-biocmanager r-ragg r-cairo \
+r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly r-cowplot \
+bioconductor-edger r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools r-fontawesome
+
+```
+
+Then, install the HDF5Array and scater packages (and DESeq2 optionally) in R,
+as the equivalent conda packages is not yet compatible with R 4.5 for the Linux platform at the time of writing.
+
+``` r
+BiocManager::install(c("HDF5Array","scater"))
+```
+
+or
+
+``` r
+BiocManager::install(c("HDF5Array","scater","DESeq2"))
 ```
 
 ## How to configured the App

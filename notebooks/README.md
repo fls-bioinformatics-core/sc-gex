@@ -40,7 +40,7 @@ and to perform differential expression comparisons.
 
 ## Set up
 
-1. This workflow has been tested on R version 4.4 and Bioconductor version 3.20.
+1. This workflow has been tested on R version 4.5 and Bioconductor version 3.22.
 2. Required R packages (other dependencies not shown):
 
 | Package | Source |
@@ -62,6 +62,7 @@ and to perform differential expression comparisons.
 |	ggforce	|	CRAN	|
 |	ggplot2	|	CRAN	|
 |	ggplotify	|	CRAN	|
+|	ggrepel	|	CRAN	|
 |	glmGamPoi	|	Bioconductor	|
 |	gtools	|	CRAN	|
 |	HDF5Array	|	Bioconductor	|
@@ -80,6 +81,7 @@ and to perform differential expression comparisons.
 |	stringi	|	CRAN	|
 |	stringr	|	CRAN	|
 |	tidyverse	|	CRAN	|
+|	UpSetR	|	CRAN	|
 |	viridis	|	CRAN	|
 
 > [!WARNING]
@@ -90,5 +92,5 @@ Optional: `kableExtra`
 
 ## References
 
-The [Orchestrating Single-Cell Analysis with Bioconductor](https://bioconductor.org/books/3.20/OSCA/) 
+The [Orchestrating Single-Cell Analysis with Bioconductor](https://bioconductor.org/books/3.22/OSCA/) 
 provides an invaluable resource to the creation and development of the workflows presented here.
