@@ -32,24 +32,13 @@ This repository holds the Shiny application tailored to work with `SingleCellExp
 To set up an environment using `mamba` (or `conda`):
 
 ```
-mamba create -n shiny -c conda-forge -c bioconda r-base=4.5 zlib r-biocmanager r-ragg r-cairo \
-r-shiny r-shinycssloaders r-shinywidgets r-shinydashboard r-dt r-dplyr r-plotly r-cowplot \
-bioconductor-edger r-htmlwidgets r-pals r-tidyr r-pheatmap r-gtools r-fontawesome
-
+mamba create -n shiny -c conda-forge -c bioconda r-base=4.5 cmake zlib r-biocmanager r-cairo \
+r-cowplot r-dplyr r-dt r-fontawesome r-gtools r-htmlwidgets r-pals r-pheatmap r-plotly r-ragg \
+r-shiny r-shinycssloaders r-shinydashboard r-shinywidgets r-tidyr \
+bioconductor-deseq2 bioconductor-edger bioconductor-hdf5array bioconductor-scater
 ```
 
-Then, install the HDF5Array and scater packages (and DESeq2 optionally) in R,
-as the equivalent conda packages is not yet compatible with R 4.5 for the Linux platform at the time of writing.
-
-``` r
-BiocManager::install(c("HDF5Array","scater"))
-```
-
-or
-
-``` r
-BiocManager::install(c("HDF5Array","scater","DESeq2"))
-```
+Optionally update R packages to their latest versions in R using `BiocManager::install()`.
 
 ## How to configured the App
 
