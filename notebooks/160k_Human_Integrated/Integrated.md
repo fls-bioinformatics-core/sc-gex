@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.1.0</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(integration) v2.1.1</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -13,6 +13,7 @@
 9. [DE analysis between conditions](#9---DE-analysis-between-conditions)
 10. [DE analysis between conditions in each cluster/cell type](#10---DE-analysis-between-conditions-in-each-cluster/cell-type)
 11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
+12. [Data output](#12---Data-output)
 
 <span style="font-size:12px; font-style:italic">Workflow and Shiny App GitHub: https://github.com/fls-bioinformatics-core/sc-gex</span>
 
@@ -99,7 +100,7 @@ Commented line below are packages that are required but we are not loading and a
 
 ```R
 suppressPackageStartupMessages({
-    # R-4.5.2
+    # R-4.5.3
     library(batchelor)     # Single-cell batch correction methods
     library(BiocNeighbors) # AnnoyParam
     library(BiocParallel)  # SerialParam, MulticoreParam
@@ -608,9 +609,9 @@ all.common
 
 
 
-## Recomputes log-normalized expression values
+## Recomputes log-normalised expression values
 
-The `multiBatchNorm` function recomputes log-normalized expression values (using `logNormCounts`) after adjusting the size factors for systematic differences in coverage between `SingleCellExperiment` objects.
+The `multiBatchNorm` function recomputes log-normalised expression values (using `logNormCounts`) after adjusting the size factors for systematic differences in coverage between `SingleCellExperiment` objects.
 
 
 ```R
@@ -717,6 +718,8 @@ message(paste0("Using '", hvg_model, "' method"))
 for(i in names(all.common.normed)) {
     to_keep <- TRUE # Include all genes
     # Optional
+    # Not is_mito
+    #to_keep <- !rowData(all.common.normed[[i]])$is_mito
     # Not is_mito and not ribosomal protein-coding genes (Human & Mouse)
     #to_keep <- !rowData(all.common.normed[[i]])$is_mito & 
     #            !grepl("^RPL|^RPS|^Rpl|^Rps", rownames(all.common.normed[[i]]))
@@ -1523,13 +1526,13 @@ reset.fig()
     
 
 
-### (Optional) Remove randomly scattered cells that have high `DoubletDensity` scores
-
-If there are many cells with high doublet scores randomly scattered on the dimensionality reduction plots (i.e. TSNE or UMAP), we can choose to do a round of doublet cell cleaning now. *The aim is to NOT remove doublet cluster(s).*
-
 <div style="width: 100%; height: 25px; border-bottom: 1px dashed black; text-align: center">
     <span style="font-size: 20px; background-color: yellow; padding: 0 10px;">Begin Optional Step (remove doublet cells)</span>
 </div>
+
+### (Optional) Remove randomly scattered cells that have high `DoubletDensity` scores
+
+If there are many cells with high doublet scores randomly scattered on the dimensionality reduction plots (i.e. TSNE or UMAP), we can choose to do a round of doublet cell cleaning now. *The aim is to NOT remove doublet cluster(s).*
 
 
 ```R
@@ -1720,10 +1723,6 @@ combined$first.pass <- my.clusters[[method]][[dimname]]
     -0.47311  0.04507  0.12990  0.13044  0.20917  0.63412 
 
 
-<div style="width: 100%; height: 25px; border-bottom: 1px dashed black; text-align: center">
-    <span style="font-size: 20px; background-color: yellow; padding: 0 10px;">End Optional Step (remove doublet cells)</span>
-</div>
-
 
 ```R
 p1 <- plotProjections(combined, "CellType", dimnames = c("MNN-TSNE", "MNN-UMAP"), feat_desc = "Cell Type", 
@@ -1741,9 +1740,13 @@ reset.fig()
 
 
     
-![png](Integrated_files/Integrated_103_0.png)
+![png](Integrated_files/Integrated_102_0.png)
     
 
+
+<div style="width: 100%; height: 25px; border-bottom: 1px dashed black; text-align: center">
+    <span style="font-size: 20px; background-color: yellow; padding: 0 10px;">End Optional Step (remove doublet cells)</span>
+</div>
 
 ## Create subsets
 
@@ -2565,9 +2568,7 @@ reset.fig()
     
 
 
-## Visualising gene expressions in cells
-
-### Single gene expression
+## Visualising sex-specific gene expression
 
 In the following plots we visualise the expression of `XIST` (expressed in female) and `DDX3Y` (expressed in male) in individual cells in human samples. The genes in mouse are `Xist` and `Ddx3y` respectively.
 
@@ -2578,9 +2579,9 @@ In the following plots we visualise the expression of `XIST` (expressed in femal
 
 ```R
 p1 <- plotProjection(combined, "RLIM", "MNN-TSNE", feat_color = c_heatmap_col1, other_fields = "Sample", 
-                     point_size = 0.1, theme_size = 16) + facet_wrap(~ Sample, nrow = 1)
+                     point_size = 0.1, color_limits = c(0, 4), theme_size = 16) + facet_wrap(~ Sample, nrow = 1)
 p2 <- plotProjection(combined, "DDX3Y", "MNN-TSNE", feat_color = c_heatmap_col1, other_fields = "Sample", 
-                     point_size = 0.1, theme_size = 16) + facet_wrap(~ Sample, nrow = 1)
+                     point_size = 0.1, color_limits = c(0, 4), theme_size = 16) + facet_wrap(~ Sample, nrow = 1)
 
 fig(width = 16, height = 12)
 plot_grid(p1, p2, align = "vh", nrow = 2)
@@ -3823,7 +3824,7 @@ Alternatively, use genes identified from up- and downregulated `findMarkers` res
 #geneNames2 # A matrix
 
 #geneNames <- unique(c(as.character(geneNames1), as.character(geneNames2))) # Remove duplicated genes
-#print(paste("Number of genes to plot:", length(geneNames)))
+#cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 ```
 
 
@@ -5032,7 +5033,7 @@ metadata(combined)[["DESeq2_Cancer_Control"]] <- purrr::compact(purrr::map(res, 
 
 ## Visualise MA-plot
 
-The function `plotMA` shows the log2 fold changes attributable to a given variable over the mean of normalized counts for all the samples in the comparison. Points will be colored blue if the adjusted p value is less than `padj_cutoff`. Points which fall out of the window are plotted as open triangles pointing either up or down.
+The function `plotMA` shows the log2 fold changes attributable to a given variable over the mean of normalised counts for all the samples in the comparison. Points will be colored blue if the adjusted p value is less than `padj_cutoff`. Points which fall out of the window are plotted as open triangles pointing either up or down.
 
 <div class="alert alert-warning">
     <strong>Warning!</strong> Usually, log2 fold change (LFC) shrinkage is performed with the <code>lfcShrink</code> function to generate more accurate estimates. However, shrinkage cannot be performed on results fitted by <code>glmGamPoiM</code>. Therefore, you may observed large fold changes from genes with low information, including genes that have low counts or high dispersion values.
@@ -5075,7 +5076,7 @@ reset.fig()
 Show top N genes with `baseMean` > `minexp`.
 
 <div class="alert alert-warning">
-    The <code>baseMean</code> represents the mean of normalized counts for all samples in the dataset, not the subset of samples specified by 'contrast'.
+    The <code>baseMean</code> represents the mean of normalised counts for all samples in the dataset, not the subset of samples specified by 'contrast'.
 </div>
 
 <div class="alert alert-warning">
@@ -5170,7 +5171,7 @@ dbs <- listEnrichrDbs()
 cat(sprintf("Number of available databases from Enrichr: %d", nrow(dbs)))
 ```
 
-    Number of available databases from Enrichr: 225
+    Number of available databases from Enrichr: 228
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
 
@@ -6551,7 +6552,9 @@ exportResList(metadata(combined)[['DESeq2_Cancer_Control']], concatenate = TRUE,
     Creating a concatenated file: 160k_All_Cancer_Control_DESeq2_concatenated.tsv
 
 
-# Save `runInfo` to `metadata`
+# 12 - Data output
+
+## Save `runInfo` to `metadata`
 
 <div class="alert alert-info">
     <strong>Tip!</strong> In the accompanied Shiny App, the Run Information will be displayed under the <u>Overview</u>.
@@ -6578,7 +6581,7 @@ combined
     altExpNames(1): Antibody Capture
 
 
-# Save objects
+## Save HDF5-based `SingleCellExperiment` object
 
 
 ```R
@@ -6592,18 +6595,35 @@ combined
 
 ```R
 outfile <- "combined_h5_sce"
-cat(sprintf("h5 output folder: %s\n", outfile))
+message(sprintf("Saving (h5) object to %s...", outfile))
 
 # For HDF5-based SummarizedExperiment object
 HDF5Array::saveHDF5SummarizedExperiment(combined, dir = outfile, replace = TRUE, verbose = FALSE)
 
-# Print file size
-cat(sprintf("h5 output size: %s", utils:::format.object_size(file.info(paste0(outfile, "/assays.h5"))$size + 
-                                                      file.info(paste0(outfile, "/se.rds"))$size, "auto")))
+dirsize <- sum(file.info(file.path(outfile, list.files(outfile, all.files = TRUE, recursive = TRUE)))$size)
+cat(sprintf("Folder \"%s\" has %s amount of data", outfile, utils:::format.object_size(dirsize, "auto")))
 ```
 
-    h5 output folder: combined_h5_sce
-    h5 output size: 2.5 Gb
+    Saving (h5) object to combined_h5_sce...
+    
+
+
+    Folder "combined_h5_sce" has 2.5 Gb amount of data
+
+<div class="alert alert-info">
+    <strong>To load the object in R environment:</strong>
+    <p>Use the <code>HDF5Array::loadHDF5SummarizedExperiment</code> function, as the example shown below.</p>
+</div>
+
+
+```R
+message(sprintf("Loading %s", outfile))
+sce <- HDF5Array::loadHDF5SummarizedExperiment(outfile)
+```
+
+    Loading combined_h5_sce
+    
+
 
 # Session Info
 
@@ -6614,12 +6634,12 @@ sessionInfo()
 ```
 
 
-    R version 4.5.2 (2025-10-31)
+    R version 4.5.3 (2026-03-11)
     Platform: x86_64-conda-linux-gnu
     Running under: Ubuntu 20.04.6 LTS
     
     Matrix products: default
-    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.30.so;  LAPACK version 3.12.0
+    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.32.so;  LAPACK version 3.12.0
     
     locale:
      [1] LC_CTYPE=en_GB.UTF-8       LC_NUMERIC=C               LC_TIME=en_GB.UTF-8       
@@ -6635,47 +6655,47 @@ sessionInfo()
     
     other attached packages:
      [1] kableExtra_1.4.0            lubridate_1.9.5             forcats_1.0.1              
-     [4] stringr_1.6.0               dplyr_1.2.0                 purrr_1.2.1                
-     [7] readr_2.1.6                 tidyr_1.3.2                 tibble_3.3.1               
-    [10] tidyverse_2.0.0             scRUtils_0.4.0              viridis_0.6.5              
-    [13] viridisLite_0.4.3           scran_1.38.0                scater_1.38.0              
+     [4] stringr_1.6.0               dplyr_1.2.1                 purrr_1.2.2                
+     [7] readr_2.2.0                 tidyr_1.3.2                 tibble_3.3.1               
+    [10] tidyverse_2.0.0             scRUtils_0.4.1              viridis_0.6.5              
+    [13] viridisLite_0.4.3           scran_1.38.1                scater_1.38.1              
     [16] scuttle_1.20.0              scales_1.4.0                pheatmap_1.0.13            
-    [19] ggforce_0.5.0               ggplot2_4.0.2               enrichR_3.4                
-    [22] edgeR_4.8.2                 limma_3.66.0                DESeq2_1.50.2              
-    [25] cowplot_1.2.0               bluster_1.20.0              BiocParallel_1.44.0        
-    [28] BiocNeighbors_2.4.0         batchelor_1.26.0            SingleCellExperiment_1.32.0
-    [31] SummarizedExperiment_1.40.0 Biobase_2.70.0              GenomicRanges_1.62.1       
-    [34] Seqinfo_1.0.0               IRanges_2.44.0              S4Vectors_0.48.0           
-    [37] BiocGenerics_0.56.0         generics_0.1.4              MatrixGenerics_1.22.0      
-    [40] matrixStats_1.5.0          
+    [19] ggplot2_4.0.3               enrichR_3.4                 edgeR_4.8.2                
+    [22] limma_3.66.0                DESeq2_1.50.2               cowplot_1.2.0              
+    [25] bluster_1.20.0              BiocParallel_1.44.0         BiocNeighbors_2.4.0        
+    [28] batchelor_1.26.0            SingleCellExperiment_1.32.0 SummarizedExperiment_1.40.0
+    [31] Biobase_2.70.0              GenomicRanges_1.62.1        Seqinfo_1.0.0              
+    [34] IRanges_2.44.0              S4Vectors_0.48.1            BiocGenerics_0.56.0        
+    [37] generics_0.1.4              MatrixGenerics_1.22.0       matrixStats_1.5.0          
     
     loaded via a namespace (and not attached):
       [1] RcppAnnoy_0.0.23          pbdZMQ_0.3-14             ggplotify_0.1.3           polyclip_1.10-7          
-      [5] lifecycle_1.0.5           doParallel_1.0.17         lattice_0.22-7            pals_1.10                
-      [9] MASS_7.3-65               magrittr_2.0.4            rmarkdown_2.30            metapod_1.18.0           
+      [5] lifecycle_1.0.5           doParallel_1.0.17         lattice_0.22-9            pals_1.10                
+      [9] MASS_7.3-65               magrittr_2.0.5            rmarkdown_2.31            metapod_1.18.0           
      [13] glmGamPoi_1.22.0          mapproj_1.2.12            RColorBrewer_1.1-3        ResidualMatrix_1.20.0    
      [17] maps_3.4.3                abind_1.4-8               Rtsne_0.17                yulab.utils_0.2.4        
-     [21] WriteXLS_6.8.0            rappdirs_0.3.4            tweenr_2.0.3              circlize_0.4.17          
-     [25] ggrepel_0.9.6             irlba_2.3.7               RSpectra_0.16-2           dqrng_0.4.1              
-     [29] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.0      
-     [33] xml2_1.5.2                tidyselect_1.2.1          shape_1.4.6.1             farver_2.1.2             
-     [37] ScaledMatrix_1.18.0       base64enc_0.1-6           jsonlite_2.0.0            GetoptLong_1.1.0         
-     [41] iterators_1.0.14          systemfonts_1.3.1         foreach_1.5.2             tools_4.5.2              
-     [45] ggnewscale_0.5.2          ragg_1.5.0                Rcpp_1.1.1                glue_1.8.0               
-     [49] gridExtra_2.3             SparseArray_1.10.8        xfun_0.56                 IRdisplay_1.1            
-     [53] HDF5Array_1.38.0          withr_3.0.2               fastmap_1.2.0             rhdf5filters_1.22.0      
-     [57] digest_0.6.39             rsvd_1.0.5                timechange_0.4.0          R6_2.6.1                 
-     [61] gridGraphics_0.5-1        textshaping_1.0.4         colorspace_2.1-2          Cairo_1.7-0              
-     [65] gtools_3.9.5              dichromat_2.0-0.1         h5mread_1.2.1             httr_1.4.7               
-     [69] S4Arrays_1.10.1           uwot_0.2.4                pkgconfig_2.0.3           gtable_0.3.6             
-     [73] ComplexHeatmap_2.26.1     S7_0.2.1                  XVector_0.50.0            htmltools_0.5.9          
-     [77] clue_0.3-66               png_0.1-8                 knitr_1.51                rstudioapi_0.18.0        
-     [81] tzdb_0.5.0                rjson_0.2.23              uuid_1.2-2                curl_7.0.0               
-     [85] repr_1.1.7                rhdf5_2.54.1              GlobalOptions_0.1.3       parallel_4.5.2           
-     [89] vipor_0.4.7               pillar_1.11.1             vctrs_0.7.1               BiocSingular_1.26.1      
-     [93] beachmat_2.26.0           cluster_2.1.8.2           beeswarm_0.4.0            evaluate_1.0.5           
-     [97] cli_3.6.5                 locfit_1.5-9.12           compiler_4.5.2            rlang_1.1.7              
-    [101] crayon_1.5.3              labeling_0.4.3            fs_1.6.6                  ggbeeswarm_0.7.3         
-    [105] stringi_1.8.7             Matrix_1.7-4              IRkernel_1.3.2            hms_1.1.4                
-    [109] sparseMatrixStats_1.22.0  Rhdf5lib_1.32.0           statmod_1.5.1             igraph_2.2.1             
+     [21] WriteXLS_6.8.0            rappdirs_0.3.4            tweenr_2.0.3              circlize_0.4.18          
+     [25] ggrepel_0.9.8             irlba_2.3.7               RSpectra_0.16-2           dqrng_0.4.1              
+     [29] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.1      
+     [33] xml2_1.5.2                ggforce_0.5.0             tidyselect_1.2.1          shape_1.4.6.1            
+     [37] farver_2.1.2              ScaledMatrix_1.18.0       base64enc_0.1-6           jsonlite_2.0.0           
+     [41] GetoptLong_1.1.1          iterators_1.0.14          systemfonts_1.3.2         foreach_1.5.2            
+     [45] tools_4.5.3               ggnewscale_0.5.2          ragg_1.5.2                Rcpp_1.1.1-1.1           
+     [49] glue_1.8.1                gridExtra_2.3             SparseArray_1.10.10       xfun_0.57                
+     [53] IRdisplay_1.1             HDF5Array_1.38.0          withr_3.0.2               fastmap_1.2.0            
+     [57] rhdf5filters_1.22.0       digest_0.6.39             rsvd_1.0.5                timechange_0.4.0         
+     [61] R6_2.6.1                  gridGraphics_0.5-1        textshaping_1.0.5         colorspace_2.1-2         
+     [65] Cairo_1.7-0               gtools_3.9.5              dichromat_2.0-0.1         h5mread_1.2.1            
+     [69] httr_1.4.8                S4Arrays_1.10.1           uwot_0.2.4                pkgconfig_2.0.3          
+     [73] gtable_0.3.6              ComplexHeatmap_2.26.1     S7_0.2.2                  XVector_0.50.0           
+     [77] htmltools_0.5.9           clue_0.3-68               png_0.1-9                 knitr_1.51               
+     [81] rstudioapi_0.18.0         tzdb_0.5.0                rjson_0.2.23              uuid_1.2-2               
+     [85] curl_7.1.0                repr_1.1.7                rhdf5_2.54.1              GlobalOptions_0.1.4      
+     [89] parallel_4.5.3            vipor_0.4.7               pillar_1.11.1             vctrs_0.7.3              
+     [93] BiocSingular_1.26.1       beachmat_2.26.0           cluster_2.1.8.2           beeswarm_0.4.0           
+     [97] evaluate_1.0.5            cli_3.6.6                 locfit_1.5-9.12           compiler_4.5.3           
+    [101] rlang_1.2.0               crayon_1.5.3              labeling_0.4.3            fs_2.1.0                 
+    [105] ggbeeswarm_0.7.3          stringi_1.8.7             Matrix_1.7-5              IRkernel_1.3.2           
+    [109] hms_1.1.4                 sparseMatrixStats_1.22.0  Rhdf5lib_1.32.0           statmod_1.5.1            
+    [113] igraph_2.3.1             
 

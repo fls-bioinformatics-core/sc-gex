@@ -1,4 +1,4 @@
-# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.1.0</span>
+# Analysis of Single-cell Gene Expression Data <span style="font-size:20px">(single-sample) v2.1.1</span>
 
 ## Bioinformatics Core Facility, University of Manchester
 
@@ -14,6 +14,7 @@
 10. [Marker gene detection](#10---Marker-gene-detection)
 11. [Functional analysis using `enrichR`](#11---Functional-analysis-using-enrichR)
 12. [Doublet detection](#12---Doublet-detection)
+13. [Data output](#13---Data-output)
 
 <span style="font-size:12px; font-style:italic">Workflow and Shiny App GitHub: https://github.com/fls-bioinformatics-core/sc-gex</span>
 
@@ -232,7 +233,7 @@ Commented line below are packages that are required but we are not loading and a
 
 ```R
 suppressPackageStartupMessages({
-    # R-4.5.2
+    # R-4.5.3
     library(AnnotationHub)
     library(BiocNeighbors) # AnnoyParam
     library(BiocParallel)  # MulticoreParam
@@ -259,7 +260,7 @@ suppressPackageStartupMessages({
 #    library(RColorBrewer)  # brewer.pal
 #    library(scDblFinder)   # computeDoubletDensity
 #    library(stringr)       # str_to_title
-#    library(UpSetR)        # upset
+#    library(UpSetR)        # upset (https://github.com/ycl6/UpSetR/tree/number_angles)
 
     library(scRUtils)       # with customised functions
     library(tidyverse)
@@ -700,14 +701,14 @@ as.data.frame(contam[is.mito,]) %>% setNames("contamination") %>% arrange(contam
 # Set lowest mito gene estimate as cutoff, change n in nth() to set higher cutoff
 contam.cutoff <- as.data.frame(contam[is.mito,]) %>% setNames("contamination") %>% arrange(contamination) %>% 
     pull(contamination) %>% nth(1)
-print(paste("Ambient contamination cutoff:", round(contam.cutoff, 4)))
+cat(sprintf("Ambient contamination cutoff: %.4f", contam.cutoff))
 
 # Keep genes in which less than N% of the counts are ambient-derived
 non.ambient <- contam[,1] < contam.cutoff
 summary(non.ambient)
 
 okay.genes <- names(non.ambient)[which(non.ambient)]
-print(paste("Number of genes passed the ambient contamination cutoff:", length(okay.genes)))
+cat(sprintf("Number of genes passed the ambient contamination cutoff: %d", length(okay.genes)))
 ```
 
 
@@ -736,16 +737,14 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 
 
 
-    [1] "Ambient contamination cutoff: 0.9571"
-
+    Ambient contamination cutoff: 0.9571
 
 
        Mode   FALSE    TRUE    NA's 
     logical    3732   12392   22514 
 
 
-    [1] "Number of genes passed the ambient contamination cutoff: 12392"
-
+    Number of genes passed the ambient contamination cutoff: 12392
 
 # 2 - Cells and genes QC plots
 
@@ -757,11 +756,10 @@ print(paste("Number of genes passed the ambient contamination cutoff:", length(o
 is.mito <- rowData(cdSc)$SEQNAME == "MT"
 rowData(cdSc)$is_mito <- is.mito
 
-print(paste("Number of annotated mitochondrial genes =", sum(is.mito)))
+cat(sprintf("Number of annotated mitochondrial genes = %d", sum(is.mito)))
 ```
 
-    [1] "Number of annotated mitochondrial genes = 12"
-
+    Number of annotated mitochondrial genes = 12
 
 
 ```R
@@ -1516,11 +1514,12 @@ DataFrame(Cells = colSums(venn.df))
 
 
 ```R
-fig(width = 12, height = 6)
+fig(width = 16, height = 6)
 suppressWarnings({
-    UpSetR::upset(venn.df[,-ncol(venn.df)], sets = colnames(venn.df)[-length(colnames(venn.df))], text.scale = 2, 
-                  point.size = 4, mb.ratio = c(0.6, 0.4), keep.order = T, order.by = "degree",
-                  set_size.show = TRUE, set_size.scale_max = sum(venn.df$Total)) # size of "Set Size" panel
+    UpSetR::upset(venn.df[,-ncol(venn.df)], sets = colnames(venn.df)[-length(colnames(venn.df))], 
+                  text.scale = 2, point.size = 4, mb.ratio = c(0.6, 0.4), keep.order = TRUE, 
+                  order.by = "degree", set_size.show = TRUE, nintersects = NA,
+                  set_size.scale_max = sum(venn.df$Total)*1.25) # size of "Set Size" panel
 })
 dev.off()
 ```
@@ -1673,7 +1672,7 @@ sample.pairs <- readRDS(system.file("exdata", "human_cycle_markers.rds", package
 
 ## Run `cyclone` classifier
 
-__Background about Cell Cycle Analysis__
+**Background about Cell Cycle analysis**
 
 - Cells are classified as being in G1 phase (not in cell division aka cell cycle) if their G1 score is above 0.5 and greater than the G2/M score.
 - Cells are classified as being in S phase (synthesis of DNA, replication) if neither score is above 0.5.
@@ -1781,7 +1780,7 @@ summary(sizeFactors(cdScAnnot)) # same as cdScAnnot$sizeFactor
      0.4061  0.7935  0.9323  1.0000  1.0864  2.8561 
 
 
-## Compute log-transformed normalized expression values
+## Compute log-transformed normalised expression values
 
 The count data are used to compute normalised log-expression values for use in downstream analyses. Each value is defined as the log-ratio of each count to the size factor for the corresponding cell, after adding a prior count of 1 to avoid undefined values at zero counts. Division by the size factor ensures that any cell-specific biases are removed. If spike-in-specific size factors are present in sce, they will be automatically applied to normalise the spike-in transcripts separately from the endogenous genes.
 
@@ -1824,7 +1823,7 @@ We often use scRNA-seq data in exploratory analyses to characterize heterogeneit
 The simplest approach to feature selection is to select the most variable genes based on their expression across the population. Several methods are available to quantify the variation per gene and to select an appropriate set of highly variable genes (HVGs).
 
 1. Variance of the log-counts (`modelGeneVar`): Model the variance of the log-expression profiles for each gene, decomposing it into technical and biological components based on a fitted mean-variance trend.
-2. Coefficient of variation (`modelGeneCV2`): Model the squared coefficient of variation (CV<sup>2</sup>) of the normalized expression profiles for each gene, fitting a trend to account for the mean-variance relationship across genes.
+2. Coefficient of variation (`modelGeneCV2`): Model the squared coefficient of variation (CV<sup>2</sup>) of the normalised expression profiles for each gene, fitting a trend to account for the mean-variance relationship across genes.
 3. Quantifying technical noise: In some scenarios where many genes at a particular abundance are affected by a biological process and caused the fitted trend to be inflated, e.g. by strong upregulation of cell type-specific genes. We can fit a mean-dependent trend to the variance of the spike-in transcripts, so the fitted value of the spike-in trend should represent a better estimate of the technical component for each gene.
   - With spike-in data (`modelGeneVarWithSpikes`): Model the variance of the log-expression profiles for each gene, decomposing it into technical and biological components based on a mean-variance trend fitted to spike-in transcripts.
   - Without spike-in data (`modelGeneVarByPoisson`): In the absence of spike-in data, one can attempt to create a trend by making some distributional assumptions about the noise.
@@ -2231,7 +2230,7 @@ However, it has been mentioned that fitting the trendline to endogenous genes mi
 
 ## Principal components analysis
 
-We perform a PCA on the log-normalized expression values using the `calculatePCA` function from `scater` package. By default, `calculatePCA` function will compute the first 50 PCs.
+We perform a PCA on the log-normalised expression values using the `calculatePCA` function from `scater` package. By default, `calculatePCA` function will compute the first 50 PCs.
 
 Here, we restricting the PCA to the **HVGs** selected previously (by using `subset_row`) to reduce both computational work and high-dimensional random noise. In particular, while PCA is robust to random noise, an excess of it may cause the earlier PCs to capture noise instead of biological structure.
 
@@ -2660,35 +2659,7 @@ reset.fig()
     
 
 
-
-```R
-table("BlueprintEncodeData + HumanPrimaryCellAtlasData" = singler$labels)
-```
-
-
-    BlueprintEncodeData + HumanPrimaryCellAtlasData
-         B-cells CD4+ T-cells CD8+ T-cells          HSC    Monocytes     NK cells      NK_cell    Platelets 
-             717         9241         4728            7          814         1636           15            1 
-         T_cells 
-               9 
-
-
-
-```R
-fig(width = 9, height = 8)
-plotProjection(cdScAnnot, singler$labels, dimname = "TSNE", 
-               feat_desc = "BlueprintEncodeData + HumanPrimaryCellAtlasData", 
-               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
-reset.fig()
-```
-
-
-    
-![png](Kidney_Cancer_files/Kidney_Cancer_159_0.png)
-    
-
-
-#### Rename combined prediction labels if using both HumanPrimaryCellAtlasData and BlueprintEncodeData
+**Rename combined prediction labels if using both `HumanPrimaryCellAtlasData` and `BlueprintEncodeData`**
 
 
 ```R
@@ -2709,6 +2680,32 @@ HPCA_to_BP_labels <- function(pred = singler) {
 
 singler <- HPCA_to_BP_labels(singler)
 ```
+
+
+```R
+table("BlueprintEncodeData + HumanPrimaryCellAtlasData" = singler$labels)
+```
+
+
+    BlueprintEncodeData + HumanPrimaryCellAtlasData
+         B-cells CD4+ T-cells CD8+ T-cells          HSC    Monocytes     NK cells    Platelets      T-cells 
+             717         9241         4728            7          814         1651            1            9 
+
+
+
+```R
+fig(width = 9, height = 8)
+plotProjection(cdScAnnot, singler$labels, dimname = "TSNE", 
+               feat_desc = "BlueprintEncodeData + HumanPrimaryCellAtlasData", 
+               feat_color = c40(), point_size = 0.1, point_alpha = 0.2, guides_size = 4, title = "TSNE")
+reset.fig()
+```
+
+
+    
+![png](Kidney_Cancer_files/Kidney_Cancer_161_0.png)
+    
+
 
 #### Show prediction scores
 
@@ -2808,7 +2805,6 @@ The primary purpose of clustering is to summarize complex scRNA-seq data into a 
 
 After annotation based on marker genes, the clusters can be treated as proxies for more abstract biological concepts such as cell types or states.
 
-
 ## Graph-based clustering
 
 Popularized by its use in Seurat, graph-based clustering is a flexible and scalable technique for clustering large scRNA-seq datasets. The major advantage of graph-based clustering lies in its scalability. It only requires a  
@@ -2838,7 +2834,7 @@ This notebook shows how to use the **Walktrap**, **Louvain** and **Leiden** algo
 ```R
 # Stores clustering labels
 my.clusters <- vector(mode = "list")
-communities <- vector(mode = "list") # walktrap, louvain
+communities <- vector(mode = "list")
 ```
 
 ### Using 'walktrap' algorithm
@@ -3094,7 +3090,7 @@ reset.fig()
 
 ## Add assigned clusters to `sce` objects
 
-Choose the desired clustering result and assign to the default "label" column using the `colLabels` function. We also add additional labels (`walktrap`, `louvain` and `leiden`) so that the BCF R Shiny app can find the clustering results by all methods.
+Here, we add assigned cluster labels from `walktrap`, `louvain` and `leiden` methods to the `SingleCellExperiment` object.
 
 
 ```R
@@ -3139,7 +3135,9 @@ reset.fig()
     
 
 
-### Choose a cluster assignment to store in the default `label` column in `colData`
+### Decide the default cluster assignment
+
+Choose the desired clustering result to store in the `label` column in `colData` using the `colLabels` function.
 
 <div class="alert alert-info">
     <strong>Default method to saved to <code>colLabels</code>:</strong> (edits required)
@@ -3327,9 +3325,7 @@ table(CellType = cdScAnnot$CellType, Cluster = cdScAnnot$label)
       T-cells         6    0    0    0    2    0    0    0    0    0    0    1    0    0    0
 
 
-## Visualising gene expressions in cells
-
-### Single gene expression
+## Visualising sex-specific gene expression
 
 In the following plots we visualise the expression of `XIST` (expressed in female) and `DDX3Y` (expressed in male) in individual cells in human samples. The genes in mouse are `Xist` and `Ddx3y` respectively.
 
@@ -3713,8 +3709,7 @@ cat(sprintf("Number of genes to plot: %d", length(geneNames)))
 fig(width = 16, height = 7)
 plotGroupedHeatmap(cdScAnnot, features = geneNames, group = "label", clustering_method = "ward.D2", 
                    border_color = "black", color = c_heatmap_col2, fontsize = 14, angle_col = 0,
-                   center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), 
-                   main = "Row-scaled", show_rownames = FALSE)
+                   center = TRUE, scale = TRUE, zlim = c(-3.5, 3.5), main = "Row-scaled", show_rownames = FALSE)
 reset.fig()
 ```
 
@@ -3813,8 +3808,8 @@ The mean expression of each gene is centered at zero with `center = TRUE`. The e
 fig(width = 9, height = 20)
 plotDots(cdScAnnot, features = geneNames[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
-    scale_y_discrete(limits = geneNames[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
+    scale_y_discrete(limits = rev(geneNames[p2$tree_row$order])) + # order genes based on heatmap p2 above
     guides(colour = guide_colourbar(title = "Row (Gene) Z-Score", barwidth = 10), 
            size = guide_legend(title = "Proportion Detected")) + theme_cowplot(16) + #coord_flip() +
     theme(panel.grid.major = element_line(colour = "gray90"), 
@@ -3933,8 +3928,8 @@ reset.fig()
 fig(width = 9, height = 6)
 plotDots(cdScAnnot, features = df$gene[p2$tree_row$order], group = "label", zlim = c(-3.5, 3.5), 
          center = TRUE, scale = TRUE) + scale_size(limits = c(0, 1), range = c(0.1, 6)) + 
-    scale_y_discrete(limits = df$gene[p2$tree_row$order]) + # order genes based on heatmap p2 above
     scale_x_discrete(limits = p2$tree_col$labels[p2$tree_col$order]) + # order clusters based on heatmap p2 above
+    scale_y_discrete(limits = rev(df$gene[p2$tree_row$order])) + # order genes based on heatmap p2 above
     guides(colour = guide_colourbar(title = "Row (Gene) Z-Score", barwidth = 10), 
            size = guide_legend(title = "Proportion Detected")) + theme_cowplot(16) + #coord_flip() +
     theme(panel.grid.major = element_line(colour = "gray90"), 
@@ -4013,7 +4008,7 @@ dbs <- listEnrichrDbs()
 cat(sprintf("Number of available databases from Enrichr: %d", nrow(dbs)))
 ```
 
-    Number of available databases from Enrichr: 225
+    Number of available databases from Enrichr: 228
 
 Change `dbsSel` to remove or include more gene-set libraries in the enrichment analysis.
 
@@ -4202,10 +4197,12 @@ plotEnrichR(metadata(cdScAnnot)[['enrichR_findMarkers_Cluster_up']], db = "GO_Bi
 reset.fig()
 ```
 
-
-    
-![png](Kidney_Cancer_files/Kidney_Cancer_256_0.png)
-    
+    Warning message:
+    "[1m[22m`aes_string()` was deprecated in ggplot2 3.0.0.
+    [36mℹ[39m Please use tidy evaluation idioms with `aes()`.
+    [36mℹ[39m See also `vignette("ggplot2-in-packages")` for more information.
+    [36mℹ[39m The deprecated feature was likely used in the [34menrichR[39m package.
+      Please report the issue to the authors."
 
 
 
@@ -4274,14 +4271,14 @@ reset.fig()
     
 
 
+
+    
+![png](Kidney_Cancer_files/Kidney_Cancer_256_12.png)
+    
+
+
     Warning message in plotEnrich(object[[group]][[db]], showTerms = showTerms, numChar = numChar, :
     "There are duplicated trimmed names in the plot, consider increasing the 'numChar' setting."
-
-
-
-    
-![png](Kidney_Cancer_files/Kidney_Cancer_256_13.png)
-    
 
 
 
@@ -4293,6 +4290,12 @@ reset.fig()
 
     
 ![png](Kidney_Cancer_files/Kidney_Cancer_256_15.png)
+    
+
+
+
+    
+![png](Kidney_Cancer_files/Kidney_Cancer_256_16.png)
     
 
 
@@ -4376,11 +4379,10 @@ set.seed(12345)
 # Use counts from cdScAnnot
 dbl.dens <- scDblFinder::computeDoubletDensity(annot_c, size.factors.norm = sizeFactors(cdScAnnot), 
                                                subset.row = hvg_genes)
+summary(dbl.dens)
 
 # Save detection results to colData
-cdScAnnot$DoubletDensity <- dbl.dens
-
-summary(dbl.dens)
+cdScAnnot$DoubletDensity <- setNames(dbl.dens, colnames(cdScAnnot))
 ```
 
 
@@ -4465,7 +4467,9 @@ reset.fig()
     
 
 
-# Save `runInfo` to `metadata`
+# 13 - Data output
+
+## Save `runInfo` to `metadata`
 
 <div class="alert alert-info">
     <strong>Tip!</strong> In the accompanied Shiny App, the Run Information will be displayed under the <u>Overview</u>.
@@ -4492,7 +4496,7 @@ cdScAnnot
     altExpNames(1): Antibody Capture
 
 
-# Save objects
+## Save HDF5-based `SingleCellExperiment` object
 
 
 ```R
@@ -4504,18 +4508,51 @@ cdScAnnot
 
 ```R
 outfile <- paste0(sample_name, "_h5_sce")
-cat(sprintf("h5 output folder: %s\n", outfile))
+message(sprintf('Saving (h5) object to "%s"...', outfile))
 
-# For HDF5-based SummarizedExperiment object
+# For HDF5-based object
 HDF5Array::saveHDF5SummarizedExperiment(cdScAnnot, dir = outfile, replace = TRUE, verbose = FALSE)
 
-# Print file size
-cat(sprintf("h5 output size: %s", utils:::format.object_size(file.info(paste0(outfile, "/assays.h5"))$size + 
-                                                      file.info(paste0(outfile, "/se.rds"))$size, "auto")))
+dirsize <- sum(file.info(file.path(outfile, list.files(outfile, all.files = TRUE, recursive = TRUE)))$size)
+cat(sprintf("Folder \"%s\" has %s amount of data", outfile, utils:::format.object_size(dirsize, "auto")))
 ```
 
-    h5 output folder: KidneyCancer_h5_sce
-    h5 output size: 577.6 Mb
+    Saving (h5) object to "KidneyCancer_h5_sce"...
+    
+
+
+    Folder "KidneyCancer_h5_sce" has 577.6 Mb amount of data
+
+<div class="alert alert-info">
+    <strong>To load the object in R environment:</strong>
+    <p>Use the <code>HDF5Array::loadHDF5SummarizedExperiment</code> function, as the example shown below.</p>
+</div>
+
+
+```R
+message(sprintf('Loading "%s"', outfile))
+sce <- HDF5Array::loadHDF5SummarizedExperiment(outfile)
+sce
+```
+
+    Loading "KidneyCancer_h5_sce"
+    
+
+
+
+    class: SingleCellExperiment 
+    dim: 18129 17168 
+    metadata(7): Samples cyclone ... enrichR_findMarkers_Cluster_up runInfo
+    assays(2): counts logcounts
+    rownames(18129): SAMD11 NOC2L ... MT-ND6 MT-CYB
+    rowData names(12): ID Symbol ... pct_dropout is_hvg
+    colnames(17168): AAACAAGCAAATACCGATGTTGAC-1 AAACAAGCAACAGATTATGTTGAC-1 ...
+      TTTGTGAGTGTCCTTCATGTTGAC-1 TTTGTGAGTTGGATGAATGTTGAC-1
+    colData names(24): Sample Barcode ... log10Sum DoubletDensity
+    reducedDimNames(3): PCA TSNE UMAP
+    mainExpName: Gene Expression
+    altExpNames(1): Antibody Capture
+
 
 # Session Info
 
@@ -4526,12 +4563,12 @@ sessionInfo()
 ```
 
 
-    R version 4.5.2 (2025-10-31)
+    R version 4.5.3 (2026-03-11)
     Platform: x86_64-conda-linux-gnu
     Running under: Ubuntu 20.04.6 LTS
     
     Matrix products: default
-    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.30.so;  LAPACK version 3.12.0
+    BLAS/LAPACK: /home/ihsuan/miniconda3/envs/github_sc/lib/libopenblasp-r0.3.32.so;  LAPACK version 3.12.0
     
     locale:
      [1] LC_CTYPE=en_GB.UTF-8       LC_NUMERIC=C               LC_TIME=en_GB.UTF-8       
@@ -4548,15 +4585,15 @@ sessionInfo()
     other attached packages:
      [1] ensembldb_2.34.0            AnnotationFilter_1.34.0     GenomicFeatures_1.62.0     
      [4] AnnotationDbi_1.72.0        lubridate_1.9.5             forcats_1.0.1              
-     [7] stringr_1.6.0               dplyr_1.2.0                 purrr_1.2.1                
-    [10] readr_2.1.6                 tidyr_1.3.2                 tibble_3.3.1               
-    [13] tidyverse_2.0.0             scRUtils_0.4.0              viridis_0.6.5              
-    [16] viridisLite_0.4.3           SingleR_2.12.0              scran_1.38.0               
-    [19] scater_1.38.0               scuttle_1.20.0              scales_1.4.0               
-    [22] ggforce_0.5.0               ggplot2_4.0.2               enrichR_3.4                
+     [7] stringr_1.6.0               dplyr_1.2.1                 purrr_1.2.2                
+    [10] readr_2.2.0                 tidyr_1.3.2                 tibble_3.3.1               
+    [13] tidyverse_2.0.0             scRUtils_0.4.1              viridis_0.6.5              
+    [16] viridisLite_0.4.3           SingleR_2.12.0              scran_1.38.1               
+    [19] scater_1.38.1               scuttle_1.20.0              scales_1.4.0               
+    [22] ggforce_0.5.0               ggplot2_4.0.3               enrichR_3.4                
     [25] DropletUtils_1.30.0         SingleCellExperiment_1.32.0 SummarizedExperiment_1.40.0
     [28] Biobase_2.70.0              GenomicRanges_1.62.1        Seqinfo_1.0.0              
-    [31] IRanges_2.44.0              S4Vectors_0.48.0            MatrixGenerics_1.22.0      
+    [31] IRanges_2.44.0              S4Vectors_0.48.1            MatrixGenerics_1.22.0      
     [34] matrixStats_1.5.0           cowplot_1.2.0               bluster_1.20.0             
     [37] BiocParallel_1.44.0         BiocNeighbors_2.4.0         AnnotationHub_4.0.0        
     [40] BiocFileCache_3.0.0         dbplyr_2.5.2                BiocGenerics_0.56.0        
@@ -4564,42 +4601,42 @@ sessionInfo()
     
     loaded via a namespace (and not attached):
       [1] RcppAnnoy_0.0.23          BiocIO_1.20.0             pbdZMQ_0.3-14             bitops_1.0-9             
-      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.22            
-      [9] lifecycle_1.0.5           httr2_1.2.2               scDblFinder_1.24.0        edgeR_4.8.2              
+      [5] filelock_1.0.3            R.oo_1.27.1               polyclip_1.10-7           XML_3.99-0.23            
+      [9] lifecycle_1.0.5           httr2_1.2.2               scDblFinder_1.24.10       edgeR_4.8.2              
      [13] doParallel_1.0.17         lattice_0.22-9            MASS_7.3-65               alabaster.base_1.10.0    
-     [17] magrittr_2.0.4            limma_3.66.0              rmarkdown_2.30            yaml_2.3.12              
-     [21] metapod_1.18.0            DBI_1.2.3                 RColorBrewer_1.1-3        abind_1.4-8              
-     [25] Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.17           WriteXLS_6.8.0           
-     [29] tweenr_2.0.3              rappdirs_0.3.4            circlize_0.4.17           ggrepel_0.9.6            
+     [17] magrittr_2.0.5            limma_3.66.0              rmarkdown_2.31            yaml_2.3.12              
+     [21] metapod_1.18.0            DBI_1.3.0                 RColorBrewer_1.1-3        abind_1.4-8              
+     [25] Rtsne_0.17                R.utils_2.13.0            RCurl_1.98-1.18           WriteXLS_6.8.0           
+     [29] tweenr_2.0.3              rappdirs_0.3.4            circlize_0.4.18           ggrepel_0.9.8            
      [33] irlba_2.3.7               pheatmap_1.0.13           RSpectra_0.16-2           dqrng_0.4.1              
-     [37] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.0      
+     [37] svglite_2.2.2             DelayedMatrixStats_1.32.0 codetools_0.2-20          DelayedArray_0.36.1      
      [41] xml2_1.5.2                tidyselect_1.2.1          shape_1.4.6.1             UCSC.utils_1.6.1         
      [45] farver_2.1.2              ScaledMatrix_1.18.0       base64enc_0.1-6           GenomicAlignments_1.46.0 
-     [49] jsonlite_2.0.0            GetoptLong_1.1.0          iterators_1.0.14          systemfonts_1.3.1        
-     [53] foreach_1.5.2             tools_4.5.2               ggnewscale_0.5.2          ragg_1.5.0               
-     [57] Rcpp_1.1.1                glue_1.8.0                gridExtra_2.3             SparseArray_1.10.8       
-     [61] xfun_0.56                 GenomeInfoDb_1.46.2       IRdisplay_1.1             gypsum_1.6.0             
+     [49] jsonlite_2.0.0            GetoptLong_1.1.1          iterators_1.0.14          systemfonts_1.3.2        
+     [53] foreach_1.5.2             tools_4.5.3               ggnewscale_0.5.2          ragg_1.5.2               
+     [57] Rcpp_1.1.1-1.1            glue_1.8.1                gridExtra_2.3             SparseArray_1.10.10      
+     [61] xfun_0.57                 GenomeInfoDb_1.46.2       IRdisplay_1.1             gypsum_1.6.0             
      [65] HDF5Array_1.38.0          withr_3.0.2               BiocManager_1.30.27       fastmap_1.2.0            
      [69] rhdf5filters_1.22.0       digest_0.6.39             rsvd_1.0.5                timechange_0.4.0         
-     [73] R6_2.6.1                  textshaping_1.0.4         colorspace_2.1-2          Cairo_1.7-0              
+     [73] R6_2.6.1                  textshaping_1.0.5         colorspace_2.1-2          Cairo_1.7-0              
      [77] gtools_3.9.5              dichromat_2.0-0.1         RSQLite_2.4.6             cigarillo_1.0.0          
      [81] R.methodsS3_1.8.2         h5mread_1.2.1             celldex_1.20.0            UpSetR_1.4.0             
      [85] data.table_1.18.2.1       rtracklayer_1.70.1        httr_1.4.8                S4Arrays_1.10.1          
      [89] uwot_0.2.4                pkgconfig_2.0.3           gtable_0.3.6              blob_1.3.0               
-     [93] ComplexHeatmap_2.26.1     S7_0.2.1                  XVector_0.50.0            htmltools_0.5.9          
-     [97] ProtGenerics_1.42.0       clue_0.3-66               alabaster.matrix_1.10.0   png_0.1-8                
+     [93] ComplexHeatmap_2.26.1     S7_0.2.2                  XVector_0.50.0            htmltools_0.5.9          
+     [97] ProtGenerics_1.42.0       clue_0.3-68               alabaster.matrix_1.10.0   png_0.1-9                
     [101] knitr_1.51                rstudioapi_0.18.0         tzdb_0.5.0                rjson_0.2.23             
-    [105] uuid_1.2-2                curl_7.0.0                repr_1.1.7                cachem_1.1.0             
-    [109] rhdf5_2.54.1              GlobalOptions_0.1.3       BiocVersion_3.22.0        parallel_4.5.2           
+    [105] uuid_1.2-2                curl_7.1.0                repr_1.1.7                cachem_1.1.0             
+    [109] rhdf5_2.54.1              GlobalOptions_0.1.4       BiocVersion_3.22.0        parallel_4.5.3           
     [113] vipor_0.4.7               restfulr_0.0.16           alabaster.schemas_1.10.0  pillar_1.11.1            
-    [117] vctrs_0.7.1               BiocSingular_1.26.1       beachmat_2.26.0           cluster_2.1.8.2          
-    [121] beeswarm_0.4.0            evaluate_1.0.5            Rsamtools_2.26.0          cli_3.6.5                
-    [125] locfit_1.5-9.12           compiler_4.5.2            rlang_1.1.7               crayon_1.5.3             
+    [117] vctrs_0.7.3               BiocSingular_1.26.1       beachmat_2.26.0           cluster_2.1.8.2          
+    [121] beeswarm_0.4.0            evaluate_1.0.5            Rsamtools_2.26.0          cli_3.6.6                
+    [125] locfit_1.5-9.12           compiler_4.5.3            rlang_1.2.0               crayon_1.5.3             
     [129] labeling_0.4.3            plyr_1.8.9                ggbeeswarm_0.7.3          stringi_1.8.7            
-    [133] alabaster.se_1.10.0       Biostrings_2.78.0         lazyeval_0.2.2            Matrix_1.7-4             
+    [133] alabaster.se_1.10.0       Biostrings_2.78.0         lazyeval_0.2.3            Matrix_1.7-5             
     [137] ExperimentHub_3.0.0       IRkernel_1.3.2            hms_1.1.4                 sparseMatrixStats_1.22.0 
-    [141] bit64_4.6.0-1             Rhdf5lib_1.32.0           KEGGREST_1.50.0           statmod_1.5.1            
-    [145] alabaster.ranges_1.10.0   igraph_2.2.2              memoise_2.0.1             xgboost_3.2.0.1          
+    [141] bit64_4.8.0               Rhdf5lib_1.32.0           KEGGREST_1.50.0           statmod_1.5.1            
+    [145] alabaster.ranges_1.10.0   igraph_2.3.1              memoise_2.0.1             xgboost_3.2.1.1          
     [149] bit_4.6.0                
 
 
